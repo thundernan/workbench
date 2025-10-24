@@ -51,52 +51,78 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   const uniqueItems = computed(() => items.value.length);
 
+  // All available items in the game (catalog)
+  const allItems: Item[] = [
+    {
+      id: 'wood',
+      name: 'Wood',
+      description: 'Basic crafting material',
+      icon: '🪵',
+      rarity: 'common',
+      category: 'material'
+    },
+    {
+      id: 'stone',
+      name: 'Stone',
+      description: 'Hard material for tools',
+      icon: '🪨',
+      rarity: 'common',
+      category: 'material'
+    },
+    {
+      id: 'iron',
+      name: 'Iron',
+      description: 'Metal for advanced crafting',
+      icon: '⬛',
+      rarity: 'uncommon',
+      category: 'material'
+    },
+    {
+      id: 'diamond',
+      name: 'Diamond',
+      description: 'Rare precious gem',
+      icon: '💎',
+      rarity: 'rare',
+      category: 'material'
+    },
+    {
+      id: 'wooden_pickaxe',
+      name: 'Wooden Pickaxe',
+      description: 'Basic mining tool',
+      icon: '⛏️',
+      rarity: 'common',
+      category: 'tool'
+    },
+    {
+      id: 'wooden_sword',
+      name: 'Wooden Sword',
+      description: 'A basic wooden sword',
+      icon: '🗡️',
+      rarity: 'common',
+      category: 'weapon'
+    },
+    {
+      id: 'iron_sword',
+      name: 'Iron Sword',
+      description: 'A sharp iron sword',
+      icon: '⚔️',
+      rarity: 'rare',
+      category: 'weapon'
+    }
+  ];
+
   // Initialize with some sample items
   const initializeSampleItems = () => {
-    const sampleItems: Item[] = [
-      {
-        id: 'wood',
-        name: 'Wood',
-        description: 'Basic crafting material',
-        icon: '🪵',
-        rarity: 'common',
-        category: 'material'
-      },
-      {
-        id: 'stone',
-        name: 'Stone',
-        description: 'Hard material for tools',
-        icon: '🪨',
-        rarity: 'common',
-        category: 'material'
-      },
-      {
-        id: 'iron',
-        name: 'Iron',
-        description: 'Metal for advanced crafting',
-        icon: '⬛',
-        rarity: 'uncommon',
-        category: 'material'
-      },
-      {
-        id: 'diamond',
-        name: 'Diamond',
-        description: 'Rare precious gem',
-        icon: '💎',
-        rarity: 'rare',
-        category: 'material'
-      }
-    ];
-
     // Add some sample quantities
-    addItem(sampleItems[0], 10); // 10 wood
-    addItem(sampleItems[1], 8);  // 8 stone
-    addItem(sampleItems[2], 5);  // 5 iron
-    addItem(sampleItems[3], 2);  // 2 diamond
+    addItem(allItems[0], 10); // 10 wood
+    addItem(allItems[1], 8);  // 8 stone
+    addItem(allItems[2], 5);  // 5 iron
+    addItem(allItems[3], 2);  // 2 diamond
   };
 
   return {
     items,
+    allItems,
     addItem,
     removeItem,
     hasItem,

@@ -1,238 +1,330 @@
 <template>
-  <div class="trading-page bg-slate-900 min-h-screen p-4">
-    <div class="max-w-6xl mx-auto">
-      <!-- Header -->
-      <div class="flex items-center justify-between mb-6">
-        <div>
-          <h1 class="text-2xl font-bold text-white">Trading Market</h1>
-          <p class="text-slate-400">Buy and sell items with other players</p>
-        </div>
-        <div class="flex items-center space-x-4">
-          <div class="text-slate-300">
-            Balance: <span class="text-emerald-400 font-semibold">1,000 ETH</span>
+  <div class="trading-page bg-slate-900 min-h-screen flex flex-col font-mono text-sm">
+    <!-- Header -->
+    <header class="bg-slate-800 border-b-2 border-slate-700 px-4 py-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-6">
+          <div class="text-emerald-400 font-bold">Workbench / Trade</div>
+          <div class="flex gap-3 text-xs">
+            <button 
+              @click="$router.push('/')"
+              class="px-3 py-1 rounded border border-slate-600 text-slate-300 hover:border-emerald-400 hover:text-emerald-400 transition-colors"
+            >
+              [Craft]
+            </button>
+            <button class="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
+              [Trade]
+            </button>
+            <button 
+              @click="$router.push('/inventory')"
+              class="px-3 py-1 rounded border border-slate-600 text-slate-300 hover:border-emerald-400 hover:text-emerald-400 transition-colors"
+            >
+              [Inventory]
+            </button>
           </div>
-          <WalletConnectButton />
         </div>
+        <WalletConnectButton />
       </div>
+    </header>
 
-      <!-- Tabs -->
-      <TabView v-model:activeIndex="activeTabIndex" class="mb-6">
-        <TabPanel header="Market">
-          <template #header>
-            <i class="pi pi-shopping-cart mr-2"></i>
-            <span>Market</span>
-          </template>
-        </TabPanel>
-        <TabPanel header="Create Offer">
-          <template #header>
-            <i class="pi pi-plus-circle mr-2"></i>
-            <span>Create Offer</span>
-          </template>
-        </TabPanel>
-        <TabPanel header="My Offers">
-          <template #header>
-            <i class="pi pi-list mr-2"></i>
-            <span>My Offers</span>
-          </template>
-        </TabPanel>
-      </TabView>
-
-      <!-- Market Tab -->
-      <div v-if="activeTabIndex === 0" class="space-y-6">
-        <!-- Search and Filters -->
-        <Card>
-          <template #content>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <IconField iconPosition="left">
-                <InputIcon class="pi pi-search" />
-                <InputText
-                  v-model="searchQuery"
-                  placeholder="Search items..."
-                  class="w-full"
-                />
-              </IconField>
-              <Select
-                v-model="selectedCategory"
-                :options="categories"
-                optionLabel="label"
-                optionValue="value"
-                placeholder="All Categories"
-                class="w-full"
-              />
-              <Select
-                v-model="sortBy"
-                :options="sortOptions"
-                optionLabel="label"
-                optionValue="value"
-                placeholder="Sort by"
-                class="w-full"
-              />
-              <Button
-                @click="refreshOffers"
-                label="Refresh"
-                icon="pi pi-refresh"
-                severity="success"
-              />
-            </div>
-          </template>
-        </Card>
-
-        <!-- Offers Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div
-            v-for="offer in filteredOffers"
-            :key="offer.id"
-            class="bg-slate-800 rounded-lg p-4 hover:bg-slate-700 transition-colors duration-200"
+    <div class="flex-1 p-6 overflow-auto">
+      <div class="max-w-7xl mx-auto">
+        <!-- Tabs -->
+        <div class="flex gap-2 mb-6 border-b-2 border-slate-700">
+          <button
+            v-for="(tab, index) in tabs"
+            :key="index"
+            @click="activeTab = index"
+            class="px-6 py-3 font-semibold transition-all duration-200"
+            :class="activeTab === index 
+              ? 'text-emerald-400 border-b-2 border-emerald-400 -mb-0.5' 
+              : 'text-slate-400 hover:text-slate-300'"
           >
-            <div class="flex items-center space-x-3 mb-3">
-              <ItemIcon :item="offer.item" size="md" />
-              <div class="flex-1">
-                <h3 class="text-white font-medium">{{ offer.item.name }}</h3>
-                <p class="text-slate-400 text-sm">Qty: {{ offer.quantity }}</p>
-              </div>
-            </div>
-            
-            <div class="flex items-center justify-between mb-3">
-              <div class="text-emerald-400 font-semibold">
-                {{ offer.price }} {{ offer.currency }}
-              </div>
-              <div class="text-slate-400 text-sm">
-                {{ formatTime(offer.timestamp) }}
-              </div>
-            </div>
-
-            <div class="flex items-center justify-between text-sm text-slate-300 mb-3">
-              <span>Seller: {{ offer.seller.slice(0, 6) }}...{{ offer.seller.slice(-4) }}</span>
-              <span class="capitalize">{{ offer.item.rarity }}</span>
-            </div>
-
-            <button
-              @click="buyItem(offer)"
-              :disabled="!walletStore.connected"
-              class="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white py-2 px-4 rounded-lg transition-colors duration-200"
-            >
-              Buy Now
-            </button>
-          </div>
+            {{ tab }}
+          </button>
         </div>
 
-        <!-- No offers message -->
-        <div v-if="filteredOffers.length === 0" class="text-center py-12">
-          <div class="text-slate-400 text-lg">No offers found</div>
-          <div class="text-slate-500 text-sm mt-2">Try adjusting your search filters</div>
-        </div>
-      </div>
-
-      <!-- Create Offer Tab -->
-      <div v-if="activeTabIndex === 1" class="space-y-6">
-        <div class="bg-slate-800 rounded-lg p-6">
-          <h2 class="text-xl font-semibold text-white mb-4">Create New Offer</h2>
-          
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <!-- Item Selection -->
-            <div>
-              <label class="block text-sm font-medium text-slate-300 mb-2">Select Item</label>
-              <select
-                v-model="selectedItemId"
-                class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              >
-                <option value="">Choose an item...</option>
-                <option
-                  v-for="inventoryItem in inventoryStore.items"
-                  :key="inventoryItem.item.id"
-                  :value="inventoryItem.item.id"
-                >
-                  {{ inventoryItem.item.name }} ({{ inventoryItem.quantity }})
-                </option>
-              </select>
-            </div>
-
-            <!-- Quantity -->
-            <div>
-              <label class="block text-sm font-medium text-slate-300 mb-2">Quantity</label>
+        <!-- Market Tab -->
+        <div v-if="activeTab === 0" class="space-y-6">
+          <!-- Search and Filters -->
+          <div class="bg-slate-800 border-2 border-slate-700 rounded-lg p-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
               <input
-                v-model.number="offerQuantity"
-                type="number"
-                min="1"
-                :max="maxQuantity"
-                class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                v-model="searchQuery"
+                type="text"
+                placeholder="🔍 Search items..."
+                class="px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-emerald-400 transition-colors"
               />
-            </div>
-
-            <!-- Price -->
-            <div>
-              <label class="block text-sm font-medium text-slate-300 mb-2">Price (ETH)</label>
-              <input
-                v-model.number="offerPrice"
-                type="number"
-                step="0.001"
-                min="0"
-                class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-              />
-            </div>
-
-            <!-- Currency -->
-            <div>
-              <label class="block text-sm font-medium text-slate-300 mb-2">Currency</label>
               <select
-                v-model="offerCurrency"
-                class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                v-model="selectedCategory"
+                class="px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
               >
-                <option value="ETH">ETH</option>
-                <option value="USDC">USDC</option>
-                <option value="DAI">DAI</option>
+                <option value="">All Categories</option>
+                <option value="weapon">Weapons</option>
+                <option value="tool">Tools</option>
+                <option value="armor">Armor</option>
+                <option value="material">Materials</option>
               </select>
+              <select
+                v-model="sortBy"
+                class="px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="price">Price: Low to High</option>
+                <option value="price-desc">Price: High to Low</option>
+              </select>
+              <button
+                @click="refreshOffers"
+                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors font-semibold"
+              >
+                🔄 Refresh
+              </button>
             </div>
           </div>
 
-          <div class="mt-6 flex space-x-4">
-            <button
-              @click="createOffer"
-              :disabled="!canCreateOffer || !walletStore.connected"
-              class="bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white px-6 py-2 rounded-lg transition-colors duration-200"
-            >
-              Create Offer
-            </button>
-            <button
-              @click="resetForm"
-              class="bg-slate-600 hover:bg-slate-700 text-white px-6 py-2 rounded-lg transition-colors duration-200"
-            >
-              Reset
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- My Offers Tab -->
-      <div v-if="activeTabIndex === 2" class="space-y-6">
-        <div class="bg-slate-800 rounded-lg p-6">
-          <h2 class="text-xl font-semibold text-white mb-4">My Offers</h2>
-          
-          <div v-if="myOffers.length === 0" class="text-center py-8">
-            <div class="text-slate-400">No offers created yet</div>
-            <div class="text-slate-500 text-sm mt-2">Create your first offer in the "Create Offer" tab</div>
-          </div>
-
-          <div v-else class="space-y-4">
+          <!-- Offers Grid -->
+          <div v-if="filteredOffers.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div
-              v-for="offer in myOffers"
+              v-for="offer in filteredOffers"
               :key="offer.id"
-              class="bg-slate-700 rounded-lg p-4"
+              class="bg-slate-800 border-2 border-slate-700 rounded-lg p-5 hover:border-emerald-400 transition-all duration-200"
             >
-              <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-3">
-                  <ItemIcon :item="offer.item" size="md" />
-                  <div>
-                    <h3 class="text-white font-medium">{{ offer.item.name }}</h3>
-                    <p class="text-slate-400 text-sm">Qty: {{ offer.quantity }} • {{ offer.price }} {{ offer.currency }}</p>
+              <!-- Seller Info -->
+              <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-700">
+                <div class="text-slate-400 text-xs">
+                  Seller: <span class="text-emerald-400">{{ formatAddress(offer.seller) }}</span>
+                </div>
+                <div class="text-slate-500 text-xs">{{ formatTime(offer.timestamp) }}</div>
+              </div>
+
+              <!-- Offer Details -->
+              <div class="mb-4">
+                <div class="text-slate-400 text-xs mb-2">Offering:</div>
+                <div class="flex items-center gap-3 bg-slate-700 rounded-lg p-3">
+                  <div class="text-4xl">{{ offer.offeringItem.icon }}</div>
+                  <div class="flex-1">
+                    <div class="text-white font-semibold">{{ offer.offeringItem.name }}</div>
+                    <div class="text-slate-400 text-xs">Quantity: {{ offer.offeringQuantity }}</div>
                   </div>
                 </div>
-                <button
-                  @click="cancelOffer(offer.id)"
-                  class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors duration-200"
-                >
-                  Cancel
-                </button>
+              </div>
+
+              <!-- Arrow -->
+              <div class="text-center text-emerald-400 text-xl mb-4">⇅</div>
+
+              <!-- Requesting -->
+              <div class="mb-4">
+                <div class="text-slate-400 text-xs mb-2">Requesting:</div>
+                <div class="flex items-center gap-3 bg-slate-700 rounded-lg p-3">
+                  <div class="text-4xl">{{ offer.requestingItem.icon }}</div>
+                  <div class="flex-1">
+                    <div class="text-white font-semibold">{{ offer.requestingItem.name }}</div>
+                    <div class="text-slate-400 text-xs">Quantity: {{ offer.requestingQuantity }}</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Trade Button -->
+              <button
+                @click="acceptTrade(offer)"
+                :disabled="!canAcceptTrade(offer)"
+                class="w-full py-2.5 rounded-lg font-semibold transition-all duration-200"
+                :class="canAcceptTrade(offer)
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-105 shadow-lg shadow-emerald-500/30'
+                  : 'bg-slate-700 text-slate-500 cursor-not-allowed'"
+              >
+                {{ canAcceptTrade(offer) ? '✓ Accept Trade' : '✗ Insufficient Items' }}
+              </button>
+            </div>
+          </div>
+
+          <!-- No offers message -->
+          <div v-else class="bg-slate-800 border-2 border-slate-700 rounded-lg p-12 text-center">
+            <div class="text-slate-400 text-lg mb-2">📭 No offers found</div>
+            <div class="text-slate-500 text-sm">Try adjusting your search filters or create your own offer</div>
+          </div>
+        </div>
+
+        <!-- Create Offer Tab -->
+        <div v-if="activeTab === 1" class="space-y-6">
+          <div class="bg-slate-800 border-2 border-slate-700 rounded-lg p-6">
+            <h2 class="text-xl font-semibold text-emerald-400 mb-6">Create Trade Offer</h2>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <!-- Left Side - What You Offer -->
+              <div class="space-y-4">
+                <div class="text-white font-semibold mb-4 pb-2 border-b border-slate-700">
+                  📤 You Offer:
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium text-slate-300 mb-2">Select Item</label>
+                  <select
+                    v-model="offerForm.offeringItemId"
+                    class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
+                  >
+                    <option value="">Choose an item...</option>
+                    <option
+                      v-for="inventoryItem in inventoryStore.items"
+                      :key="inventoryItem.item.id"
+                      :value="inventoryItem.item.id"
+                    >
+                      {{ inventoryItem.item.icon }} {{ inventoryItem.item.name }} ({{ inventoryItem.quantity }})
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-slate-300 mb-2">Quantity</label>
+                  <input
+                    v-model.number="offerForm.offeringQuantity"
+                    type="number"
+                    min="1"
+                    :max="maxOfferingQuantity"
+                    class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
+                  />
+                  <div v-if="offerForm.offeringItemId" class="text-slate-400 text-xs mt-1">
+                    Available: {{ maxOfferingQuantity }}
+                  </div>
+                </div>
+
+                <!-- Preview -->
+                <div v-if="selectedOfferingItem" class="bg-slate-700 rounded-lg p-4 border border-slate-600">
+                  <div class="text-slate-400 text-xs mb-2">Preview:</div>
+                  <div class="flex items-center gap-3">
+                    <div class="text-5xl">{{ selectedOfferingItem.icon }}</div>
+                    <div>
+                      <div class="text-white font-semibold">{{ selectedOfferingItem.name }}</div>
+                      <div class="text-slate-400 text-sm">× {{ offerForm.offeringQuantity }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Right Side - What You Want -->
+              <div class="space-y-4">
+                <div class="text-white font-semibold mb-4 pb-2 border-b border-slate-700">
+                  📥 You Request:
+                </div>
+                
+                <div>
+                  <label class="block text-sm font-medium text-slate-300 mb-2">Select Item</label>
+                  <select
+                    v-model="offerForm.requestingItemId"
+                    class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
+                  >
+                    <option value="">Choose an item...</option>
+                    <option
+                      v-for="item in allAvailableItems"
+                      :key="item.id"
+                      :value="item.id"
+                    >
+                      {{ item.icon }} {{ item.name }}
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-slate-300 mb-2">Quantity</label>
+                  <input
+                    v-model.number="offerForm.requestingQuantity"
+                    type="number"
+                    min="1"
+                    class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
+                  />
+                </div>
+
+                <!-- Preview -->
+                <div v-if="selectedRequestingItem" class="bg-slate-700 rounded-lg p-4 border border-slate-600">
+                  <div class="text-slate-400 text-xs mb-2">Preview:</div>
+                  <div class="flex items-center gap-3">
+                    <div class="text-5xl">{{ selectedRequestingItem.icon }}</div>
+                    <div>
+                      <div class="text-white font-semibold">{{ selectedRequestingItem.name }}</div>
+                      <div class="text-slate-400 text-sm">× {{ offerForm.requestingQuantity }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="mt-8 flex gap-4">
+              <button
+                @click="createOffer"
+                :disabled="!canCreateOffer"
+                class="flex-1 py-3 rounded-lg font-semibold transition-all duration-200"
+                :class="canCreateOffer
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-105 shadow-lg shadow-emerald-500/30'
+                  : 'bg-slate-700 text-slate-500 cursor-not-allowed'"
+              >
+                ✓ Create Offer
+              </button>
+              <button
+                @click="resetForm"
+                class="px-8 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors font-semibold"
+              >
+                ✗ Reset
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- My Offers Tab -->
+        <div v-if="activeTab === 2" class="space-y-6">
+          <div class="bg-slate-800 border-2 border-slate-700 rounded-lg p-6">
+            <h2 class="text-xl font-semibold text-emerald-400 mb-6">My Active Offers</h2>
+            
+            <div v-if="myOffers.length === 0" class="text-center py-12">
+              <div class="text-slate-400 text-lg mb-2">📋 No active offers</div>
+              <div class="text-slate-500 text-sm">Create your first offer in the "Create Offer" tab</div>
+            </div>
+
+            <div v-else class="space-y-4">
+              <div
+                v-for="offer in myOffers"
+                :key="offer.id"
+                class="bg-slate-700 border border-slate-600 rounded-lg p-5"
+              >
+                <div class="flex items-start justify-between gap-6">
+                  <!-- Offer Details -->
+                  <div class="flex-1 grid grid-cols-3 gap-4 items-center">
+                    <!-- Offering -->
+                    <div class="flex items-center gap-3">
+                      <div class="text-3xl">{{ offer.offeringItem.icon }}</div>
+                      <div>
+                        <div class="text-white font-medium">{{ offer.offeringItem.name }}</div>
+                        <div class="text-slate-400 text-xs">× {{ offer.offeringQuantity }}</div>
+                      </div>
+                    </div>
+
+                    <!-- Arrow -->
+                    <div class="text-center text-emerald-400 text-2xl">→</div>
+
+                    <!-- Requesting -->
+                    <div class="flex items-center gap-3">
+                      <div class="text-3xl">{{ offer.requestingItem.icon }}</div>
+                      <div>
+                        <div class="text-white font-medium">{{ offer.requestingItem.name }}</div>
+                        <div class="text-slate-400 text-xs">× {{ offer.requestingQuantity }}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Cancel Button -->
+                  <button
+                    @click="cancelOffer(offer.id)"
+                    class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-semibold"
+                  >
+                    ✗ Cancel
+                  </button>
+                </div>
+
+                <!-- Timestamp -->
+                <div class="text-slate-500 text-xs mt-3 pt-3 border-t border-slate-600">
+                  Created {{ formatTime(offer.timestamp) }}
+                </div>
               </div>
             </div>
           </div>
@@ -244,130 +336,174 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useInventoryStore } from '@/stores/inventory';
 import { useWalletStore } from '@/stores/wallet';
 import { useToastStore } from '@/stores/toast';
 import WalletConnectButton from '@/components/WalletConnectButton.vue';
-import ItemIcon from '@/components/ItemIcon.vue';
-import TabView from 'primevue/tabview';
-import TabPanel from 'primevue/tabpanel';
-import Card from 'primevue/card';
-import Button from 'primevue/button';
-import InputText from 'primevue/inputtext';
-import Select from 'primevue/select';
-import IconField from 'primevue/iconfield';
-import InputIcon from 'primevue/inputicon';
-import type { TradeOffer } from '@/types';
+import type { Item } from '@/types';
 
+const router = useRouter();
 const inventoryStore = useInventoryStore();
 const walletStore = useWalletStore();
 const toastStore = useToastStore();
 
+// Trade Offer Interface
+interface TradeOffer {
+  id: string;
+  seller: string;
+  offeringItem: Item;
+  offeringQuantity: number;
+  requestingItem: Item;
+  requestingQuantity: number;
+  timestamp: number;
+}
+
 // Tab management
-const activeTabIndex = ref(0);
-
-// Filter options
-const categories = [
-  { label: 'All Categories', value: '' },
-  { label: 'Weapons', value: 'weapon' },
-  { label: 'Tools', value: 'tool' },
-  { label: 'Armor', value: 'armor' },
-  { label: 'Materials', value: 'material' }
-];
-
-const sortOptions = [
-  { label: 'Price: Low to High', value: 'price' },
-  { label: 'Price: High to Low', value: 'price-desc' },
-  { label: 'Newest First', value: 'newest' },
-  { label: 'Oldest First', value: 'oldest' }
-];
+const tabs = ['Market', 'Create Offer', 'My Offers'];
+const activeTab = ref(0);
 
 // Market filters
 const searchQuery = ref('');
 const selectedCategory = ref('');
-const sortBy = ref('price');
+const sortBy = ref('newest');
 
-// Mock offers data
+// Offers data
 const offers = ref<TradeOffer[]>([]);
 const myOffers = ref<TradeOffer[]>([]);
 
 // Create offer form
-const selectedItemId = ref('');
-const offerQuantity = ref(1);
-const offerPrice = ref(0);
-const offerCurrency = ref('ETH');
+const offerForm = ref({
+  offeringItemId: '',
+  offeringQuantity: 1,
+  requestingItemId: '',
+  requestingQuantity: 1
+});
 
+// All available items (for requesting)
+const allAvailableItems = computed(() => {
+  return inventoryStore.allItems;
+});
+
+// Computed properties for form
+const selectedOfferingItem = computed(() => {
+  if (!offerForm.value.offeringItemId) return null;
+  const invItem = inventoryStore.getItem(offerForm.value.offeringItemId);
+  return invItem ? invItem.item : null;
+});
+
+const selectedRequestingItem = computed(() => {
+  if (!offerForm.value.requestingItemId) return null;
+  return allAvailableItems.value.find(item => item.id === offerForm.value.requestingItemId) || null;
+});
+
+const maxOfferingQuantity = computed(() => {
+  if (!offerForm.value.offeringItemId) return 0;
+  const item = inventoryStore.getItem(offerForm.value.offeringItemId);
+  return item ? item.quantity : 0;
+});
+
+const canCreateOffer = computed(() => {
+  return offerForm.value.offeringItemId && 
+         offerForm.value.requestingItemId &&
+         offerForm.value.offeringQuantity > 0 && 
+         offerForm.value.offeringQuantity <= maxOfferingQuantity.value &&
+         offerForm.value.requestingQuantity > 0;
+});
+
+// Filtered offers
 const filteredOffers = computed(() => {
-  let filtered = offers.value;
+  let filtered = offers.value.filter(offer => offer.seller !== walletStore.address);
 
   // Search filter
   if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase();
     filtered = filtered.filter(offer =>
-      offer.item.name.toLowerCase().includes(searchQuery.value.toLowerCase())
+      offer.offeringItem.name.toLowerCase().includes(query) ||
+      offer.requestingItem.name.toLowerCase().includes(query)
     );
   }
 
   // Category filter
   if (selectedCategory.value) {
     filtered = filtered.filter(offer =>
-      offer.item.category === selectedCategory.value
+      offer.offeringItem.category === selectedCategory.value ||
+      offer.requestingItem.category === selectedCategory.value
     );
   }
 
   // Sort
   switch (sortBy.value) {
-    case 'price':
-      filtered.sort((a, b) => a.price - b.price);
-      break;
-    case 'price-desc':
-      filtered.sort((a, b) => b.price - a.price);
-      break;
     case 'newest':
       filtered.sort((a, b) => b.timestamp - a.timestamp);
       break;
     case 'oldest':
       filtered.sort((a, b) => a.timestamp - b.timestamp);
       break;
+    case 'price':
+      filtered.sort((a, b) => a.requestingQuantity - b.requestingQuantity);
+      break;
+    case 'price-desc':
+      filtered.sort((a, b) => b.requestingQuantity - a.requestingQuantity);
+      break;
   }
 
   return filtered;
 });
 
-const maxQuantity = computed(() => {
-  if (!selectedItemId.value) return 0;
-  const item = inventoryStore.getItem(selectedItemId.value);
-  return item ? item.quantity : 0;
-});
-
-const canCreateOffer = computed(() => {
-  return selectedItemId.value && 
-         offerQuantity.value > 0 && 
-         offerQuantity.value <= maxQuantity.value &&
-         offerPrice.value > 0;
-});
-
+// Methods
 const initializeSampleOffers = () => {
   const sampleOffers: TradeOffer[] = [
     {
       id: '1',
-      seller: '0x1234...5678',
-      item: {
-        id: 'wooden_sword',
-        name: 'Wooden Sword',
-        description: 'A basic wooden sword',
-        icon: '🗡️',
+      seller: '0x1234567890abcdef',
+      offeringItem: {
+        id: 'wooden_pickaxe',
+        name: 'Wooden Pickaxe',
+        description: 'Basic mining tool',
+        icon: '⛏️',
         rarity: 'common',
-        category: 'weapon'
+        category: 'tool'
       },
-      quantity: 1,
-      price: 0.1,
-      currency: 'ETH',
+      offeringQuantity: 1,
+      requestingItem: {
+        id: 'stone',
+        name: 'Stone',
+        description: 'Hard material for tools',
+        icon: '🪨',
+        rarity: 'common',
+        category: 'material'
+      },
+      requestingQuantity: 5,
       timestamp: Date.now() - 3600000
     },
     {
       id: '2',
-      seller: '0x9876...5432',
-      item: {
+      seller: '0xabcdef1234567890',
+      offeringItem: {
+        id: 'iron',
+        name: 'Iron',
+        description: 'Metal for advanced crafting',
+        icon: '⬛',
+        rarity: 'uncommon',
+        category: 'material'
+      },
+      offeringQuantity: 3,
+      requestingItem: {
+        id: 'wood',
+        name: 'Wood',
+        description: 'Basic crafting material',
+        icon: '🪵',
+        rarity: 'common',
+        category: 'material'
+      },
+      requestingQuantity: 10,
+      timestamp: Date.now() - 7200000
+    },
+    {
+      id: '3',
+      seller: '0x9876543210fedcba',
+      offeringItem: {
         id: 'iron_sword',
         name: 'Iron Sword',
         description: 'A sharp iron sword',
@@ -375,25 +511,16 @@ const initializeSampleOffers = () => {
         rarity: 'rare',
         category: 'weapon'
       },
-      quantity: 1,
-      price: 0.5,
-      currency: 'ETH',
-      timestamp: Date.now() - 7200000
-    },
-    {
-      id: '3',
-      seller: '0xabcd...efgh',
-      item: {
-        id: 'diamond',
-        name: 'Diamond',
-        description: 'Rare precious gem',
-        icon: '💎',
-        rarity: 'rare',
+      offeringQuantity: 1,
+      requestingItem: {
+        id: 'iron',
+        name: 'Iron',
+        description: 'Metal for advanced crafting',
+        icon: '⬛',
+        rarity: 'uncommon',
         category: 'material'
       },
-      quantity: 3,
-      price: 0.3,
-      currency: 'ETH',
+      requestingQuantity: 5,
       timestamp: Date.now() - 1800000
     }
   ];
@@ -402,71 +529,79 @@ const initializeSampleOffers = () => {
 };
 
 const refreshOffers = () => {
-  // In a real app, this would fetch from an API
   toastStore.showToast({
     type: 'info',
-    message: 'Offers refreshed'
+    message: 'Market refreshed!'
   });
 };
 
-const buyItem = async (offer: TradeOffer) => {
-  if (!walletStore.connected) {
-    toastStore.showToast({
-      type: 'error',
-      message: 'Please connect your wallet first'
-    });
-    return;
-  }
-
-  try {
-    // Mock transaction
-    const txHash = await walletStore.sendTransaction('0x...', '0x...');
-    
-    // Add item to inventory
-    inventoryStore.addItem(offer.item, offer.quantity);
-    
-    // Remove offer from market
-    const index = offers.value.findIndex(o => o.id === offer.id);
-    if (index > -1) {
-      offers.value.splice(index, 1);
-    }
-
-    toastStore.showToast({
-      type: 'success',
-      message: `Bought ${offer.item.name}! TX: ${txHash.slice(0, 10)}...`
-    });
-  } catch (error) {
-    toastStore.showToast({
-      type: 'error',
-      message: 'Failed to buy item'
-    });
-  }
+const canAcceptTrade = (offer: TradeOffer) => {
+  return inventoryStore.hasItem(offer.requestingItem.id, offer.requestingQuantity);
 };
 
-const createOffer = async () => {
+const acceptTrade = (offer: TradeOffer) => {
   if (!walletStore.connected) {
     toastStore.showToast({
-      type: 'error',
+      type: 'warning',
       message: 'Please connect your wallet first'
     });
     return;
   }
 
-  const item = inventoryStore.getItem(selectedItemId.value);
-  if (!item) return;
+  if (!canAcceptTrade(offer)) {
+    toastStore.showToast({
+      type: 'error',
+      message: `You don't have enough ${offer.requestingItem.name}`
+    });
+    return;
+  }
+
+  // Remove requested items from inventory
+  inventoryStore.removeItem(offer.requestingItem.id, offer.requestingQuantity);
+  
+  // Add offered items to inventory
+  inventoryStore.addItem(offer.offeringItem, offer.offeringQuantity);
+  
+  // Remove offer from market
+  const index = offers.value.findIndex(o => o.id === offer.id);
+  if (index > -1) {
+    offers.value.splice(index, 1);
+  }
+
+  toastStore.showToast({
+    type: 'success',
+    message: `Trade completed! Received ${offer.offeringQuantity}× ${offer.offeringItem.name}`
+  });
+};
+
+const createOffer = () => {
+  if (!walletStore.connected) {
+    toastStore.showToast({
+      type: 'warning',
+      message: 'Please connect your wallet first'
+    });
+    return;
+  }
+
+  if (!canCreateOffer.value) return;
+
+  const offeringItem = selectedOfferingItem.value;
+  const requestingItem = selectedRequestingItem.value;
+  
+  if (!offeringItem || !requestingItem) return;
 
   const newOffer: TradeOffer = {
     id: Math.random().toString(36).substr(2, 9),
     seller: walletStore.address!,
-    item: item.item,
-    quantity: offerQuantity.value,
-    price: offerPrice.value,
-    currency: offerCurrency.value,
+    offeringItem,
+    offeringQuantity: offerForm.value.offeringQuantity,
+    requestingItem,
+    requestingQuantity: offerForm.value.requestingQuantity,
     timestamp: Date.now()
   };
 
   // Remove items from inventory
-  inventoryStore.removeItem(selectedItemId.value, offerQuantity.value);
+  inventoryStore.removeItem(offerForm.value.offeringItemId, offerForm.value.offeringQuantity);
 
   // Add to my offers
   myOffers.value.push(newOffer);
@@ -476,10 +611,11 @@ const createOffer = async () => {
 
   toastStore.showToast({
     type: 'success',
-    message: 'Offer created successfully!'
+    message: 'Trade offer created successfully!'
   });
 
   resetForm();
+  activeTab.value = 2; // Switch to "My Offers" tab
 };
 
 const cancelOffer = (offerId: string) => {
@@ -487,7 +623,7 @@ const cancelOffer = (offerId: string) => {
   if (!offer) return;
 
   // Return items to inventory
-  inventoryStore.addItem(offer.item, offer.quantity);
+  inventoryStore.addItem(offer.offeringItem, offer.offeringQuantity);
 
   // Remove from my offers
   const myIndex = myOffers.value.findIndex(o => o.id === offerId);
@@ -503,15 +639,21 @@ const cancelOffer = (offerId: string) => {
 
   toastStore.showToast({
     type: 'info',
-    message: 'Offer cancelled'
+    message: 'Offer cancelled and items returned'
   });
 };
 
 const resetForm = () => {
-  selectedItemId.value = '';
-  offerQuantity.value = 1;
-  offerPrice.value = 0;
-  offerCurrency.value = 'ETH';
+  offerForm.value = {
+    offeringItemId: '',
+    offeringQuantity: 1,
+    requestingItemId: '',
+    requestingQuantity: 1
+  };
+};
+
+const formatAddress = (address: string) => {
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 };
 
 const formatTime = (timestamp: number) => {
@@ -522,8 +664,10 @@ const formatTime = (timestamp: number) => {
   
   if (hours > 0) {
     return `${hours}h ago`;
-  } else {
+  } else if (minutes > 0) {
     return `${minutes}m ago`;
+  } else {
+    return 'just now';
   }
 };
 
@@ -531,3 +675,24 @@ onMounted(() => {
   initializeSampleOffers();
 });
 </script>
+
+<style scoped>
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+</style>
+

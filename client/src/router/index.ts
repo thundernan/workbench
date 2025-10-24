@@ -3,6 +3,7 @@ import Home from '@/views/Home.vue'
 import About from '@/views/About.vue'
 import Workbench from '@/views/Workbench.vue'
 import Trading from '@/views/Trading.vue'
+import Inventory from '@/views/Inventory.vue'
 
 const routes = [
   {
@@ -24,6 +25,11 @@ const routes = [
     path: '/trading',
     name: 'Trading',
     component: Trading
+  },
+  {
+    path: '/inventory',
+    name: 'Inventory',
+    component: Inventory
   }
 ]
 
