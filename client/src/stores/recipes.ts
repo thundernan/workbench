@@ -64,12 +64,12 @@ export const useRecipesStore = defineStore('recipes', () => {
           category: 'weapon'
         },
         ingredients: [
-          { item: { id: 'iron', name: 'Iron', description: 'Metal for advanced crafting', icon: '⛏️', rarity: 'uncommon', category: 'material' }, quantity: 2 },
+          { item: { id: 'iron', name: 'Iron', description: 'Metal for advanced crafting', icon: '⬛', rarity: 'uncommon', category: 'material' }, quantity: 2 },
           { item: { id: 'wood', name: 'Wood', description: 'Basic crafting material', icon: '🪵', rarity: 'common', category: 'material' }, quantity: 1 }
         ],
         grid: [
-          [null, { id: 'iron', name: 'Iron', description: 'Metal for advanced crafting', icon: '⛏️', rarity: 'uncommon', category: 'material' }, null],
-          [null, { id: 'iron', name: 'Iron', description: 'Metal for advanced crafting', icon: '⛏️', rarity: 'uncommon', category: 'material' }, null],
+          [null, { id: 'iron', name: 'Iron', description: 'Metal for advanced crafting', icon: '⬛', rarity: 'uncommon', category: 'material' }, null],
+          [null, { id: 'iron', name: 'Iron', description: 'Metal for advanced crafting', icon: '⬛', rarity: 'uncommon', category: 'material' }, null],
           [null, { id: 'wood', name: 'Wood', description: 'Basic crafting material', icon: '🪵', rarity: 'common', category: 'material' }, null]
         ]
       }

@@ -74,7 +74,7 @@ export const useInventoryStore = defineStore('inventory', () => {
         id: 'iron',
         name: 'Iron',
         description: 'Metal for advanced crafting',
-        icon: '⛏️',
+        icon: '⬛',
         rarity: 'uncommon',
         category: 'material'
       },
