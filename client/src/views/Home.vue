@@ -166,45 +166,80 @@
           <div class="text-slate-500 text-xs mb-4">[recipes]</div>
           
           <!-- Recipe Cards -->
-          <div class="space-y-4">
+          <div class="space-y-3">
             <div 
               v-for="recipe in recipesStore.allRecipes" 
               :key="recipe.id"
-              class="border border-slate-600 rounded bg-slate-700 p-3 hover:border-emerald-400 transition-colors cursor-pointer"
-              @click="selectRecipe(recipe)"
+              class="border border-slate-600 rounded bg-slate-700 hover:border-emerald-400 transition-all duration-200"
+              :class="{ 'border-emerald-400': selectedRecipe?.id === recipe.id }"
             >
-              <div class="flex items-center gap-2 mb-2">
-                <div class="text-xl">{{ recipe.result.icon }}</div>
-                <div class="flex-1 text-xs">
-                  <div class="text-white">{{ recipe.name }}</div>
-                  <div class="text-slate-400">{{ recipe.ingredients.length }} ingredients</div>
+              <!-- Recipe Header (Always Visible) -->
+              <div 
+                class="flex items-center gap-3 p-3 cursor-pointer"
+                @click="toggleRecipe(recipe)"
+              >
+                <div class="text-2xl">{{ recipe.result.icon }}</div>
+                <div class="flex-1">
+                  <div class="text-white text-sm font-medium">{{ recipe.name }}</div>
+                  <div class="text-slate-400 text-xs">{{ recipe.ingredients.length }} ingredients</div>
                 </div>
                 <button 
                   @click.stop="autofillRecipe(recipe)"
-                  class="text-emerald-400 hover:text-emerald-300 transition-colors"
+                  class="text-emerald-400 hover:text-emerald-300 transition-colors text-lg"
                   title="Autofill"
                 >
                   ⚡
                 </button>
-              </div>
-
-              <!-- Mini Grid Preview -->
-              <div class="grid grid-cols-3 gap-1 mb-3 mt-1">
-                <div 
-                  v-for="(cell, idx) in getRecipeGridFlat(recipe)" 
-                  :key="idx"
-                  class="aspect-square rounded border flex items-center justify-center text-xs"
-                  :class="cell ? 'border-slate-500 bg-slate-600' : 'border-slate-700 bg-slate-800'"
+                <!-- Expand/Collapse Icon -->
+                <svg 
+                  class="w-5 h-5 text-slate-400 transition-transform duration-200"
+                  :class="{ 'rotate-180': selectedRecipe?.id === recipe.id }"
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
                 >
-                  <span v-if="cell" class="text-sm">{{ cell.icon }}</span>
-                  <span v-else class="text-slate-700">-</span>
-                </div>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
               </div>
 
-              <!-- Tags -->
-              <div class="flex gap-2 text-xs">
-                <span class="px-2 py-0.5 rounded bg-blue-900 text-blue-300">[preview]</span>
-                <span class="px-2 py-0.5 rounded bg-emerald-900 text-emerald-300">[learned]</span>
+              <!-- Recipe Details (Expandable) -->
+              <div 
+                v-if="selectedRecipe?.id === recipe.id"
+                class="border-t border-slate-600 p-3 animate-slideDown"
+              >
+                <!-- Mini Grid Preview -->
+                <div class="text-slate-400 text-xs mb-2 font-medium">Recipe Pattern:</div>
+                <div class="grid grid-cols-3 gap-1.5 mb-4">
+                  <div 
+                    v-for="(cell, idx) in getRecipeGridFlat(recipe)" 
+                    :key="idx"
+                    class="aspect-square rounded border flex items-center justify-center"
+                    :class="cell ? 'border-emerald-500/50 bg-slate-600' : 'border-slate-700 bg-slate-800'"
+                  >
+                    <span v-if="cell" class="text-lg">{{ cell.icon }}</span>
+                    <span v-else class="text-slate-700 text-xs">-</span>
+                  </div>
+                </div>
+
+                <!-- Ingredients List -->
+                <div class="text-slate-400 text-xs mb-2 font-medium">Required Items:</div>
+                <div class="space-y-1.5 mb-4">
+                  <div 
+                    v-for="ingredient in recipe.ingredients" 
+                    :key="ingredient.item.id"
+                    class="flex items-center gap-2 text-xs bg-slate-800 rounded px-2 py-1.5"
+                  >
+                    <span class="text-lg">{{ ingredient.item.icon }}</span>
+                    <span class="text-white flex-1">{{ ingredient.item.name }}</span>
+                    <span class="text-emerald-400 font-medium">× {{ ingredient.quantity }}</span>
+                  </div>
+                </div>
+
+                <!-- Tags -->
+                <div class="flex gap-2 text-xs">
+                  <span class="px-2 py-1 rounded bg-blue-900/50 text-blue-300 border border-blue-700">[preview]</span>
+                  <span class="px-2 py-1 rounded bg-emerald-900/50 text-emerald-300 border border-emerald-700">[learned]</span>
+                </div>
               </div>
             </div>
         </div>
@@ -556,6 +591,14 @@ const selectRecipe = (recipe: Recipe) => {
   selectedRecipe.value = recipe;
 };
 
+const toggleRecipe = (recipe: Recipe) => {
+  if (selectedRecipe.value?.id === recipe.id) {
+    selectedRecipe.value = null;
+  } else {
+    selectedRecipe.value = recipe;
+  }
+};
+
 const autofillRecipe = (recipe: Recipe) => {
   clearCraftingGrid();
   
@@ -644,5 +687,21 @@ const getNotificationClass = (type: string) => {
   50% {
     border-color: rgb(52, 211, 153);
   }
+}
+
+/* Slide down animation for recipe details */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+  }
+}
+
+.animate-slideDown {
+  animation: slideDown 0.3s ease-out forwards;
 }
 </style>
