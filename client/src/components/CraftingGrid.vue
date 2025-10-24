@@ -146,31 +146,36 @@ const clearGrid = () => {
 };
 
 const craftItem = async () => {
-  if (!matchedRecipe.value || !canCraft.value || !walletStore.connected) {
+  if (!matchedRecipe.value || !canCraft.value) {
+    toastStore.showToast({
+      type: 'warning',
+      message: 'Cannot craft: missing ingredients or no recipe match'
+    });
     return;
   }
 
   try {
     isCrafting.value = true;
 
-    // Remove ingredients from inventory
-    matchedRecipe.value.ingredients.forEach(ingredient => {
-      inventoryStore.removeItem(ingredient.item.id, ingredient.quantity);
-    });
+    // Clear grid first (items already consumed when placed)
+    grid.value = new Array(9).fill(null);
 
     // Add result to inventory
     inventoryStore.addItem(matchedRecipe.value.result, 1);
 
-    // Send mock transaction
-    const txHash = await walletStore.sendCraftTx(matchedRecipe.value.id);
-
-    toastStore.showToast({
-      type: 'success',
-      message: `Crafted ${matchedRecipe.value.result.name}! TX: ${txHash.slice(0, 10)}...`
-    });
-
-    // Clear grid after successful craft
-    clearGrid();
+    // Send mock transaction if wallet connected
+    if (walletStore.connected) {
+      const txHash = await walletStore.sendCraftTx(matchedRecipe.value.id);
+      toastStore.showToast({
+        type: 'success',
+        message: `Crafted ${matchedRecipe.value.result.name}! TX: ${txHash.slice(0, 10)}...`
+      });
+    } else {
+      toastStore.showToast({
+        type: 'success',
+        message: `Crafted ${matchedRecipe.value.result.name}!`
+      });
+    }
 
   } catch (error) {
     console.error('Crafting failed:', error);
