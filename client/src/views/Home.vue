@@ -85,54 +85,54 @@
            <div class="flex items-end gap-6 mb-10">
              <!-- 3x3 Grid -->
             <div>
-              <div class="flex items-center justify-between w-full max-w-xs mb-3 mt-8">
-                <div class="text-slate-500 text-xs">
-                  → 3× Grid
-                  <span v-if="!isPainting" class="ml-2 text-slate-600">(hold & drag to paint)</span>
-                </div>
-                <!-- Trash Zone -->
-                <div
-                    @dragover.prevent="onTrashDragOver"
-                    @dragleave="onTrashDragLeave"
-                    @drop="onTrashDrop"
-                    @click="clearCraftingGrid"
-                    class="px-4 py-2 rounded-lg border-2 transition-all duration-200 cursor-pointer shadow-lg hover:scale-105"
-                    :class="isOverTrash ? 'border-red-400 bg-red-900/70 scale-110 shadow-red-500/50' : 'border-red-600/50 bg-red-950/30 hover:border-red-500 hover:bg-red-950/50'"
-                >
-                  <div class="flex items-center gap-2 text-sm font-medium">
-                    <svg class="w-5 h-5" :class="isOverTrash ? 'text-red-400' : 'text-red-500'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    <span :class="isOverTrash ? 'text-red-400' : 'text-red-400'">Trash</span>
-                  </div>
-                </div>
-              </div>
-              <div class="grid grid-cols-3 gap-3">
-                <div
-                    v-for="(cell, index) in craftingGrid"
-                    :key="index"
-                    :draggable="!!cell"
-                    @dragstart="onCellDragStart($event, index)"
-                    @dragend="onDragEnd"
-                    @dragover.prevent="onDragOver($event, index)"
-                    @dragleave="onDragLeave(index)"
-                    @drop="onDrop($event, index)"
-                    @mousedown="onCellMouseDown($event, index)"
-                    @mouseenter="onCellMouseEnter(index)"
-                    class="w-24 h-24 border-2 rounded-lg flex items-center justify-center text-4xl transition-all duration-200"
-                    :class="getCellClass(cell, index)"
-                    :style="{ cursor: isPainting ? 'crosshair' : (cell ? 'move' : 'pointer') }"
-                >
-                  <span v-if="cell" class="select-none">{{ cell.icon }}</span>
-                  <span v-else class="text-slate-600 text-sm">[ ]</span>
-                </div>
-              </div>
+               <div class="flex items-center justify-between w-full mb-4 mt-8">
+                 <div class="text-slate-400 text-sm font-medium">
+                   → 3× Grid
+                   <span v-if="!isPainting" class="ml-2 text-slate-500 text-xs">(hold & drag to paint)</span>
+                 </div>
+                 <!-- Trash Zone -->
+                 <div
+                     @dragover.prevent="onTrashDragOver"
+                     @dragleave="onTrashDragLeave"
+                     @drop="onTrashDrop"
+                     @click="clearCraftingGrid"
+                     class="px-5 py-2.5 rounded-lg border-2 transition-all duration-200 cursor-pointer shadow-lg hover:scale-105"
+                     :class="isOverTrash ? 'border-red-400 bg-red-900/70 scale-110 shadow-red-500/50' : 'border-red-600/50 bg-red-950/30 hover:border-red-500 hover:bg-red-950/50'"
+                 >
+                   <div class="flex items-center gap-2.5 text-base font-semibold">
+                     <svg class="w-6 h-6" :class="isOverTrash ? 'text-red-400' : 'text-red-500'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                     </svg>
+                     <span :class="isOverTrash ? 'text-red-400' : 'text-red-400'">Trash</span>
+                   </div>
+                 </div>
+               </div>
+               <div class="grid grid-cols-3 gap-3">
+                 <div
+                     v-for="(cell, index) in craftingGrid"
+                     :key="index"
+                     :draggable="!!cell"
+                     @dragstart="onCellDragStart($event, index)"
+                     @dragend="onDragEnd"
+                     @dragover.prevent="onDragOver($event, index)"
+                     @dragleave="onDragLeave(index)"
+                     @drop="onDrop($event, index)"
+                     @mousedown="onCellMouseDown($event, index)"
+                     @mouseenter="onCellMouseEnter(index)"
+                     class="w-28 h-28 border-2 rounded-lg flex items-center justify-center text-5xl transition-all duration-200"
+                     :class="getCellClass(cell, index)"
+                     :style="{ cursor: isPainting ? 'crosshair' : (cell ? 'move' : 'pointer') }"
+                 >
+                   <span v-if="cell" class="select-none">{{ cell.icon }}</span>
+                   <span v-else class="text-slate-600 text-sm">[ ]</span>
+                 </div>
+               </div>
 
             </div>
              <!-- Result Preview -->
-             <div class="flex flex-col items-center justify-between border-2 border-slate-700 rounded-lg bg-slate-800 p-4" style="width: 240px; height: 320px;">
+             <div class="flex flex-col items-center justify-between border-2 border-slate-700 rounded-lg bg-slate-800 p-5" style="width: 260px; height: 357px;">
                <div class="text-slate-400 text-sm font-medium">→ Result</div>
-               <div class="w-32 h-32 border-2 rounded-lg flex items-center justify-center text-6xl transition-all duration-200"
+               <div class="w-36 h-36 border-2 rounded-lg flex items-center justify-center text-6xl transition-all duration-200"
                     :class="matchedRecipe ? 'border-emerald-400 bg-slate-700 shadow-lg shadow-emerald-500/30' : 'border-slate-600 bg-slate-900'">
                  <span v-if="matchedRecipe" class="select-none">{{ matchedRecipe.result.icon }}</span>
                  <span v-else class="text-slate-600 text-4xl">?</span>
@@ -140,7 +140,7 @@
                <div class="text-center w-full px-2">
                  <div v-if="matchedRecipe" class="text-white text-sm font-semibold truncate">{{ matchedRecipe.result.name }}</div>
                  <div v-else class="text-slate-500 text-sm">No match</div>
-                 <div v-if="matchedRecipe" class="text-slate-400 text-xs mt-1 line-clamp-2">{{ matchedRecipe.result.description }}</div>
+                 <div v-if="matchedRecipe" class="text-slate-400 text-xs mt-1 line-clamp-2 leading-relaxed">{{ matchedRecipe.result.description }}</div>
                </div>
              </div>
            </div>
