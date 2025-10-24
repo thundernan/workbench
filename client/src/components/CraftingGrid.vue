@@ -1,13 +1,18 @@
 <template>
   <div class="crafting-grid bg-slate-800 rounded-lg p-4">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="text-lg font-semibold text-white">Crafting Grid</h3>
-      <button
+      <h3 class="text-lg font-semibold text-white flex items-center gap-2">
+        <i class="pi pi-th-large"></i>
+        Crafting Grid
+      </h3>
+      <Button
         @click="clearGrid"
-        class="text-slate-400 hover:text-white text-sm transition-colors duration-200"
-      >
-        Clear All
-      </button>
+        label="Clear All"
+        icon="pi pi-trash"
+        severity="danger"
+        size="small"
+        text
+      />
     </div>
 
     <!-- 3x3 Crafting Grid -->
@@ -65,47 +70,27 @@
       </div>
 
       <!-- Craft Button -->
-      <button
+      <Button
         v-if="matchedRecipe && canCraft"
         @click="craftItem"
-        :disabled="isCrafting"
-        class="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center"
-      >
-        <svg
-          v-if="isCrafting"
-          class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <circle
-            class="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            stroke-width="4"
-          ></circle>
-          <path
-            class="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          ></path>
-        </svg>
-        {{ isCrafting ? 'Crafting...' : 'Craft Item' }}
-      </button>
+        :loading="isCrafting"
+        :label="isCrafting ? 'Crafting...' : 'Craft Item'"
+        icon="pi pi-hammer"
+        severity="success"
+        class="w-full mt-4"
+      />
 
-      <div v-else-if="matchedRecipe && !canCraft" class="mt-4 text-center">
-        <div class="text-slate-400 text-sm">
-          Missing ingredients
-        </div>
-      </div>
+      <Message v-else-if="matchedRecipe && !canCraft" severity="warn" class="mt-4">
+        Missing ingredients
+      </Message>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import Button from 'primevue/button';
+import Message from 'primevue/message';
 import { useInventoryStore } from '@/stores/inventory';
 import { useRecipesStore } from '@/stores/recipes';
 import { useWalletStore } from '@/stores/wallet';

@@ -1,31 +1,31 @@
 <template>
   <div class="recipe-book bg-slate-800 rounded-lg p-4 h-full">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="text-lg font-semibold text-white">Recipe Book</h3>
-      <div class="text-sm text-slate-400">
-        {{ recipesStore.allRecipes.length }} recipes
-      </div>
+      <h3 class="text-lg font-semibold text-white flex items-center gap-2">
+        <i class="pi pi-book"></i>
+        Recipe Book
+      </h3>
+      <Tag :value="`${recipesStore.allRecipes.length} recipes`" severity="success" />
     </div>
 
     <!-- Search and Filter -->
     <div class="mb-4 space-y-2">
-      <input
-        v-model="searchQuery"
-        type="text"
-        placeholder="Search recipes..."
-        class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-      />
-      <select
+      <IconField iconPosition="left">
+        <InputIcon class="pi pi-search" />
+        <InputText
+          v-model="searchQuery"
+          placeholder="Search recipes..."
+          class="w-full"
+        />
+      </IconField>
+      <Select
         v-model="selectedCategory"
-        class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
-      >
-        <option value="">All Categories</option>
-        <option value="weapon">Weapons</option>
-        <option value="tool">Tools</option>
-        <option value="armor">Armor</option>
-        <option value="material">Materials</option>
-        <option value="consumable">Consumables</option>
-      </select>
+        :options="categoryOptions"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="All Categories"
+        class="w-full"
+      />
     </div>
 
     <!-- Recipe List -->
@@ -117,19 +117,23 @@
         </div>
       </div>
 
-      <div class="mt-3 flex space-x-2">
-        <button
+      <div class="mt-3 flex gap-2">
+        <Button
           @click="autofillRecipe(selectedRecipe)"
-          class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-sm px-3 py-2 rounded transition-colors duration-200"
-        >
-          Autofill Recipe
-        </button>
-        <button
+          label="Autofill Recipe"
+          icon="pi pi-bolt"
+          severity="success"
+          class="flex-1"
+          size="small"
+        />
+        <Button
           @click="clearSelection"
-          class="bg-slate-600 hover:bg-slate-700 text-white text-sm px-3 py-2 rounded transition-colors duration-200"
-        >
-          Close
-        </button>
+          label="Close"
+          icon="pi pi-times"
+          severity="secondary"
+          size="small"
+          outlined
+        />
       </div>
     </div>
   </div>
@@ -137,6 +141,12 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import Button from 'primevue/button';
+import Tag from 'primevue/tag';
+import InputText from 'primevue/inputtext';
+import Select from 'primevue/select';
+import IconField from 'primevue/iconfield';
+import InputIcon from 'primevue/inputicon';
 import { useRecipesStore } from '@/stores/recipes';
 import { useInventoryStore } from '@/stores/inventory';
 import { useToastStore } from '@/stores/toast';
@@ -150,6 +160,15 @@ const toastStore = useToastStore();
 const searchQuery = ref('');
 const selectedCategory = ref('');
 const selectedRecipe = ref<Recipe | null>(null);
+
+const categoryOptions = [
+  { label: 'All Categories', value: '' },
+  { label: 'Weapons', value: 'weapon' },
+  { label: 'Tools', value: 'tool' },
+  { label: 'Armor', value: 'armor' },
+  { label: 'Materials', value: 'material' },
+  { label: 'Consumables', value: 'consumable' }
+];
 
 const filteredRecipes = computed(() => {
   let recipes = recipesStore.allRecipes;

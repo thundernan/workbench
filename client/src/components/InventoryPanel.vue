@@ -1,10 +1,11 @@
 <template>
   <div class="inventory-panel bg-slate-800 rounded-lg p-4 h-full">
     <div class="flex items-center justify-between mb-4">
-      <h3 class="text-lg font-semibold text-white">Inventory</h3>
-      <div class="text-sm text-slate-400">
-        {{ inventoryStore.totalItems }} items
-      </div>
+      <h3 class="text-lg font-semibold text-white flex items-center gap-2">
+        <i class="pi pi-briefcase"></i>
+        Inventory
+      </h3>
+      <Tag :value="`${inventoryStore.totalItems} items`" severity="info" />
     </div>
 
     <div class="inventory-grid grid grid-cols-4 gap-2 max-h-96 overflow-y-auto">
@@ -50,20 +51,24 @@
         </div>
       </div>
       
-      <div class="mt-3 flex space-x-2">
-        <button
+      <div class="mt-3 flex gap-2">
+        <Button
           @click="useItem"
-          class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-sm px-3 py-2 rounded transition-colors duration-200"
+          label="Use Item"
+          icon="pi pi-check"
+          severity="success"
+          class="flex-1"
+          size="small"
           :disabled="!canUseItem"
-        >
-          Use Item
-        </button>
-        <button
+        />
+        <Button
           @click="clearSelection"
-          class="bg-slate-600 hover:bg-slate-700 text-white text-sm px-3 py-2 rounded transition-colors duration-200"
-        >
-          Clear
-        </button>
+          label="Clear"
+          icon="pi pi-times"
+          severity="secondary"
+          size="small"
+          outlined
+        />
       </div>
     </div>
 
@@ -77,6 +82,8 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import Button from 'primevue/button';
+import Tag from 'primevue/tag';
 import { useInventoryStore } from '@/stores/inventory';
 import { useToastStore } from '@/stores/toast';
 import ItemIcon from './ItemIcon.vue';
