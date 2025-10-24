@@ -359,9 +359,6 @@ const canCraft = computed(() => {
 const startPainting = (event: MouseEvent, item: Item) => {
   if (!inventoryStore.hasItem(item.id, 1)) return;
   
-  // Prevent drag when starting painting
-  event.preventDefault();
-  
   isPainting.value = true;
   paintingItem.value = item;
   paintedCells.value.clear();
@@ -376,7 +373,6 @@ const stopPainting = () => {
 const paintCell = (index: number) => {
   if (!isPainting.value || !paintingItem.value) return;
   if (paintedCells.value.has(index)) return; // Already painted this cell
-  if (craftingGrid.value[index]) return; // Cell is occupied
   if (!inventoryStore.hasItem(paintingItem.value.id, 1)) {
     stopPainting();
     toastStore.showToast({
@@ -386,16 +382,29 @@ const paintCell = (index: number) => {
     return;
   }
 
-  // Place item in cell
+  // If cell is occupied, return old item to inventory
+  if (craftingGrid.value[index]) {
+    const existingItem = craftingGrid.value[index];
+    inventoryStore.addItem(existingItem!, 1);
+  }
+
+  // Place new item in cell
   craftingGrid.value[index] = paintingItem.value;
   inventoryStore.removeItem(paintingItem.value.id, 1);
   paintedCells.value.add(index);
 };
 
 const onInventoryItemMouseDown = (event: MouseEvent, item: Item) => {
-  // Only start painting on left click
-  if (event.button === 0) {
-    startPainting(event, item);
+  // Only start painting on left click AND if not dragging
+  if (event.button === 0 && !isDragging.value) {
+    // Don't prevent default here - let drag start first
+    // We'll start painting after a small delay if user is still holding
+    setTimeout(() => {
+      // Check if user is still holding mouse down and not dragging
+      if (!isDragging.value && event.buttons === 1) {
+        startPainting(event, item);
+      }
+    }, 150); // Small delay to allow drag to start
   }
 };
 
@@ -482,18 +491,15 @@ const onDrop = (event: DragEvent, index: number) => {
   else {
     // Check if item exists in inventory
     if (inventoryStore.hasItem(draggedItem.value.id, 1)) {
-      // If cell is empty, place item
-      if (!craftingGrid.value[index]) {
-        craftingGrid.value[index] = draggedItem.value;
-        inventoryStore.removeItem(draggedItem.value.id, 1);
-      } 
-      // If cell is occupied, swap items
-      else {
+      // If cell is occupied, return old item to inventory
+      if (craftingGrid.value[index]) {
         const existingItem = craftingGrid.value[index];
-        craftingGrid.value[index] = draggedItem.value;
-        inventoryStore.removeItem(draggedItem.value.id, 1);
         inventoryStore.addItem(existingItem!, 1);
       }
+      
+      // Place new item in cell
+      craftingGrid.value[index] = draggedItem.value;
+      inventoryStore.removeItem(draggedItem.value.id, 1);
     }
   }
 
