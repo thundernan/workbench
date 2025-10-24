@@ -92,7 +92,8 @@
                @dragover.prevent="onTrashDragOver"
                @dragleave="onTrashDragLeave"
                @drop="onTrashDrop"
-               class="px-4 py-2 rounded-lg border-2 transition-all duration-200 cursor-pointer shadow-lg"
+               @click="clearCraftingGrid"
+               class="px-4 py-2 rounded-lg border-2 transition-all duration-200 cursor-pointer shadow-lg hover:scale-105"
                :class="isOverTrash ? 'border-red-400 bg-red-900/70 scale-110 shadow-red-500/50' : 'border-red-600/50 bg-red-950/30 hover:border-red-500 hover:bg-red-950/50'"
              >
                <div class="flex items-center gap-2 text-sm font-medium">
@@ -138,22 +139,14 @@
                 <div v-else class="text-slate-500 text-xs">No recipe match</div>
               </div>
             </div>
-            <div class="flex gap-3 mt-2">
-              <button 
-                @click="craftItem"
-                :disabled="!canCraft"
-                class="flex-1 px-4 py-2.5 rounded text-xs transition-colors font-medium"
-                :class="canCraft ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-slate-700 text-slate-500 cursor-not-allowed'"
-              >
-                [Craft]
-              </button>
-              <button 
-                @click="clearCraftingGrid"
-                class="px-4 py-2.5 rounded border border-slate-600 text-slate-300 hover:border-red-400 hover:text-red-400 transition-colors text-xs font-medium"
-              >
-                [Clear]
-              </button>
-            </div>
+            <button 
+              @click="craftItem"
+              :disabled="!canCraft"
+              class="w-full px-4 py-2.5 rounded text-xs transition-colors font-medium mt-2"
+              :class="canCraft ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-slate-700 text-slate-500 cursor-not-allowed'"
+            >
+              [Craft]
+            </button>
           </div>
         </div>
       </div>
