@@ -7,7 +7,7 @@
           <div class="text-emerald-400 font-bold">Workbench</div>
           <div class="flex gap-3 text-xs">
             <button class="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
-              [Play]
+              [Craft]
             </button>
             <button class="px-3 py-1 rounded border border-slate-600 text-slate-300 hover:border-emerald-400 hover:text-emerald-400 transition-colors">
               [Trade]
