@@ -269,12 +269,14 @@
     </div>
 
     <ToastNotification />
+    <WelcomeChestModal />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import ToastNotification from '@/components/ToastNotification.vue';
+import WelcomeChestModal from '@/components/WelcomeChestModal.vue';
 import { useInventoryStore } from '@/stores/inventory';
 import { useRecipesStore } from '@/stores/recipes';
 import { useToastStore } from '@/stores/toast';
