@@ -4,7 +4,7 @@
     <header class="bg-slate-800 border-b-2 border-slate-700 px-4 py-3">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-6">
-          <div class="text-emerald-400 font-bold">Workbench / Trade</div>
+          <div class="text-emerald-400 font-bold">Workbench</div>
           <div class="flex gap-3 text-xs">
             <button 
               @click="$router.push('/')"

@@ -33,34 +33,23 @@
     <div class="flex-1 flex gap-4 p-4 overflow-hidden">
       <!-- Left Panel - Inventory -->
       <div class="w-80 flex flex-col border-2 border-slate-700 rounded-lg bg-slate-800 overflow-hidden">
-        <!-- Tabs -->
-        <div class="flex border-b-2 border-slate-700">
-          <button
-            @click="inventoryTab = 'resources'"
-            class="flex-1 px-4 py-2 font-semibold text-xs transition-colors"
-            :class="inventoryTab === 'resources' 
-              ? 'text-emerald-400 bg-slate-700' 
-              : 'text-slate-400 hover:text-slate-300'"
-          >
-            Resources
-          </button>
-          <button
-            @click="inventoryTab = 'recipes'"
-            class="flex-1 px-4 py-2 font-semibold text-xs transition-colors"
-            :class="inventoryTab === 'recipes' 
-              ? 'text-emerald-400 bg-slate-700' 
-              : 'text-slate-400 hover:text-slate-300'"
-          >
-            Recipes
-          </button>
+        <!-- Header with Search -->
+        <div class="px-4 py-2 border-b-2 border-slate-700">
+          <div class="text-emerald-400 font-semibold mb-2">Resources</div>
+          <input
+            v-model="inventorySearch"
+            type="text"
+            placeholder="🔍 Search..."
+            class="w-full px-3 py-1.5 bg-slate-700 border border-slate-600 rounded text-white text-xs placeholder-slate-400 focus:outline-none focus:border-emerald-400 transition-colors"
+          />
         </div>
 
-        <!-- Resources Tab -->
-        <div v-if="inventoryTab === 'resources'" class="flex-1 p-4 overflow-y-auto">
+        <!-- Resources List -->
+        <div class="flex-1 p-4 overflow-y-auto">
           <!-- Item Cards -->
           <div class="space-y-3">
             <div 
-              v-for="invItem in inventoryStore.items" 
+              v-for="invItem in filteredInventoryItems" 
               :key="invItem.item.id"
               :draggable="!isPainting"
               @dragstart="onDragStart($event, invItem.item)"
@@ -83,85 +72,10 @@
               <div class="text-emerald-400 font-bold">{{ invItem.quantity }}</div>
             </div>
           </div>
-        </div>
 
-        <!-- Recipes Tab -->
-        <div v-if="inventoryTab === 'recipes'" class="flex-1 p-4 overflow-y-auto">
-          <div class="space-y-3">
-            <div 
-              v-for="recipe in recipesStore.allRecipes" 
-              :key="recipe.id"
-              class="border border-slate-600 rounded bg-slate-700 hover:border-emerald-400 transition-colors overflow-hidden"
-            >
-              <!-- Recipe Header -->
-              <div 
-                class="flex items-center gap-3 p-3 cursor-pointer"
-                @click="toggleInventoryRecipe(recipe)"
-              >
-                <div class="text-2xl">{{ recipe.result.icon }}</div>
-                <div class="flex-1 text-xs">
-                  <div class="text-white font-medium">{{ recipe.name }}</div>
-                  <div class="text-slate-400">{{ recipe.ingredients.length }} items</div>
-                </div>
-                <svg 
-                  class="w-4 h-4 text-slate-400 transition-transform duration-200"
-                  :class="{ 'rotate-180': selectedInventoryRecipe?.id === recipe.id }"
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-
-              <!-- Recipe Details (Expandable) -->
-              <div 
-                v-if="selectedInventoryRecipe?.id === recipe.id"
-                class="border-t border-slate-600 p-3 animate-slideDown"
-              >
-                <!-- Mini Grid Preview -->
-                <div class="grid grid-cols-3 gap-1 mb-3">
-                  <div 
-                    v-for="(cell, idx) in getRecipeGridFlat(recipe)" 
-                    :key="idx"
-                    class="aspect-square rounded border flex items-center justify-center"
-                    :class="cell ? 'border-emerald-500/50 bg-slate-600' : 'border-slate-700 bg-slate-800'"
-                  >
-                    <span v-if="cell" class="text-base">{{ cell.icon }}</span>
-                  </div>
-                </div>
-
-                <!-- Ingredients -->
-                <div class="space-y-1 mb-3">
-                  <div 
-                    v-for="ingredient in recipe.ingredients" 
-                    :key="ingredient.item.id"
-                    class="flex items-center gap-2 text-xs bg-slate-800 rounded px-2 py-1"
-                  >
-                    <span class="text-base">{{ ingredient.item.icon }}</span>
-                    <span class="text-white flex-1">{{ ingredient.item.name }}</span>
-                    <span 
-                      class="font-medium"
-                      :class="inventoryStore.hasItem(ingredient.item.id, ingredient.quantity) ? 'text-emerald-400' : 'text-red-400'"
-                    >
-                      {{ inventoryStore.getItemQuantity(ingredient.item.id) }}/{{ ingredient.quantity }}
-                    </span>
-                  </div>
-                </div>
-
-                <!-- Autofill Button -->
-                <button
-                  @click="autofillRecipe(recipe)"
-                  :disabled="!canAutofillRecipe(recipe)"
-                  class="w-full py-1.5 rounded text-xs font-semibold transition-colors"
-                  :class="canAutofillRecipe(recipe)
-                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                    : 'bg-slate-700 text-slate-500 cursor-not-allowed'"
-                >
-                  {{ canAutofillRecipe(recipe) ? '⚡ Autofill' : '✗ Missing Items' }}
-                </button>
-              </div>
-            </div>
+          <!-- Empty State -->
+          <div v-if="filteredInventoryItems.length === 0" class="text-center py-8">
+            <div class="text-slate-400 text-sm">No items found</div>
           </div>
         </div>
       </div>
@@ -388,9 +302,8 @@ const toastStore = useToastStore();
 inventoryStore.initializeSampleItems();
 recipesStore.initializeRecipes();
 
-// Inventory tab state
-const inventoryTab = ref<'resources' | 'recipes'>('resources');
-const selectedInventoryRecipe = ref<Recipe | null>(null);
+// Inventory search
+const inventorySearch = ref('');
 
 // Crafting grid state
 const craftingGrid = ref<(Item | null)[]>(new Array(9).fill(null));
@@ -416,6 +329,19 @@ const notifications = ref([
 ]);
 
 // Computed
+const filteredInventoryItems = computed(() => {
+  if (!inventorySearch.value) {
+    return inventoryStore.items;
+  }
+  
+  const query = inventorySearch.value.toLowerCase();
+  return inventoryStore.items.filter(invItem =>
+    invItem.item.name.toLowerCase().includes(query) ||
+    invItem.item.category.toLowerCase().includes(query) ||
+    invItem.item.description.toLowerCase().includes(query)
+  );
+});
+
 const matchedRecipe = computed(() => {
   const grid2D = [
     [craftingGrid.value[0], craftingGrid.value[1], craftingGrid.value[2]],
@@ -721,21 +647,6 @@ const autofillRecipe = (recipe: Recipe) => {
     type: 'info',
     message: `Autofilled ${recipe.name} recipe`
   });
-};
-
-// Inventory recipe methods
-const toggleInventoryRecipe = (recipe: Recipe) => {
-  if (selectedInventoryRecipe.value?.id === recipe.id) {
-    selectedInventoryRecipe.value = null;
-  } else {
-    selectedInventoryRecipe.value = recipe;
-  }
-};
-
-const canAutofillRecipe = (recipe: Recipe) => {
-  return recipe.ingredients.every(ingredient =>
-    inventoryStore.hasItem(ingredient.item.id, ingredient.quantity)
-  );
 };
 
 // Global mouse up handler to stop painting

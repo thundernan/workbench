@@ -77,7 +77,7 @@ const isOpen = ref(false);
 const isOpened = ref(false);
 const rewards = ref<{ item: Item; quantity: number }[]>([]);
 
-// Check if modal should be shown (only on hard reload)
+// Check if modal should be shown (on page reload, but not on navigation)
 onMounted(() => {
   const hasSeenChest = sessionStorage.getItem('hasSeenWelcomeChest');
   if (!hasSeenChest) {
