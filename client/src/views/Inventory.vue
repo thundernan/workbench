@@ -225,61 +225,83 @@
             </div>
           </div>
 
-          <!-- Recipes Grid -->
-          <div v-if="filteredRecipes.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+          <!-- Recipes List -->
+          <div v-if="filteredRecipes.length > 0" class="space-y-2">
             <div
               v-for="recipe in filteredRecipes"
               :key="recipe.id"
-              class="bg-slate-800 border border-slate-700 rounded p-2 hover:border-emerald-400 transition-all duration-200"
+              class="bg-slate-800 border border-slate-700 rounded hover:border-emerald-400 transition-all duration-200 overflow-hidden"
             >
-              <!-- Recipe Header -->
-              <div class="flex items-center gap-2 mb-2 pb-2 border-b border-slate-700">
+              <!-- Recipe Header (Always Visible) -->
+              <div 
+                class="flex items-center gap-3 p-3 cursor-pointer"
+                @click="toggleRecipeExpanded(recipe)"
+              >
                 <div class="text-2xl">{{ recipe.result.icon }}</div>
                 <div class="flex-1 min-w-0">
-                  <div class="text-white font-semibold text-xs truncate">{{ recipe.name }}</div>
-                  <div class="text-slate-500 text-[10px] truncate">{{ recipe.ingredients.length }} items</div>
+                  <div class="text-white font-semibold text-sm truncate">{{ recipe.name }}</div>
+                  <div class="text-slate-400 text-xs">{{ recipe.ingredients.length }} ingredients</div>
                 </div>
                 <button
-                  @click="canCraftRecipe(recipe) && $router.push('/')"
-                  :disabled="!canCraftRecipe(recipe)"
-                  class="px-2 py-1 rounded text-[10px] font-semibold transition-all duration-200 whitespace-nowrap"
-                  :class="canCraftRecipe(recipe)
-                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                    : 'bg-slate-700 text-slate-500 cursor-not-allowed'"
+                  v-if="canCraftRecipe(recipe)"
+                  @click.stop="$router.push('/')"
+                  class="px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors"
                 >
-                  {{ canCraftRecipe(recipe) ? '✓' : '✗' }}
+                  ⚡
                 </button>
-              </div>
-
-              <!-- Recipe Grid Preview -->
-              <div class="mb-2">
-                <div class="grid grid-cols-3 gap-1">
-                  <div 
-                    v-for="(cell, idx) in getRecipeGridFlat(recipe)" 
-                    :key="idx"
-                    class="aspect-square rounded border flex items-center justify-center"
-                    :class="cell ? 'border-emerald-500/50 bg-slate-700' : 'border-slate-700 bg-slate-900'"
-                  >
-                    <span v-if="cell" class="text-sm">{{ cell.icon }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Ingredients List -->
-              <div class="space-y-1">
-                <div 
-                  v-for="ingredient in recipe.ingredients" 
-                  :key="ingredient.item.id"
-                  class="flex items-center gap-1.5 bg-slate-700 rounded px-1.5 py-1"
+                <!-- Expand/Collapse Icon -->
+                <svg 
+                  class="w-5 h-5 text-slate-400 transition-transform duration-200"
+                  :class="{ 'rotate-180': expandedRecipe?.id === recipe.id }"
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
                 >
-                  <span class="text-sm">{{ ingredient.item.icon }}</span>
-                  <span class="text-white flex-1 text-[10px] truncate">{{ ingredient.item.name }}</span>
-                  <span 
-                    class="font-medium text-[10px] whitespace-nowrap"
-                    :class="hasEnoughItems(ingredient.item.id, ingredient.quantity) ? 'text-emerald-400' : 'text-red-400'"
-                  >
-                    {{ getItemQuantity(ingredient.item.id) }}/{{ ingredient.quantity }}
-                  </span>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+
+              <!-- Recipe Details (Expandable) -->
+              <div 
+                v-if="expandedRecipe?.id === recipe.id"
+                class="border-t border-slate-700 px-3 py-2 animate-slideDown"
+              >
+                <div class="flex gap-3">
+                  <!-- Mini Grid Preview -->
+                  <div class="flex-shrink-0">
+                    <div class="text-slate-400 text-[10px] mb-1 font-medium">Pattern:</div>
+                    <div class="grid grid-cols-3 gap-0.5" style="width: 60px;">
+                      <div 
+                        v-for="(cell, idx) in getRecipeGridFlat(recipe)" 
+                        :key="idx"
+                        class="aspect-square rounded border flex items-center justify-center text-xs"
+                        :class="cell ? 'border-emerald-500/50 bg-slate-700' : 'border-slate-700 bg-slate-900'"
+                      >
+                        {{ cell ? cell.icon : '' }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Ingredients List -->
+                  <div class="flex-1 min-w-0">
+                    <div class="text-slate-400 text-[10px] mb-1 font-medium">Required:</div>
+                    <div class="space-y-0.5">
+                      <div 
+                        v-for="ingredient in recipe.ingredients" 
+                        :key="ingredient.item.id"
+                        class="flex items-center gap-1 bg-slate-700 rounded px-1.5 py-0.5"
+                      >
+                        <span class="text-xs">{{ ingredient.item.icon }}</span>
+                        <span class="text-white flex-1 text-[10px] truncate">{{ ingredient.item.name }}</span>
+                        <span 
+                          class="font-medium text-[10px] whitespace-nowrap"
+                          :class="hasEnoughItems(ingredient.item.id, ingredient.quantity) ? 'text-emerald-400' : 'text-red-400'"
+                        >
+                          {{ getItemQuantity(ingredient.item.id) }}/{{ ingredient.quantity }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -323,6 +345,7 @@ const resourceSort = ref('name');
 // Recipes filters
 const recipeSearch = ref('');
 const recipeCategory = ref('');
+const expandedRecipe = ref<Recipe | null>(null);
 
 // Catalog filter
 const catalogSearch = ref('');
@@ -451,6 +474,14 @@ const getItemQuantity = (itemId: string) => {
 const hasItemInInventory = (itemId: string) => {
   return inventoryStore.hasItem(itemId, 1);
 };
+
+const toggleRecipeExpanded = (recipe: Recipe) => {
+  if (expandedRecipe.value?.id === recipe.id) {
+    expandedRecipe.value = null;
+  } else {
+    expandedRecipe.value = recipe;
+  }
+};
 </script>
 
 <style scoped>
@@ -470,6 +501,22 @@ const hasItemInInventory = (itemId: string) => {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #64748b;
+}
+
+/* Slide down animation for recipe details */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 120px;
+  }
+}
+
+.animate-slideDown {
+  animation: slideDown 0.3s ease-out forwards;
 }
 </style>
 

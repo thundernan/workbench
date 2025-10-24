@@ -65,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useInventoryStore } from '@/stores/inventory';
 import { useToastStore } from '@/stores/toast';
 import type { Item } from '@/types';
@@ -73,9 +73,17 @@ import type { Item } from '@/types';
 const inventoryStore = useInventoryStore();
 const toastStore = useToastStore();
 
-const isOpen = ref(true);
+const isOpen = ref(false);
 const isOpened = ref(false);
 const rewards = ref<{ item: Item; quantity: number }[]>([]);
+
+// Check if modal should be shown (only on hard reload)
+onMounted(() => {
+  const hasSeenChest = sessionStorage.getItem('hasSeenWelcomeChest');
+  if (!hasSeenChest) {
+    isOpen.value = true;
+  }
+});
 
 // Available starter items
 const starterItems: Item[] = [
@@ -133,6 +141,9 @@ const closeModal = () => {
     });
     return;
   }
+  
+  // Mark as seen in sessionStorage (persists until browser/tab is closed)
+  sessionStorage.setItem('hasSeenWelcomeChest', 'true');
   isOpen.value = false;
 };
 </script>
