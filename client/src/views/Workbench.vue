@@ -77,14 +77,7 @@
     </div>
 
     <!-- Toast Container -->
-    <div class="fixed top-4 right-4 z-50 space-y-2">
-      <Toast
-        v-for="toast in toastStore.toasts"
-        :key="toast.id"
-        :toast="toast"
-        @close="toastStore.removeToast(toast.id)"
-      />
-    </div>
+    <ToastNotification />
   </div>
 </template>
 
@@ -97,7 +90,7 @@ import WalletConnectButton from '@/components/WalletConnectButton.vue';
 import InventoryPanel from '@/components/InventoryPanel.vue';
 import CraftingGrid from '@/components/CraftingGrid.vue';
 import RecipeBook from '@/components/RecipeBook.vue';
-import Toast from '@/components/Toast.vue';
+import ToastNotification from '@/components/ToastNotification.vue';
 import type { Recipe } from '@/types';
 
 const toastStore = useToastStore();

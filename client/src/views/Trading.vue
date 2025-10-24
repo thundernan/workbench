@@ -16,58 +16,66 @@
       </div>
 
       <!-- Tabs -->
-      <div class="flex space-x-1 mb-6">
-        <button
-          v-for="tab in tabs"
-          :key="tab.id"
-          @click="activeTab = tab.id"
-          class="px-4 py-2 rounded-lg font-medium transition-colors duration-200"
-          :class="activeTab === tab.id 
-            ? 'bg-emerald-600 text-white' 
-            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'"
-        >
-          {{ tab.name }}
-        </button>
-      </div>
+      <TabView v-model:activeIndex="activeTabIndex" class="mb-6">
+        <TabPanel header="Market">
+          <template #header>
+            <i class="pi pi-shopping-cart mr-2"></i>
+            <span>Market</span>
+          </template>
+        </TabPanel>
+        <TabPanel header="Create Offer">
+          <template #header>
+            <i class="pi pi-plus-circle mr-2"></i>
+            <span>Create Offer</span>
+          </template>
+        </TabPanel>
+        <TabPanel header="My Offers">
+          <template #header>
+            <i class="pi pi-list mr-2"></i>
+            <span>My Offers</span>
+          </template>
+        </TabPanel>
+      </TabView>
 
       <!-- Market Tab -->
-      <div v-if="activeTab === 'market'" class="space-y-6">
+      <div v-if="activeTabIndex === 0" class="space-y-6">
         <!-- Search and Filters -->
-        <div class="bg-slate-800 rounded-lg p-4">
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <input
-              v-model="searchQuery"
-              type="text"
-              placeholder="Search items..."
-              class="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            />
-            <select
-              v-model="selectedCategory"
-              class="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="">All Categories</option>
-              <option value="weapon">Weapons</option>
-              <option value="tool">Tools</option>
-              <option value="armor">Armor</option>
-              <option value="material">Materials</option>
-            </select>
-            <select
-              v-model="sortBy"
-              class="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-            >
-              <option value="price">Price: Low to High</option>
-              <option value="price-desc">Price: High to Low</option>
-              <option value="newest">Newest First</option>
-              <option value="oldest">Oldest First</option>
-            </select>
-            <button
-              @click="refreshOffers"
-              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors duration-200"
-            >
-              Refresh
-            </button>
-          </div>
-        </div>
+        <Card>
+          <template #content>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <IconField iconPosition="left">
+                <InputIcon class="pi pi-search" />
+                <InputText
+                  v-model="searchQuery"
+                  placeholder="Search items..."
+                  class="w-full"
+                />
+              </IconField>
+              <Select
+                v-model="selectedCategory"
+                :options="categories"
+                optionLabel="label"
+                optionValue="value"
+                placeholder="All Categories"
+                class="w-full"
+              />
+              <Select
+                v-model="sortBy"
+                :options="sortOptions"
+                optionLabel="label"
+                optionValue="value"
+                placeholder="Sort by"
+                class="w-full"
+              />
+              <Button
+                @click="refreshOffers"
+                label="Refresh"
+                icon="pi pi-refresh"
+                severity="success"
+              />
+            </div>
+          </template>
+        </Card>
 
         <!-- Offers Grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -116,7 +124,7 @@
       </div>
 
       <!-- Create Offer Tab -->
-      <div v-if="activeTab === 'create'" class="space-y-6">
+      <div v-if="activeTabIndex === 1" class="space-y-6">
         <div class="bg-slate-800 rounded-lg p-6">
           <h2 class="text-xl font-semibold text-white mb-4">Create New Offer</h2>
           
@@ -196,7 +204,7 @@
       </div>
 
       <!-- My Offers Tab -->
-      <div v-if="activeTab === 'my-offers'" class="space-y-6">
+      <div v-if="activeTabIndex === 2" class="space-y-6">
         <div class="bg-slate-800 rounded-lg p-6">
           <h2 class="text-xl font-semibold text-white mb-4">My Offers</h2>
           
@@ -241,6 +249,14 @@ import { useWalletStore } from '@/stores/wallet';
 import { useToastStore } from '@/stores/toast';
 import WalletConnectButton from '@/components/WalletConnectButton.vue';
 import ItemIcon from '@/components/ItemIcon.vue';
+import TabView from 'primevue/tabview';
+import TabPanel from 'primevue/tabpanel';
+import Card from 'primevue/card';
+import Button from 'primevue/button';
+import InputText from 'primevue/inputtext';
+import Select from 'primevue/select';
+import IconField from 'primevue/iconfield';
+import InputIcon from 'primevue/inputicon';
 import type { TradeOffer } from '@/types';
 
 const inventoryStore = useInventoryStore();
@@ -248,12 +264,23 @@ const walletStore = useWalletStore();
 const toastStore = useToastStore();
 
 // Tab management
-const tabs = [
-  { id: 'market', name: 'Market' },
-  { id: 'create', name: 'Create Offer' },
-  { id: 'my-offers', name: 'My Offers' }
+const activeTabIndex = ref(0);
+
+// Filter options
+const categories = [
+  { label: 'All Categories', value: '' },
+  { label: 'Weapons', value: 'weapon' },
+  { label: 'Tools', value: 'tool' },
+  { label: 'Armor', value: 'armor' },
+  { label: 'Materials', value: 'material' }
 ];
-const activeTab = ref('market');
+
+const sortOptions = [
+  { label: 'Price: Low to High', value: 'price' },
+  { label: 'Price: High to Low', value: 'price-desc' },
+  { label: 'Newest First', value: 'newest' },
+  { label: 'Oldest First', value: 'oldest' }
+];
 
 // Market filters
 const searchQuery = ref('');
