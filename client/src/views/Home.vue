@@ -36,11 +36,17 @@
             <div 
               v-for="invItem in inventoryStore.items" 
               :key="invItem.item.id"
-              draggable="true"
+              :draggable="!isPainting"
               @dragstart="onDragStart($event, invItem.item)"
               @dragend="onDragEnd"
-              class="flex items-center gap-3 p-2 border border-slate-600 rounded bg-slate-700 hover:border-emerald-400 transition-colors cursor-move"
-              :class="{ 'opacity-50': isDragging && draggedItem?.id === invItem.item.id }"
+              @mousedown="onInventoryItemMouseDown($event, invItem.item)"
+              class="flex items-center gap-3 p-2 border border-slate-600 rounded bg-slate-700 hover:border-emerald-400 transition-colors"
+              :class="{ 
+                'opacity-50': isDragging && draggedItem?.id === invItem.item.id,
+                'border-emerald-400 shadow-lg shadow-emerald-500/50': isPainting && paintingItem?.id === invItem.item.id,
+                'cursor-move': !isPainting,
+                'cursor-crosshair': isPainting
+              }"
               @click="selectInventoryItem(invItem.item)"
             >
               <div class="text-2xl select-none">{{ invItem.item.icon }}</div>
@@ -64,13 +70,23 @@
 
       <!-- Center Panel - Crafting -->
       <div class="flex-1 flex flex-col border-2 border-slate-700 rounded-lg bg-slate-800 overflow-hidden">
-        <div class="px-4 py-2 border-b-2 border-slate-700 text-emerald-400 font-semibold">
-          Crafting
+        <div class="px-4 py-2 border-b-2 border-slate-700 flex items-center justify-between">
+          <span class="text-emerald-400 font-semibold">Crafting</span>
+          <div v-if="isPainting" class="flex items-center gap-2 text-xs text-emerald-400 animate-pulse">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+            <span>Painting Mode</span>
+            <span class="text-white">{{ paintingItem?.icon }}</span>
+          </div>
         </div>
         <div class="flex-1 p-6 overflow-y-auto flex flex-col items-center justify-start">
           <!-- 3x3 Grid -->
           <div class="flex items-center justify-between w-full max-w-xs mb-3 mt-8">
-            <div class="text-slate-500 text-xs">→ 3× Grid</div>
+            <div class="text-slate-500 text-xs">
+              → 3× Grid
+              <span v-if="!isPainting" class="ml-2 text-slate-600">(hold & drag to paint)</span>
+            </div>
             <!-- Trash Zone -->
             <div 
               @dragover.prevent="onTrashDragOver"
@@ -87,24 +103,26 @@
               </div>
             </div>
           </div>
-          <div class="grid grid-cols-3 gap-3 mb-10">
-            <div 
-              v-for="(cell, index) in craftingGrid" 
-              :key="index"
-              :draggable="!!cell"
-              @dragstart="onCellDragStart($event, index)"
-              @dragend="onDragEnd"
-              @dragover.prevent="onDragOver($event, index)"
-              @dragleave="onDragLeave(index)"
-              @drop="onDrop($event, index)"
-              class="w-24 h-24 border-2 rounded-lg flex items-center justify-center text-4xl transition-all duration-200"
-              :class="getCellClass(cell, index)"
-              :style="{ cursor: cell ? 'move' : 'pointer' }"
-            >
-              <span v-if="cell" class="select-none">{{ cell.icon }}</span>
-              <span v-else class="text-slate-600 text-sm">[ ]</span>
-            </div>
-          </div>
+           <div class="grid grid-cols-3 gap-3 mb-10">
+             <div 
+               v-for="(cell, index) in craftingGrid" 
+               :key="index"
+               :draggable="!!cell"
+               @dragstart="onCellDragStart($event, index)"
+               @dragend="onDragEnd"
+               @dragover.prevent="onDragOver($event, index)"
+               @dragleave="onDragLeave(index)"
+               @drop="onDrop($event, index)"
+               @mousedown="onCellMouseDown($event, index)"
+               @mouseenter="onCellMouseEnter(index)"
+               class="w-24 h-24 border-2 rounded-lg flex items-center justify-center text-4xl transition-all duration-200"
+               :class="getCellClass(cell, index)"
+               :style="{ cursor: isPainting ? 'crosshair' : (cell ? 'move' : 'pointer') }"
+             >
+               <span v-if="cell" class="select-none">{{ cell.icon }}</span>
+               <span v-else class="text-slate-600 text-sm">[ ]</span>
+             </div>
+           </div>
 
           <!-- Result Section -->
           <div class="w-full max-w-md border-2 border-slate-700 rounded-lg bg-slate-900 p-5">
@@ -247,6 +265,11 @@ const draggedFromCellIndex = ref<number | null>(null);
 const dragOverIndex = ref<number | null>(null);
 const isOverTrash = ref(false);
 
+// Painting mode state
+const isPainting = ref(false);
+const paintingItem = ref<Item | null>(null);
+const paintedCells = ref<Set<number>>(new Set());
+
 // Notifications
 const notifications = ref([
   { type: 'success', message: '"Crafted Pickaxe x1"' },
@@ -267,6 +290,63 @@ const matchedRecipe = computed(() => {
 const canCraft = computed(() => {
   return matchedRecipe.value !== null;
 });
+
+// Painting Mode Methods
+const startPainting = (event: MouseEvent, item: Item) => {
+  if (!inventoryStore.hasItem(item.id, 1)) return;
+  
+  // Prevent drag when starting painting
+  event.preventDefault();
+  
+  isPainting.value = true;
+  paintingItem.value = item;
+  paintedCells.value.clear();
+};
+
+const stopPainting = () => {
+  isPainting.value = false;
+  paintingItem.value = null;
+  paintedCells.value.clear();
+};
+
+const paintCell = (index: number) => {
+  if (!isPainting.value || !paintingItem.value) return;
+  if (paintedCells.value.has(index)) return; // Already painted this cell
+  if (craftingGrid.value[index]) return; // Cell is occupied
+  if (!inventoryStore.hasItem(paintingItem.value.id, 1)) {
+    stopPainting();
+    toastStore.showToast({
+      type: 'warning',
+      message: `No more ${paintingItem.value.name} in inventory`
+    });
+    return;
+  }
+
+  // Place item in cell
+  craftingGrid.value[index] = paintingItem.value;
+  inventoryStore.removeItem(paintingItem.value.id, 1);
+  paintedCells.value.add(index);
+};
+
+const onInventoryItemMouseDown = (event: MouseEvent, item: Item) => {
+  // Only start painting on left click
+  if (event.button === 0) {
+    startPainting(event, item);
+  }
+};
+
+const onCellMouseEnter = (index: number) => {
+  if (isPainting.value) {
+    paintCell(index);
+  }
+};
+
+const onCellMouseDown = (event: MouseEvent, index: number) => {
+  if (isPainting.value) {
+    event.preventDefault();
+    paintCell(index);
+  }
+};
 
 // Drag and Drop Methods
 const onDragStart = (event: DragEvent, item: Item) => {
@@ -496,6 +576,11 @@ const autofillRecipe = (recipe: Recipe) => {
     message: `Autofilled ${recipe.name} recipe`
   });
 };
+
+// Global mouse up handler to stop painting
+if (typeof window !== 'undefined') {
+  window.addEventListener('mouseup', stopPainting);
+}
 
 const getRecipeGridFlat = (recipe: Recipe) => {
   const flat: (Item | null)[] = [];
