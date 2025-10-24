@@ -69,7 +69,24 @@
         </div>
         <div class="flex-1 p-6 overflow-y-auto flex flex-col items-center justify-start">
           <!-- 3x3 Grid -->
-          <div class="text-slate-500 text-xs mb-2">→ 3× Grid</div>
+          <div class="flex items-center justify-between w-full max-w-xs mb-3 mt-8">
+            <div class="text-slate-500 text-xs">→ 3× Grid</div>
+            <!-- Trash Zone -->
+            <div 
+              @dragover.prevent="onTrashDragOver"
+              @dragleave="onTrashDragLeave"
+              @drop="onTrashDrop"
+              class="px-3 py-1 rounded border-2 transition-all duration-200"
+              :class="isOverTrash ? 'border-red-400 bg-red-900/50 scale-110' : 'border-slate-600 bg-slate-800'"
+            >
+              <div class="flex items-center gap-2 text-xs">
+                <svg class="w-4 h-4" :class="isOverTrash ? 'text-red-400' : 'text-slate-500'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span :class="isOverTrash ? 'text-red-400' : 'text-slate-500'">Trash</span>
+              </div>
+            </div>
+          </div>
           <div class="grid grid-cols-3 gap-3 mb-10">
             <div 
               v-for="(cell, index) in craftingGrid" 
@@ -80,7 +97,6 @@
               @dragover.prevent="onDragOver($event, index)"
               @dragleave="onDragLeave(index)"
               @drop="onDrop($event, index)"
-              @click="removeCraftingCell(index)"
               class="w-24 h-24 border-2 rounded-lg flex items-center justify-center text-4xl transition-all duration-200"
               :class="getCellClass(cell, index)"
               :style="{ cursor: cell ? 'move' : 'pointer' }"
@@ -229,6 +245,7 @@ const isDragging = ref(false);
 const draggedItem = ref<Item | null>(null);
 const draggedFromCellIndex = ref<number | null>(null);
 const dragOverIndex = ref<number | null>(null);
+const isOverTrash = ref(false);
 
 // Notifications
 const notifications = ref([
@@ -277,6 +294,7 @@ const onDragEnd = () => {
   draggedItem.value = null;
   draggedFromCellIndex.value = null;
   dragOverIndex.value = null;
+  isOverTrash.value = false;
 };
 
 const onDragOver = (event: DragEvent, index: number) => {
@@ -365,6 +383,44 @@ const getCellClass = (cell: Item | null, index: number) => {
   }
   
   return classes.join(' ');
+};
+
+// Trash zone methods
+const onTrashDragOver = (event: DragEvent) => {
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move';
+  }
+  isOverTrash.value = true;
+};
+
+const onTrashDragLeave = () => {
+  isOverTrash.value = false;
+};
+
+const onTrashDrop = (event: DragEvent) => {
+  event.preventDefault();
+  isOverTrash.value = false;
+
+  // Only handle drops from crafting grid cells
+  if (draggedFromCellIndex.value !== null) {
+    const fromIndex = draggedFromCellIndex.value;
+    const item = craftingGrid.value[fromIndex];
+    
+    if (item) {
+      // Remove item from grid (it's deleted, not returned to inventory)
+      craftingGrid.value[fromIndex] = null;
+      
+      toastStore.showToast({
+        type: 'info',
+        message: `Deleted ${item.name}`
+      });
+    }
+  }
+
+  isDragging.value = false;
+  draggedItem.value = null;
+  draggedFromCellIndex.value = null;
 };
 
 // Methods
