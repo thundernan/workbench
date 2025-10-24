@@ -87,21 +87,21 @@
               → 3× Grid
               <span v-if="!isPainting" class="ml-2 text-slate-600">(hold & drag to paint)</span>
             </div>
-            <!-- Trash Zone -->
-            <div 
-              @dragover.prevent="onTrashDragOver"
-              @dragleave="onTrashDragLeave"
-              @drop="onTrashDrop"
-              class="px-3 py-1 rounded border-2 transition-all duration-200"
-              :class="isOverTrash ? 'border-red-400 bg-red-900/50 scale-110' : 'border-slate-600 bg-slate-800'"
-            >
-              <div class="flex items-center gap-2 text-xs">
-                <svg class="w-4 h-4" :class="isOverTrash ? 'text-red-400' : 'text-slate-500'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                <span :class="isOverTrash ? 'text-red-400' : 'text-slate-500'">Trash</span>
-              </div>
-            </div>
+             <!-- Trash Zone -->
+             <div 
+               @dragover.prevent="onTrashDragOver"
+               @dragleave="onTrashDragLeave"
+               @drop="onTrashDrop"
+               class="px-4 py-2 rounded-lg border-2 transition-all duration-200 cursor-pointer shadow-lg"
+               :class="isOverTrash ? 'border-red-400 bg-red-900/70 scale-110 shadow-red-500/50' : 'border-red-600/50 bg-red-950/30 hover:border-red-500 hover:bg-red-950/50'"
+             >
+               <div class="flex items-center gap-2 text-sm font-medium">
+                 <svg class="w-5 h-5" :class="isOverTrash ? 'text-red-400' : 'text-red-500'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                 </svg>
+                 <span :class="isOverTrash ? 'text-red-400' : 'text-red-400'">Trash</span>
+               </div>
+             </div>
           </div>
            <div class="grid grid-cols-3 gap-3 mb-10">
              <div 
