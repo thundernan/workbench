@@ -32,14 +32,18 @@
         </div>
         <div class="flex-1 p-4 overflow-y-auto">
           <!-- Item Cards -->
-          <div class="space-y-2 mb-4">
+          <div class="space-y-3 mb-6">
             <div 
               v-for="invItem in inventoryStore.items" 
               :key="invItem.item.id"
-              class="flex items-center gap-3 p-2 border border-slate-600 rounded bg-slate-700 hover:border-emerald-400 transition-colors cursor-pointer"
+              draggable="true"
+              @dragstart="onDragStart($event, invItem.item)"
+              @dragend="onDragEnd"
+              class="flex items-center gap-3 p-2 border border-slate-600 rounded bg-slate-700 hover:border-emerald-400 transition-colors cursor-move"
+              :class="{ 'opacity-50': isDragging && draggedItem?.id === invItem.item.id }"
               @click="selectInventoryItem(invItem.item)"
             >
-              <div class="text-2xl">{{ invItem.item.icon }}</div>
+              <div class="text-2xl select-none">{{ invItem.item.icon }}</div>
               <div class="flex-1 text-xs">
                 <div class="text-white">{{ invItem.item.name }}</div>
                 <div class="text-slate-400">{{ invItem.item.category }}</div>
@@ -49,10 +53,10 @@
           </div>
 
           <!-- Filter/Search Section -->
-          <div class="text-slate-500 text-xs border-t border-slate-700 pt-3">
+          <div class="text-slate-500 text-xs border-t border-slate-700 pt-4 mt-2">
             [item cards with counts & filter/search]
           </div>
-          <div class="text-slate-500 text-xs mt-2">
+          <div class="text-slate-500 text-xs mt-3">
             [quick add / favorite / categories]
           </div>
         </div>
@@ -63,16 +67,23 @@
         <div class="px-4 py-2 border-b-2 border-slate-700 text-emerald-400 font-semibold">
           Crafting
         </div>
-        <div class="flex-1 p-6 overflow-y-auto flex flex-col items-center justify-center">
+        <div class="flex-1 p-6 overflow-y-auto flex flex-col items-center justify-start">
           <!-- 3x3 Grid -->
-          <div class="text-slate-500 text-xs mb-3">→ 3× Grid</div>
-          <div class="grid grid-cols-3 gap-2 mb-8">
+          <div class="text-slate-500 text-xs mb-2">→ 3× Grid</div>
+          <div class="grid grid-cols-3 gap-3 mb-10">
             <div 
               v-for="(cell, index) in craftingGrid" 
               :key="index"
-              class="w-20 h-20 border-2 rounded flex items-center justify-center text-3xl cursor-pointer transition-colors"
-              :class="cell ? 'border-emerald-400 bg-slate-700' : 'border-slate-600 bg-slate-900 hover:border-slate-500'"
+              :draggable="!!cell"
+              @dragstart="onCellDragStart($event, index)"
+              @dragend="onDragEnd"
+              @dragover.prevent="onDragOver($event, index)"
+              @dragleave="onDragLeave(index)"
+              @drop="onDrop($event, index)"
               @click="removeCraftingCell(index)"
+              class="w-24 h-24 border-2 rounded-lg flex items-center justify-center text-4xl transition-all duration-200"
+              :class="getCellClass(cell, index)"
+              :style="{ cursor: cell ? 'move' : 'pointer' }"
             >
               <span v-if="cell" class="select-none">{{ cell.icon }}</span>
               <span v-else class="text-slate-600 text-sm">[ ]</span>
@@ -80,8 +91,8 @@
           </div>
 
           <!-- Result Section -->
-          <div class="w-full max-w-md border-2 border-slate-700 rounded-lg bg-slate-900 p-4">
-            <div class="text-slate-400 text-xs mb-3">Result: <span class="text-emerald-400">[icon x qty]</span></div>
+          <div class="w-full max-w-md border-2 border-slate-700 rounded-lg bg-slate-900 p-5">
+            <div class="text-slate-400 text-xs mb-4">Result: <span class="text-emerald-400">[icon x qty]</span></div>
             <div class="flex items-center gap-4 mb-4">
               <div class="w-16 h-16 border-2 rounded flex items-center justify-center text-3xl"
                    :class="matchedRecipe ? 'border-emerald-400 bg-slate-700' : 'border-slate-600 bg-slate-800'">
@@ -93,18 +104,18 @@
                 <div v-else class="text-slate-500 text-xs">No recipe match</div>
               </div>
             </div>
-            <div class="flex gap-2">
+            <div class="flex gap-3 mt-2">
               <button 
                 @click="craftItem"
                 :disabled="!canCraft"
-                class="flex-1 px-4 py-2 rounded text-xs transition-colors"
+                class="flex-1 px-4 py-2.5 rounded text-xs transition-colors font-medium"
                 :class="canCraft ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'bg-slate-700 text-slate-500 cursor-not-allowed'"
               >
                 [Craft]
               </button>
               <button 
                 @click="clearCraftingGrid"
-                class="px-4 py-2 rounded border border-slate-600 text-slate-300 hover:border-red-400 hover:text-red-400 transition-colors text-xs"
+                class="px-4 py-2.5 rounded border border-slate-600 text-slate-300 hover:border-red-400 hover:text-red-400 transition-colors text-xs font-medium"
               >
                 [Clear]
               </button>
@@ -119,10 +130,10 @@
           Recipe
         </div>
         <div class="flex-1 p-4 overflow-y-auto">
-          <div class="text-slate-500 text-xs mb-3">[recipes]</div>
+          <div class="text-slate-500 text-xs mb-4">[recipes]</div>
           
           <!-- Recipe Cards -->
-          <div class="space-y-3">
+          <div class="space-y-4">
             <div 
               v-for="recipe in recipesStore.allRecipes" 
               :key="recipe.id"
@@ -145,7 +156,7 @@
               </div>
 
               <!-- Mini Grid Preview -->
-              <div class="grid grid-cols-3 gap-1 mb-2">
+              <div class="grid grid-cols-3 gap-1 mb-3 mt-1">
                 <div 
                   v-for="(cell, idx) in getRecipeGridFlat(recipe)" 
                   :key="idx"
@@ -165,7 +176,7 @@
             </div>
           </div>
 
-          <div class="text-slate-500 text-xs mt-4 border-t border-slate-700 pt-3">
+          <div class="text-slate-500 text-xs mt-6 border-t border-slate-700 pt-4">
             [autofill]
           </div>
         </div>
@@ -173,11 +184,11 @@
     </div>
 
     <!-- Bottom Notification Bar -->
-    <div class="bg-slate-800 border-t-2 border-slate-700 px-4 py-3">
-      <div class="text-slate-400 text-xs">
+    <div class="bg-slate-800 border-t-2 border-slate-700 px-6 py-4">
+      <div class="text-slate-400 text-xs mb-1">
         Notification/Toasts
       </div>
-      <div class="flex gap-3 mt-2 text-xs flex-wrap">
+      <div class="flex gap-3 mt-3 text-xs flex-wrap">
         <div 
           v-for="(notification, idx) in notifications" 
           :key="idx"
@@ -213,6 +224,12 @@ recipesStore.initializeRecipes();
 const craftingGrid = ref<(Item | null)[]>(new Array(9).fill(null));
 const selectedRecipe = ref<Recipe | null>(null);
 
+// Drag and drop state
+const isDragging = ref(false);
+const draggedItem = ref<Item | null>(null);
+const draggedFromCellIndex = ref<number | null>(null);
+const dragOverIndex = ref<number | null>(null);
+
 // Notifications
 const notifications = ref([
   { type: 'success', message: '"Crafted Pickaxe x1"' },
@@ -233,6 +250,122 @@ const matchedRecipe = computed(() => {
 const canCraft = computed(() => {
   return matchedRecipe.value !== null;
 });
+
+// Drag and Drop Methods
+const onDragStart = (event: DragEvent, item: Item) => {
+  isDragging.value = true;
+  draggedItem.value = item;
+  draggedFromCellIndex.value = null; // From inventory
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', item.id);
+  }
+};
+
+const onCellDragStart = (event: DragEvent, index: number) => {
+  isDragging.value = true;
+  draggedItem.value = craftingGrid.value[index];
+  draggedFromCellIndex.value = index; // From cell
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain', craftingGrid.value[index]?.id || '');
+  }
+};
+
+const onDragEnd = () => {
+  isDragging.value = false;
+  draggedItem.value = null;
+  draggedFromCellIndex.value = null;
+  dragOverIndex.value = null;
+};
+
+const onDragOver = (event: DragEvent, index: number) => {
+  event.preventDefault();
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'move';
+  }
+  dragOverIndex.value = index;
+};
+
+const onDragLeave = (index: number) => {
+  if (dragOverIndex.value === index) {
+    dragOverIndex.value = null;
+  }
+};
+
+const onDrop = (event: DragEvent, index: number) => {
+  event.preventDefault();
+  dragOverIndex.value = null;
+
+  if (!draggedItem.value) return;
+
+  // Dragging from a crafting cell to another cell
+  if (draggedFromCellIndex.value !== null) {
+    const fromIndex = draggedFromCellIndex.value;
+    
+    // Don't do anything if dropping on the same cell
+    if (fromIndex === index) {
+      isDragging.value = false;
+      draggedItem.value = null;
+      draggedFromCellIndex.value = null;
+      return;
+    }
+
+    // Swap items between cells
+    const temp = craftingGrid.value[index];
+    craftingGrid.value[index] = craftingGrid.value[fromIndex];
+    craftingGrid.value[fromIndex] = temp;
+  } 
+  // Dragging from inventory to crafting grid
+  else {
+    // Check if item exists in inventory
+    if (inventoryStore.hasItem(draggedItem.value.id, 1)) {
+      // If cell is empty, place item
+      if (!craftingGrid.value[index]) {
+        craftingGrid.value[index] = draggedItem.value;
+        inventoryStore.removeItem(draggedItem.value.id, 1);
+      } 
+      // If cell is occupied, swap items
+      else {
+        const existingItem = craftingGrid.value[index];
+        craftingGrid.value[index] = draggedItem.value;
+        inventoryStore.removeItem(draggedItem.value.id, 1);
+        inventoryStore.addItem(existingItem!, 1);
+      }
+    }
+  }
+
+  isDragging.value = false;
+  draggedItem.value = null;
+  draggedFromCellIndex.value = null;
+};
+
+const getCellClass = (cell: Item | null, index: number) => {
+  const classes = [];
+  
+  // Base classes
+  if (cell) {
+    classes.push('border-emerald-400 bg-slate-700');
+    
+    // Add opacity if this cell is being dragged
+    if (isDragging.value && draggedFromCellIndex.value === index) {
+      classes.push('opacity-50');
+    }
+  } else {
+    classes.push('border-slate-600 bg-slate-900');
+    
+    if (!isDragging.value) {
+      classes.push('hover:border-slate-500');
+    }
+  }
+  
+  // Highlight drop target
+  if (dragOverIndex.value === index && isDragging.value) {
+    classes.push('border-emerald-400 bg-slate-800 scale-105 shadow-lg shadow-emerald-500/50');
+  }
+  
+  return classes.join(' ');
+};
 
 // Methods
 const selectInventoryItem = (item: Item) => {
@@ -346,5 +479,30 @@ const getNotificationClass = (type: string) => {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #64748b;
+}
+
+/* Drag and drop animations */
+[draggable="true"] {
+  user-select: none;
+  -webkit-user-drag: element;
+}
+
+[draggable="true"]:active {
+  cursor: grabbing !important;
+}
+
+/* Smooth transitions for grid cells */
+.grid > div {
+  transform-origin: center;
+}
+
+/* Pulse animation for drop zone */
+@keyframes pulse-border {
+  0%, 100% {
+    border-color: rgb(16, 185, 129);
+  }
+  50% {
+    border-color: rgb(52, 211, 153);
+  }
 }
 </style>
