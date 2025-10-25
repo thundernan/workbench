@@ -10,6 +10,7 @@
     "server:build": "cd server && npm run build",
     "client:build": "cd client && npm run build",
     "build": "npm run server:build && npm run client:build",
+    "build:all": "npm run install:all && npm run build",
     "build:concurrent": "concurrently \"npm run server:build\" \"npm run client:build\"",
     "server:start": "cd server && npm start",
     "client:preview": "cd client && npm run preview",
@@ -19,10 +20,16 @@
     "clean": "rm -rf node_modules server/node_modules client/node_modules server/dist client/dist",
     "lint": "concurrently \"npm run server:lint\" \"npm run client:lint\"",
     "server:lint": "cd server && npm run lint",
-    "client:lint": "cd client && npm run lint"
+    "client:lint": "cd client && npm run lint",
+    "netlify:dev": "netlify dev",
+    "netlify:deploy": "netlify deploy --prod"
+  },
+  "dependencies": {
+    "serverless-http": "^3.2.0"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "netlify-cli": "^17.10.1"
   },
   "engines": {
     "node": ">=18.0.0",
