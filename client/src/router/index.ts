@@ -1,22 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Home from '@/views/Home.vue'
-import About from '@/views/About.vue'
 import Workbench from '@/views/Workbench.vue'
 import Trading from '@/views/Trading.vue'
 import Inventory from '@/views/Inventory.vue'
-import WalletDebug from '@/views/WalletDebug.vue'
-import ApiTest from '@/views/ApiTest.vue'
 
 const routes = [
   {
     path: '/',
     name: 'Home',
     component: Home
-  },
-  {
-    path: '/about',
-    name: 'About',
-    component: About
   },
   {
     path: '/workbench',
@@ -32,16 +24,6 @@ const routes = [
     path: '/inventory',
     name: 'Inventory',
     component: Inventory
-  },
-  {
-    path: '/wallet-debug',
-    name: 'WalletDebug',
-    component: WalletDebug
-  },
-  {
-    path: '/api-test',
-    name: 'ApiTest',
-    component: ApiTest
   }
 ]
 
