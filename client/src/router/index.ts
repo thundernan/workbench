@@ -4,6 +4,8 @@ import About from '@/views/About.vue'
 import Workbench from '@/views/Workbench.vue'
 import Trading from '@/views/Trading.vue'
 import Inventory from '@/views/Inventory.vue'
+import WalletDebug from '@/views/WalletDebug.vue'
+import ApiTest from '@/views/ApiTest.vue'
 
 const routes = [
   {
@@ -30,6 +32,16 @@ const routes = [
     path: '/inventory',
     name: 'Inventory',
     component: Inventory
+  },
+  {
+    path: '/wallet-debug',
+    name: 'WalletDebug',
+    component: WalletDebug
+  },
+  {
+    path: '/api-test',
+    name: 'ApiTest',
+    component: ApiTest
   }
 ]
 

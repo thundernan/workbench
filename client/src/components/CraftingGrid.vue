@@ -69,19 +69,48 @@
         </div>
       </div>
 
+      <!-- Wallet Connection Status -->
+      <div v-if="matchedRecipe" class="wallet-status mb-3">
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-slate-400">Wallet Status:</span>
+          <div class="flex items-center gap-2">
+            <i :class="walletStore.connected ? 'pi pi-check-circle text-emerald-500' : 'pi pi-times-circle text-red-500'"></i>
+            <span :class="walletStore.connected ? 'text-emerald-400' : 'text-red-500'">
+              {{ walletStore.connected ? 'Connected' : 'Not Connected' }}
+            </span>
+          </div>
+        </div>
+        <div v-if="walletStore.connected" class="text-xs text-emerald-400 mt-1 font-mono">
+          {{ walletStore.shortAddress }}
+        </div>
+      </div>
+
       <!-- Craft Button -->
       <Button
         v-if="matchedRecipe && canCraft"
         @click="craftItem"
         :loading="isCrafting"
-        :label="isCrafting ? 'Crafting...' : 'Craft Item'"
-        icon="pi pi-hammer"
-        severity="success"
+        :label="isCrafting ? 'Crafting...' : walletStore.connected ? 'Craft & Send TX' : 'Craft Item'"
+        :icon="walletStore.connected ? 'pi pi-send' : 'pi pi-hammer'"
+        :severity="walletStore.connected ? 'info' : 'success'"
         class="w-full mt-4"
       />
 
       <Message v-else-if="matchedRecipe && !canCraft" severity="warn" class="mt-4">
         Missing ingredients
+      </Message>
+
+      <Message v-else-if="matchedRecipe && !walletStore.connected" severity="info" class="mt-4">
+        <div class="flex items-center justify-between">
+          <span>Connect wallet to send blockchain transaction</span>
+          <Button 
+            @click="$emit('connect-wallet')" 
+            label="Connect" 
+            size="small" 
+            severity="secondary"
+            text
+          />
+        </div>
       </Message>
     </div>
   </div>
@@ -197,8 +226,12 @@ const addToGrid = (item: Item) => {
   }
 };
 
+// Define emits
+defineEmits(['connect-wallet']);
+
 // Expose method for parent components
 defineExpose({
-  addToGrid
+  addToGrid,
+  clearGrid
 });
 </script>
