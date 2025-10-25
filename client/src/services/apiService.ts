@@ -2,7 +2,9 @@
  * API Service for communicating with the backend server
  */
 
-// API Base URL - in development, proxy will redirect to localhost:3001
+// API Base URL
+// Development: proxy will redirect to localhost:3001
+// Production: set VITE_API_BASE_URL to your deployed server URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 /**

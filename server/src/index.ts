@@ -40,6 +40,7 @@ const corsOptions = {
       'http://127.0.0.1:3007',
       'http://localhost:5173', // Vite default port
       'http://127.0.0.1:5173',
+      'https://craft-hack.netlify.app', // Production frontend
       process.env['CORS_ORIGIN'] || ''
     ].filter(Boolean);
     
