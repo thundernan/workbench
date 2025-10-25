@@ -26,11 +26,37 @@ export interface Recipe {
   grid: (Item | null)[][]; // 3x3 grid representation
 }
 
-// Wallet types
+// Web3 Wallet types
 export interface WalletState {
   address: string | null;
   connected: boolean;
   chainId: number | null;
+  provider: any | null;
+  signer: any | null;
+}
+
+export interface WalletProvider {
+  name: string;
+  id: string;
+  icon: string;
+  installed: boolean;
+}
+
+export interface TransactionRequest {
+  to: string;
+  value?: string;
+  data?: string;
+  gasLimit?: string;
+  gasPrice?: string;
+}
+
+export interface CraftingTransaction {
+  recipeId: string;
+  ingredients: Array<{
+    tokenContract: string;
+    tokenId: number;
+    amount: number;
+  }>;
 }
 
 // Trading types

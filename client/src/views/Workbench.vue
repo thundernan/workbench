@@ -46,7 +46,7 @@
           <div class="flex-1 grid grid-cols-2 gap-4 p-4">
             <!-- Crafting Grid -->
             <div class="bg-slate-800 rounded-lg">
-              <CraftingGrid ref="craftingGridRef" />
+              <CraftingGrid ref="craftingGridRef" @connect-wallet="handleConnectWallet" />
             </div>
 
             <!-- Recipe Book -->
@@ -67,7 +67,7 @@
 
       <!-- Crafting Tab -->
       <div v-if="activeMobileTab === 'crafting'" class="p-4">
-        <CraftingGrid ref="craftingGridRef" />
+        <CraftingGrid ref="craftingGridRef" @connect-wallet="handleConnectWallet" />
       </div>
 
       <!-- Recipes Tab -->
@@ -86,6 +86,7 @@ import { ref } from 'vue';
 import { useToastStore } from '@/stores/toast';
 import { useInventoryStore } from '@/stores/inventory';
 import { useRecipesStore } from '@/stores/recipes';
+import { useWalletStore } from '@/stores/wallet';
 import WalletConnectButton from '@/components/WalletConnectButton.vue';
 import InventoryPanel from '@/components/InventoryPanel.vue';
 import CraftingGrid from '@/components/CraftingGrid.vue';
@@ -96,6 +97,7 @@ import type { Recipe } from '@/types';
 const toastStore = useToastStore();
 const inventoryStore = useInventoryStore();
 const recipesStore = useRecipesStore();
+const walletStore = useWalletStore();
 
 // Mobile navigation
 const mobileTabs = [
@@ -121,5 +123,13 @@ const handleAutofill = (recipe: Recipe) => {
       }
     });
   }
+};
+
+// Handle wallet connection request from crafting grid
+const handleConnectWallet = () => {
+  toastStore.showToast({
+    type: 'info',
+    message: 'Please connect your wallet using the button in the header'
+  });
 };
 </script>
