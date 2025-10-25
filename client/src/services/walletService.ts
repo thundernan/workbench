@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import type { WalletProvider, TransactionRequest, CraftingTransaction } from '@/types';
+import { NETWORKS, DEFAULT_NETWORK } from '@/config/wallet';
 
 export class Web3WalletService {
   private provider: ethers.Provider | null = null;
@@ -77,7 +78,7 @@ export class Web3WalletService {
       this.signer = await this.provider.getSigner();
 
       // Return checksummed address from signer
-      return await this.signer.getAddress();
+      return await this.signer!.getAddress();
     } catch (error: any) {
       if (error.code === 4001) {
         throw new Error('User rejected the connection request');
@@ -109,7 +110,7 @@ export class Web3WalletService {
       this.signer = await this.provider.getSigner();
 
       // Return checksummed address from signer
-      return await this.signer.getAddress();
+      return await this.signer!.getAddress();
     } catch (error: any) {
       if (error.code === 4001) {
         throw new Error('User rejected the connection request');
@@ -139,7 +140,7 @@ export class Web3WalletService {
       this.signer = await this.provider.getSigner();
 
       // Return checksummed address from signer
-      return await this.signer.getAddress();
+      return await this.signer!.getAddress();
     } catch (error: any) {
       if (error.code === 4001) {
         throw new Error('User rejected the connection request');
@@ -222,31 +223,37 @@ export class Web3WalletService {
   }
 
   /**
+   * Switch to zkSync Era network
+   */
+  async switchToZkSyncEra(): Promise<void> {
+    await this.switchNetwork(DEFAULT_NETWORK.chainId);
+  }
+
+  /**
    * Add a new network
    */
   private async addNetwork(chainId: number): Promise<void> {
     const networks: { [key: number]: any } = {
-      1: {
-        chainId: '0x1',
-        chainName: 'Ethereum Mainnet',
-        rpcUrls: ['https://mainnet.infura.io/v3/YOUR_PROJECT_ID'],
-        blockExplorerUrls: ['https://etherscan.io'],
-        nativeCurrency: {
-          name: 'Ether',
-          symbol: 'ETH',
-          decimals: 18
-        }
+      324: {
+        chainId: '0x144',
+        chainName: 'zkSync Era Mainnet',
+        rpcUrls: [NETWORKS.zkSyncEra.rpcUrl],
+        blockExplorerUrls: [NETWORKS.zkSyncEra.blockExplorer],
+        nativeCurrency: NETWORKS.zkSyncEra.nativeCurrency
       },
-      137: {
-        chainId: '0x89',
-        chainName: 'Polygon Mainnet',
-        rpcUrls: ['https://polygon-rpc.com'],
-        blockExplorerUrls: ['https://polygonscan.com'],
-        nativeCurrency: {
-          name: 'MATIC',
-          symbol: 'MATIC',
-          decimals: 18
-        }
+      280: {
+        chainId: '0x118',
+        chainName: 'zkSync Era Testnet',
+        rpcUrls: [NETWORKS.zkSyncEraTestnet.rpcUrl],
+        blockExplorerUrls: [NETWORKS.zkSyncEraTestnet.blockExplorer],
+        nativeCurrency: NETWORKS.zkSyncEraTestnet.nativeCurrency
+      },
+      555776: {
+        chainId: '0x87b00',
+        chainName: 'Xsolla ZK Sepolia Testnet',
+        rpcUrls: [NETWORKS.xsollaZK.rpcUrl],
+        blockExplorerUrls: [NETWORKS.xsollaZK.blockExplorer],
+        nativeCurrency: NETWORKS.xsollaZK.nativeCurrency
       }
     };
 
@@ -255,7 +262,7 @@ export class Web3WalletService {
       throw new Error(`Unsupported network: ${chainId}`);
     }
 
-    await window.ethereum.request({
+    await window.ethereum?.request({
       method: 'wallet_addEthereumChain',
       params: [networkConfig]
     });
@@ -287,7 +294,7 @@ export class Web3WalletService {
   /**
    * Send a crafting transaction
    */
-  async sendCraftingTransaction(craftingTx: CraftingTransaction): Promise<string> {
+  async sendCraftingTransaction(_craftingTx: CraftingTransaction): Promise<string> {
     if (!this.signer) {
       throw new Error('Wallet not connected');
     }
@@ -355,8 +362,16 @@ export class Web3WalletService {
 // Global window type extensions
 declare global {
   interface Window {
-    ethereum?: any;
-    coinbaseWalletExtension?: any;
+    ethereum?: {
+      isMetaMask?: boolean;
+      isTrust?: boolean;
+      request: (args: { method: string; params?: any[] }) => Promise<any>;
+      on?: (event: string, callback: (...args: any[]) => void) => void;
+      removeListener?: (event: string, callback: (...args: any[]) => void) => void;
+    };
+    coinbaseWalletExtension?: {
+      request: (args: { method: string; params?: any[] }) => Promise<any>;
+    };
   }
 }
 
