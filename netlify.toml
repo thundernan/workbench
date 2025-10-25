@@ -12,6 +12,13 @@
   # Functions directory for serverless functions (backend)
   functions = "netlify/functions"
 
+# Function bundling configuration
+[functions]
+  # Include server dist folder in function bundle
+  included_files = ["server/dist/**"]
+  # Use esbuild for faster bundling
+  node_bundler = "esbuild"
+
 # Environment variables (set these in Netlify UI)
 [build.environment]
   NODE_VERSION = "18"
