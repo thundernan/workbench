@@ -2,20 +2,29 @@
  * API Service for communicating with the backend server
  */
 
-// API Base URL
-// Development: uses proxy (vite.config.ts redirects /api to localhost:3001)
-// Production: set VITE_API_BASE_URL to your deployed server URL (should include /api)
-// If VITE_API_BASE_URL is not set, defaults to '/api' which works with proxy or same-domain deployment
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+// Base server URL (without /api suffix)
+// Development: proxy handles /api routing
+// Production: set to your deployed server URL
+const SERVER_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
 /**
  * Generic fetch wrapper with error handling
+ * Automatically adds /api prefix to all endpoints
  */
 async function fetchAPI<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint}`;
+  // Build full URL with /api prefix
+  let url: string;
+  if (endpoint.startsWith('http')) {
+    // Absolute URL provided
+    url = endpoint;
+  } else {
+    // Relative endpoint - add /api prefix
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    url = SERVER_BASE_URL ? `${SERVER_BASE_URL}/api${cleanEndpoint}` : `/api${cleanEndpoint}`;
+  }
   
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
@@ -117,12 +126,12 @@ export interface HealthCheck {
 export const apiService = {
   /**
    * Health check
-   * Note: Health endpoint is at root level, not under /api
+   * Note: Health endpoint is at root level /health, not under /api
    */
   async healthCheck(): Promise<HealthCheck> {
-    // Health is at /health (root), so we need to construct the URL differently
-    const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || '';
-    const healthUrl = baseUrl ? `${baseUrl}/health` : '/health';
+    // Health is at /health (root level), construct full URL
+    const serverUrl = import.meta.env.VITE_API_BASE_URL || '';
+    const healthUrl = serverUrl ? `${serverUrl}/health` : '/health';
     return fetchAPI<HealthCheck>(healthUrl);
   },
 
