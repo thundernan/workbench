@@ -15,7 +15,7 @@
     <div v-else class="flex items-center gap-2">
       <!-- Address with Network -->
       <button
-        class="px-3 py-1 rounded border border-emerald-500 text-emerald-400 hover:bg-emerald-600/10 transition-colors text-xs flex items-center gap-2"
+        class="px-3 py-1 rounded border border-emerald-500 text-emerald-400 hover:bg-emerald-600/10 transition-colors text-xs flex items-center gap-2 font-mono"
         @click="handleConnectClick"
       >
         <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>

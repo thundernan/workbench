@@ -67,7 +67,8 @@ export class Web3WalletService {
       this.provider = new ethers.BrowserProvider(window.ethereum);
       this.signer = await this.provider.getSigner();
 
-      return accounts[0];
+      // Return checksummed address from signer
+      return await this.signer.getAddress();
     } catch (error: any) {
       if (error.code === 4001) {
         throw new Error('User rejected the connection request');
@@ -96,7 +97,8 @@ export class Web3WalletService {
       this.provider = new ethers.BrowserProvider(window.coinbaseWalletExtension);
       this.signer = await this.provider.getSigner();
 
-      return accounts[0];
+      // Return checksummed address from signer
+      return await this.signer.getAddress();
     } catch (error: any) {
       if (error.code === 4001) {
         throw new Error('User rejected the connection request');

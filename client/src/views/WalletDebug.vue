@@ -11,7 +11,8 @@
       <p><strong>Window.ethereum:</strong> {{ hasEthereum ? 'Available' : 'Not Available' }}</p>
       <p><strong>Available Providers:</strong> {{ availableProviders.length }}</p>
       <p><strong>Connected:</strong> {{ walletStore.connected ? 'Yes' : 'No' }}</p>
-      <p><strong>Address:</strong> {{ walletStore.address || 'None' }}</p>
+      <p class="font-mono text-xs"><strong>Address:</strong> {{ walletStore.shortAddress || 'None' }}</p>
+      <p class="text-xs"><strong>Full Address:</strong> <span class="font-mono text-xs">{{ walletStore.address || 'None' }}</span></p>
       <p><strong>Error:</strong> {{ walletStore.error || 'None' }}</p>
     </div>
 

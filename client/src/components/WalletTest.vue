@@ -16,9 +16,9 @@
             <div class="flex items-center gap-2">
               <Chip 
                 :label="walletStore.connected ? 'Connected' : 'Disconnected'"
-                :class="walletStore.connected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                :class="walletStore.connected ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'"
               />
-              <span v-if="walletStore.connected" class="text-sm text-gray-600">
+              <span v-if="walletStore.connected" class="text-xs text-emerald-400 font-mono">
                 {{ walletStore.shortAddress }}
               </span>
             </div>

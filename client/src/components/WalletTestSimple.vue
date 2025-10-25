@@ -20,7 +20,8 @@
     <div class="store-info">
       <h3>Wallet Store Info:</h3>
       <p>Connected: {{ walletStore.connected }}</p>
-      <p>Address: {{ walletStore.address || 'None' }}</p>
+      <p class="font-mono text-xs">Short Address: {{ walletStore.shortAddress || 'None' }}</p>
+      <p class="font-mono text-xs">Full Address: {{ walletStore.address || 'None' }}</p>
       <p>Available Providers: {{ walletStore.availableProviders.length }}</p>
       <p>Error: {{ walletStore.error || 'None' }}</p>
     </div>

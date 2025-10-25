@@ -71,16 +71,16 @@
 
       <!-- Wallet Connection Status -->
       <div v-if="matchedRecipe" class="wallet-status mb-3">
-        <div class="flex items-center justify-between text-sm">
-          <span class="text-gray-400">Wallet Status:</span>
+        <div class="flex items-center justify-between text-xs">
+          <span class="text-slate-400">Wallet Status:</span>
           <div class="flex items-center gap-2">
-            <i :class="walletStore.connected ? 'pi pi-check-circle text-green-500' : 'pi pi-times-circle text-red-500'"></i>
-            <span :class="walletStore.connected ? 'text-green-500' : 'text-red-500'">
+            <i :class="walletStore.connected ? 'pi pi-check-circle text-emerald-500' : 'pi pi-times-circle text-red-500'"></i>
+            <span :class="walletStore.connected ? 'text-emerald-400' : 'text-red-500'">
               {{ walletStore.connected ? 'Connected' : 'Not Connected' }}
             </span>
           </div>
         </div>
-        <div v-if="walletStore.connected" class="text-xs text-gray-500 mt-1">
+        <div v-if="walletStore.connected" class="text-xs text-emerald-400 mt-1 font-mono">
           {{ walletStore.shortAddress }}
         </div>
       </div>

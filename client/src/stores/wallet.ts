@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { WalletState, WalletProvider, TransactionRequest, CraftingTransaction } from '@/types';
+import type { WalletProvider, TransactionRequest, CraftingTransaction } from '@/types';
 import Web3WalletService from '@/services/walletService';
 
 export const useWalletStore = defineStore('wallet', () => {
