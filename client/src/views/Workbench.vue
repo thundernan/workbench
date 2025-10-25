@@ -3,7 +3,14 @@
     <!-- Mobile Navigation -->
     <div class="lg:hidden bg-slate-800 border-b border-slate-700">
       <div class="flex items-center justify-between p-4">
-        <h1 class="text-xl font-bold text-white">Workbench</h1>
+        <div class="flex items-center gap-2">
+          <img 
+            src="/workbench_icon.png" 
+            alt="Workbench" 
+            class="w-8 h-8"
+          />
+          <h1 class="text-xl font-bold text-white">Workbench</h1>
+        </div>
         <WalletConnectButton />
       </div>
       <div class="flex space-x-1 px-4 pb-4">
@@ -84,9 +91,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useToastStore } from '@/stores/toast';
-import { useInventoryStore } from '@/stores/inventory';
-import { useRecipesStore } from '@/stores/recipes';
-import { useWalletStore } from '@/stores/wallet';
 import WalletConnectButton from '@/components/WalletConnectButton.vue';
 import InventoryPanel from '@/components/InventoryPanel.vue';
 import CraftingGrid from '@/components/CraftingGrid.vue';
@@ -95,9 +99,6 @@ import ToastNotification from '@/components/ToastNotification.vue';
 import type { Recipe } from '@/types';
 
 const toastStore = useToastStore();
-const inventoryStore = useInventoryStore();
-const recipesStore = useRecipesStore();
-const walletStore = useWalletStore();
 
 // Mobile navigation
 const mobileTabs = [

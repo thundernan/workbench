@@ -1,31 +1,7 @@
 <template>
   <div class="workbench-layout bg-slate-900 min-h-screen flex flex-col text-sm font-mono">
     <!-- Header -->
-        <header class="bg-slate-800 border-b-2 border-slate-700 px-4 py-3">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-6">
-              <div class="text-emerald-400 font-bold">Workbench</div>
-              <div class="flex gap-3 text-xs">
-                <button class="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
-                  [Craft]
-                </button>
-                <button 
-                  @click="$router.push('/trading')"
-                  class="px-3 py-1 rounded border border-slate-600 text-slate-300 hover:border-emerald-400 hover:text-emerald-400 transition-colors"
-                >
-                  [Trade]
-                </button>
-                <button 
-                  @click="$router.push('/inventory')"
-                  class="px-3 py-1 rounded border border-slate-600 text-slate-300 hover:border-emerald-400 hover:text-emerald-400 transition-colors"
-                >
-                  [Inventory]
-                </button>
-              </div>
-            </div>
-            <WalletConnectButton />
-          </div>
-        </header>
+    <AppHeader />
 
     <!-- Main Content Area -->
     <div class="flex-1 flex gap-4 p-4 overflow-hidden">
@@ -175,19 +151,7 @@
     
     <!-- Bottom Notification Bar -->
     <div class="bg-slate-800 border-t-2 border-slate-700 px-6 py-4">
-      <div class="text-slate-400 text-xs mb-1">
-        Notification/Toasts
-      </div>
-      <div class="flex gap-3 mt-3 text-xs flex-wrap">
-        <div 
-          v-for="(notification, idx) in notifications" 
-          :key="idx"
-          class="px-3 py-1 rounded"
-          :class="getNotificationClass(notification.type)"
-        >
-          {{ notification.message }}
-      </div>
-    </div>
+
     </div>
 
     <ToastNotification />
@@ -197,9 +161,9 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import AppHeader from '@/components/AppHeader.vue';
 import ToastNotification from '@/components/ToastNotification.vue';
 import WelcomeChestModal from '@/components/WelcomeChestModal.vue';
-import WalletConnectButton from '@/components/WalletConnectButton.vue';
 import RecipeBook from '@/components/RecipeBook.vue';
 import { useInventoryStore } from '@/stores/inventory';
 import { useRecipesStore } from '@/stores/recipes';
@@ -219,8 +183,6 @@ const inventorySearch = ref('');
 
 // Crafting grid state
 const craftingGrid = ref<(Item | null)[]>(new Array(9).fill(null));
-const selectedRecipe = ref<Recipe | null>(null);
-
 // Drag and drop state
 const isDragging = ref(false);
 const draggedItem = ref<Item | null>(null);
@@ -494,13 +456,6 @@ const selectInventoryItem = (item: Item) => {
   }
 };
 
-const removeCraftingCell = (index: number) => {
-  if (craftingGrid.value[index]) {
-    inventoryStore.addItem(craftingGrid.value[index]!, 1);
-    craftingGrid.value[index] = null;
-  }
-};
-
 const clearCraftingGrid = () => {
   craftingGrid.value.forEach(item => {
     if (item) {
@@ -535,18 +490,6 @@ const craftItem = () => {
   }
 };
 
-const selectRecipe = (recipe: Recipe) => {
-  selectedRecipe.value = recipe;
-};
-
-const toggleRecipe = (recipe: Recipe) => {
-  if (selectedRecipe.value?.id === recipe.id) {
-    selectedRecipe.value = null;
-  } else {
-    selectedRecipe.value = recipe;
-  }
-};
-
 // Handler for RecipeBook component autofill
 const handleAutofillRecipe = (recipe: Recipe | BlockchainRecipe) => {
   // For now, just show a toast for blockchain recipes
@@ -557,7 +500,7 @@ const handleAutofillRecipe = (recipe: Recipe | BlockchainRecipe) => {
     });
     return;
   }
-  
+
   // Use existing autofill for legacy recipes
   autofillRecipe(recipe as Recipe);
 };
@@ -587,25 +530,6 @@ if (typeof window !== 'undefined') {
   window.addEventListener('mouseup', stopPainting);
 }
 
-const getRecipeGridFlat = (recipe: Recipe) => {
-  const flat: (Item | null)[] = [];
-  for (let i = 0; i < 3; i++) {
-    for (let j = 0; j < 3; j++) {
-      flat.push(recipe.grid[i][j]);
-    }
-  }
-  return flat;
-};
-
-const getNotificationClass = (type: string) => {
-  switch (type) {
-    case 'success': return 'bg-emerald-900 text-emerald-300 border border-emerald-700';
-    case 'warning': return 'bg-yellow-900 text-yellow-300 border border-yellow-700';
-    case 'info': return 'bg-blue-900 text-blue-300 border border-blue-700';
-    case 'error': return 'bg-red-900 text-red-300 border border-red-700';
-    default: return 'bg-slate-700 text-slate-300 border border-slate-600';
-  }
-};
 </script>
 
 <style scoped>

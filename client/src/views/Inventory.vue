@@ -1,31 +1,7 @@
 <template>
   <div class="inventory-page bg-slate-900 min-h-screen flex flex-col font-mono text-sm">
     <!-- Header -->
-    <header class="bg-slate-800 border-b-2 border-slate-700 px-4 py-3">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-6">
-          <div class="text-emerald-400 font-bold">Workbench</div>
-          <div class="flex gap-3 text-xs">
-            <button 
-              @click="$router.push('/')"
-              class="px-3 py-1 rounded border border-slate-600 text-slate-300 hover:border-emerald-400 hover:text-emerald-400 transition-colors"
-            >
-              [Craft]
-            </button>
-            <button 
-              @click="$router.push('/trading')"
-              class="px-3 py-1 rounded border border-slate-600 text-slate-300 hover:border-emerald-400 hover:text-emerald-400 transition-colors"
-            >
-              [Trade]
-            </button>
-            <button class="px-3 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
-              [Inventory]
-            </button>
-          </div>
-        </div>
-        <WalletConnectButton />
-      </div>
-    </header>
+    <AppHeader />
 
     <div class="flex-1 p-6 overflow-auto">
       <div class="max-w-7xl mx-auto">
@@ -260,7 +236,7 @@
                         class="aspect-square rounded border flex items-center justify-center text-xs"
                         :class="cell ? 'border-emerald-500/50 bg-slate-700' : 'border-slate-700 bg-slate-900'"
                       >
-                        {{ cell ? cell.icon : '' }}
+                        {{ cell ? cell?.icon : '' }}
                       </div>
                     </div>
                   </div>
@@ -303,15 +279,12 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import AppHeader from '@/components/AppHeader.vue';
 import { useInventoryStore } from '@/stores/inventory';
 import { useRecipesStore } from '@/stores/recipes';
 import { useToastStore } from '@/stores/toast';
-import WalletConnectButton from '@/components/WalletConnectButton.vue';
 import RecipeBook from '@/components/RecipeBook.vue';
 import type { Item, Recipe, BlockchainRecipe } from '@/types';
-
-const router = useRouter();
 const inventoryStore = useInventoryStore();
 const recipesStore = useRecipesStore();
 const toastStore = useToastStore();
