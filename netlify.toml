@@ -10,9 +10,10 @@
   # Publish directory - where the built files are
   publish = "dist"
 
-# Node version
+# Node version and npm configuration
 [build.environment]
   NODE_VERSION = "18"
+  NPM_CONFIG_PRODUCTION = "false"
 
 # SPA redirect - all routes go to index.html
 [[redirects]]
