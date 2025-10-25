@@ -179,30 +179,13 @@
 
         <!-- Recipes Tab -->
         <div v-if="activeTab === 2" class="space-y-6">
-          <!-- Search and Filter -->
-          <div class="bg-slate-800 border-2 border-slate-700 rounded-lg p-4">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <input
-                v-model="recipeSearch"
-                type="text"
-                placeholder="🔍 Search recipes..."
-                class="px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-emerald-400 transition-colors"
-              />
-              <select
-                v-model="recipeCategory"
-                class="px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
-              >
-                <option value="">All Categories</option>
-                <option value="material">Materials</option>
-                <option value="weapon">Weapons</option>
-                <option value="tool">Tools</option>
-                <option value="armor">Armor</option>
-              </select>
-            </div>
+          <!-- RecipeBook Component -->
+          <div class="bg-slate-800 border-2 border-slate-700 rounded-lg overflow-hidden" style="min-height: 600px;">
+            <RecipeBook @autofill="handleAutofillFromInventory" />
           </div>
 
-          <!-- Recipes List -->
-          <div v-if="filteredRecipes.length > 0" class="space-y-2">
+          <!-- Old Recipe List (Hidden, keeping for reference) -->
+          <div v-if="false && filteredRecipes.length > 0" class="space-y-2">
             <div
               v-for="recipe in filteredRecipes"
               :key="recipe.id"
@@ -253,7 +236,7 @@
                         class="aspect-square rounded border flex items-center justify-center text-xs"
                         :class="cell ? 'border-emerald-500/50 bg-slate-700' : 'border-slate-700 bg-slate-900'"
                       >
-                        {{ cell ? cell.icon : '' }}
+                        {{ cell ? cell?.icon : '' }}
                       </div>
                     </div>
                   </div>
@@ -296,15 +279,15 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { useRouter } from 'vue-router';
 import AppHeader from '@/components/AppHeader.vue';
 import { useInventoryStore } from '@/stores/inventory';
 import { useRecipesStore } from '@/stores/recipes';
-import type { Item, Recipe } from '@/types';
-
-const router = useRouter();
+import { useToastStore } from '@/stores/toast';
+import RecipeBook from '@/components/RecipeBook.vue';
+import type { Item, Recipe, BlockchainRecipe } from '@/types';
 const inventoryStore = useInventoryStore();
 const recipesStore = useRecipesStore();
+const toastStore = useToastStore();
 
 // Tab management
 const tabs = ['Catalog', 'Resources', 'Recipes'];
@@ -312,6 +295,23 @@ const activeTab = ref(0);
 
 // Stats
 const craftedCount = ref(0); // TODO: Track this in a store
+
+// Handle autofill from Recipe Book
+const handleAutofillFromInventory = (recipe: Recipe | BlockchainRecipe) => {
+  if ('blockchainRecipeId' in recipe) {
+    toastStore.showToast({
+      type: 'info',
+      message: `${recipe.name}: Navigate to Craft page to use this recipe`
+    });
+  } else {
+    toastStore.showToast({
+      type: 'info',
+      message: `Navigate to Craft page to use recipe: ${recipe.name}`
+    });
+  }
+  // Optionally navigate to craft page
+  // router.push('/');
+};
 
 // Resources filters
 const resourceSearch = ref('');

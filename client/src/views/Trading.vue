@@ -312,14 +312,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
 import { useInventoryStore } from '@/stores/inventory';
 import { useWalletStore } from '@/stores/wallet';
 import { useToastStore } from '@/stores/toast';
 import AppHeader from '@/components/AppHeader.vue';
 import type { Item } from '@/types';
 
-const router = useRouter();
 const inventoryStore = useInventoryStore();
 const walletStore = useWalletStore();
 const toastStore = useToastStore();

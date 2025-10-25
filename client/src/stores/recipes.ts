@@ -1,9 +1,13 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { Recipe, Item } from '@/types';
+import type { Recipe, Item, BlockchainRecipe } from '@/types';
+import apiService from '@/services/apiService';
 
 export const useRecipesStore = defineStore('recipes', () => {
   const recipes = ref<Recipe[]>([]);
+  const blockchainRecipes = ref<BlockchainRecipe[]>([]);
+  const isLoading = ref(false);
+  const error = ref<string | null>(null);
 
   // Sample recipes data
   const initializeRecipes = () => {
@@ -108,14 +112,114 @@ export const useRecipesStore = defineStore('recipes', () => {
     return true;
   };
 
+  // Fetch blockchain recipes from server
+  const fetchBlockchainRecipes = async (): Promise<void> => {
+    isLoading.value = true;
+    error.value = null;
+
+    try {
+      // Fetch all recipes (handles pagination automatically)
+      const fetchedRecipes = await apiService.getAllRecipes();
+      
+      // Transform API recipes to BlockchainRecipe format
+      blockchainRecipes.value = fetchedRecipes.map(recipe => ({
+        _id: recipe._id,
+        id: recipe._id,
+        blockchainRecipeId: recipe.blockchainRecipeId,
+        resultTokenContract: recipe.resultTokenContract,
+        resultTokenId: recipe.resultTokenId,
+        resultAmount: recipe.resultAmount,
+        ingredients: recipe.ingredients,
+        name: recipe.name,
+        description: recipe.description,
+        category: recipe.category,
+        difficulty: recipe.difficulty,
+        craftingTime: recipe.craftingTime,
+        createdAt: recipe.createdAt,
+        updatedAt: recipe.updatedAt,
+      }));
+
+      console.log(`Loaded ${blockchainRecipes.value.length} recipes from server`);
+    } catch (err: any) {
+      error.value = err.message || 'Failed to fetch recipes';
+      console.error('Error fetching recipes:', err);
+      throw err;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  // Get recipe by blockchain ID
+  const getBlockchainRecipe = (blockchainRecipeId: string): BlockchainRecipe | undefined => {
+    return blockchainRecipes.value.find(r => r.blockchainRecipeId === blockchainRecipeId);
+  };
+
+  // Get recipe by MongoDB ID
+  const getBlockchainRecipeById = (id: string): BlockchainRecipe | undefined => {
+    return blockchainRecipes.value.find(r => r._id === id || r.id === id);
+  };
+
+  // Check if a grid matches any blockchain recipe
+  const matchBlockchainRecipe = (gridPositions: Map<number, {
+    tokenContract: string;
+    tokenId: number;
+  }>): BlockchainRecipe | null => {
+    for (const recipe of blockchainRecipes.value) {
+      if (gridMatchesBlockchainRecipe(gridPositions, recipe)) {
+        return recipe;
+      }
+    }
+    return null;
+  };
+
+  // Helper to check if grid matches blockchain recipe
+  const gridMatchesBlockchainRecipe = (
+    gridPositions: Map<number, { tokenContract: string; tokenId: number }>,
+    recipe: BlockchainRecipe
+  ): boolean => {
+    // Check if all ingredients match their positions
+    for (const ingredient of recipe.ingredients) {
+      const gridItem = gridPositions.get(ingredient.position);
+      
+      if (!gridItem) return false;
+      if (gridItem.tokenContract.toLowerCase() !== ingredient.tokenContract.toLowerCase()) return false;
+      if (gridItem.tokenId !== ingredient.tokenId) return false;
+    }
+
+    // Check if there are extra items in the grid
+    if (gridPositions.size !== recipe.ingredients.length) return false;
+
+    return true;
+  };
+
   // Get all recipes
   const allRecipes = computed(() => recipes.value);
 
+  // Get all blockchain recipes
+  const allBlockchainRecipes = computed(() => blockchainRecipes.value);
+
+  // Get recipes by category
+  const recipesByCategory = (category: string) => {
+    return blockchainRecipes.value.filter(r => r.category === category);
+  };
+
   return {
+    // Legacy
     recipes,
     initializeRecipes,
     getRecipe,
     matchRecipe,
-    allRecipes
+    allRecipes,
+    
+    // Blockchain
+    blockchainRecipes,
+    isLoading,
+    error,
+    fetchBlockchainRecipes,
+    getBlockchainRecipe,
+    getBlockchainRecipeById,
+    matchBlockchainRecipe,
+    allBlockchainRecipes,
+    recipesByCategory,
   };
 });

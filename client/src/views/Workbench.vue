@@ -91,9 +91,6 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useToastStore } from '@/stores/toast';
-import { useInventoryStore } from '@/stores/inventory';
-import { useRecipesStore } from '@/stores/recipes';
-import { useWalletStore } from '@/stores/wallet';
 import WalletConnectButton from '@/components/WalletConnectButton.vue';
 import InventoryPanel from '@/components/InventoryPanel.vue';
 import CraftingGrid from '@/components/CraftingGrid.vue';
@@ -102,9 +99,6 @@ import ToastNotification from '@/components/ToastNotification.vue';
 import type { Recipe } from '@/types';
 
 const toastStore = useToastStore();
-const inventoryStore = useInventoryStore();
-const recipesStore = useRecipesStore();
-const walletStore = useWalletStore();
 
 // Mobile navigation
 const mobileTabs = [

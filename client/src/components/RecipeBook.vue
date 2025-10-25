@@ -1,235 +1,284 @@
 <template>
-  <div class="recipe-book bg-slate-800 rounded-lg p-4 h-full">
-    <div class="flex items-center justify-between mb-4">
-      <h3 class="text-lg font-semibold text-white flex items-center gap-2">
-        <i class="pi pi-book"></i>
-        Recipe Book
-      </h3>
-      <Tag :value="`${recipesStore.allRecipes.length} recipes`" severity="success" />
+  <div class="recipe-book h-full flex flex-col overflow-hidden">
+    <!-- Header -->
+    <div class="flex items-center justify-between px-4 py-3 border-b-2 border-slate-700 flex-shrink-0">
+      <span class="text-emerald-400 font-semibold text-sm">Recipe</span>
+      <div class="flex items-center gap-2">
+        <button
+          v-if="recipesStore.error"
+          @click="loadRecipes"
+          class="text-yellow-400 hover:text-yellow-300 text-xs"
+          title="Retry"
+        >
+          🔄
+        </button>
+        <span v-if="!recipesStore.isLoading" class="text-slate-400 text-xs">
+          {{ recipesStore.allBlockchainRecipes.length }}
+        </span>
+        <span v-else class="text-slate-400 text-xs animate-pulse">
+          ...
+        </span>
+      </div>
     </div>
 
-    <!-- Search and Filter -->
-    <div class="mb-4 space-y-2">
-      <IconField iconPosition="left">
-        <InputIcon class="pi pi-search" />
-        <InputText
-          v-model="searchQuery"
-          placeholder="Search recipes..."
-          class="w-full"
-        />
-      </IconField>
-      <Select
-        v-model="selectedCategory"
-        :options="categoryOptions"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="All Categories"
-        class="w-full"
-      />
-    </div>
-
-    <!-- Recipe List -->
-    <div class="recipe-list max-h-96 overflow-y-auto space-y-2">
-      <div
-        v-for="recipe in filteredRecipes"
-        :key="recipe.id"
-        class="recipe-item bg-slate-700 rounded-lg p-3 cursor-pointer hover:bg-slate-600 transition-colors duration-200"
-        :class="{ 'ring-2 ring-emerald-400': selectedRecipe?.id === recipe.id }"
-        @click="selectRecipe(recipe)"
-      >
-        <div class="flex items-center space-x-3">
-          <ItemIcon :item="recipe.result" size="sm" />
-          <div class="flex-1">
-            <h4 class="text-white font-medium">{{ recipe.name }}</h4>
-            <p class="text-slate-300 text-sm">{{ recipe.result.description }}</p>
-            <div class="flex items-center space-x-2 mt-1">
-              <span class="text-xs px-2 py-1 rounded-full" :class="getRarityClasses(recipe.result.rarity)">
-                {{ recipe.result.rarity }}
-              </span>
-              <span class="text-xs text-slate-400">
-                {{ recipe.ingredients.length }} ingredients
-              </span>
+    <!-- Content Area -->
+    <div class="flex-1 overflow-y-auto p-4">
+      <!-- Loading Skeleton -->
+      <div v-if="recipesStore.isLoading" class="space-y-2">
+        <div v-for="i in 5" :key="i" class="skeleton-card animate-pulse">
+          <div class="flex items-center space-x-2 p-2">
+            <div class="w-8 h-8 bg-slate-700 rounded"></div>
+            <div class="flex-1 space-y-1">
+              <div class="h-3 bg-slate-700 rounded w-3/4"></div>
+              <div class="h-2 bg-slate-700 rounded w-1/2"></div>
             </div>
           </div>
-          <button
-            @click.stop="autofillRecipe(recipe)"
-            class="text-emerald-400 hover:text-emerald-300 transition-colors duration-200"
-            title="Autofill recipe"
-          >
-            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Selected Recipe Details -->
-    <div v-if="selectedRecipe" class="mt-4 p-3 bg-slate-700 rounded-lg">
-      <div class="flex items-center space-x-3 mb-3">
-        <ItemIcon :item="selectedRecipe.result" size="md" />
-        <div>
-          <h4 class="text-white font-medium">{{ selectedRecipe.name }}</h4>
-          <p class="text-slate-300 text-sm">{{ selectedRecipe.description }}</p>
         </div>
       </div>
 
-      <!-- Recipe Grid Preview -->
-      <div class="mb-3">
-        <h5 class="text-slate-300 text-sm font-medium mb-2">Recipe Pattern:</h5>
-        <div class="grid grid-cols-3 gap-1 w-fit">
+      <!-- Error State -->
+      <div v-else-if="recipesStore.error" class="text-center py-8">
+        <div class="text-red-400 text-2xl mb-2">⚠️</div>
+        <p class="text-red-400 text-xs mb-2">{{ recipesStore.error }}</p>
+        <button @click="loadRecipes" class="text-emerald-400 hover:text-emerald-300 text-xs">
+          [Retry]
+        </button>
+      </div>
+
+      <!-- Empty State -->
+      <div v-else-if="recipesStore.allBlockchainRecipes.length === 0" class="text-center py-8">
+        <div class="text-slate-500 text-2xl mb-2">📋</div>
+        <p class="text-slate-400 text-xs">No recipes yet</p>
+        <p class="text-slate-500 text-xs mt-1">Syncing from blockchain...</p>
+      </div>
+
+      <!-- Recipe List (if loaded) -->
+      <template v-else>
+        <!-- Search hint -->
+        <div class="text-slate-500 text-xs mb-3">[recipes]</div>
+
+        <!-- Recipe Cards -->
+        <div class="space-y-3">
           <div
-            v-for="(item, index) in getRecipeGrid(selectedRecipe)"
-            :key="index"
-            class="w-8 h-8 rounded border border-slate-600 bg-slate-800 flex items-center justify-center"
+            v-for="recipe in displayRecipes"
+            :key="recipe.id || recipe._id || recipe.blockchainRecipeId"
+            class="border border-slate-600 rounded bg-slate-700 hover:border-emerald-400 transition-all duration-200"
+            :class="{ 'border-emerald-400': expandedRecipe && (expandedRecipe._id === recipe._id) }"
           >
-            <ItemIcon
-              v-if="item"
-              :item="item"
-              size="sm"
-              :show-quantity="false"
-              :show-tooltip="false"
-            />
-            <span v-else class="text-slate-500 text-xs">-</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Ingredients -->
-      <div>
-        <h5 class="text-slate-300 text-sm font-medium mb-2">Ingredients:</h5>
-        <div class="space-y-1">
-          <div
-            v-for="ingredient in selectedRecipe.ingredients"
-            :key="ingredient.item.id"
-            class="flex items-center space-x-2"
-          >
-            <ItemIcon :item="ingredient.item" size="sm" />
-            <span class="text-white text-sm">{{ ingredient.item.name }}</span>
-            <span class="text-slate-400 text-sm">x{{ ingredient.quantity }}</span>
-            <span
-              v-if="!inventoryStore.hasItem(ingredient.item.id, ingredient.quantity)"
-              class="text-red-400 text-xs"
+            <!-- Recipe Header (Always Visible) -->
+            <div 
+              class="flex items-center gap-3 p-3 cursor-pointer"
+              @click="toggleRecipe(recipe)"
             >
-              (Missing)
-            </span>
+              <div class="text-2xl">{{ getRecipeIcon(recipe) }}</div>
+              <div class="flex-1 min-w-0">
+                <div class="text-white text-sm font-medium truncate">{{ recipe.name }}</div>
+                <div class="text-slate-400 text-xs">{{ recipe.ingredients.length }} ingredients</div>
+              </div>
+              <button 
+                @click.stop="emit('autofill', recipe)"
+                class="text-emerald-400 hover:text-emerald-300 transition-colors text-lg flex-shrink-0"
+                title="Autofill"
+              >
+                ⚡
+              </button>
+              <!-- Expand/Collapse Icon -->
+              <svg 
+                class="w-5 h-5 text-slate-400 transition-transform duration-200 flex-shrink-0"
+                :class="{ 'rotate-180': expandedRecipe && expandedRecipe._id === recipe._id }"
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+
+            <!-- Recipe Details (Expandable) -->
+            <div 
+              v-if="expandedRecipe && expandedRecipe._id === recipe._id"
+              class="border-t border-slate-600 p-3 animate-slideDown"
+            >
+              <div class="flex gap-3">
+                <!-- Mini Grid Preview -->
+                <div class="flex-shrink-0">
+                  <div class="text-slate-400 text-[10px] mb-1 font-medium">Pattern:</div>
+                  <div class="grid grid-cols-3 gap-0.5" style="width: 60px;">
+                    <div 
+                      v-for="(cell, idx) in getRecipeGrid(recipe)" 
+                      :key="idx"
+                      class="aspect-square rounded border flex items-center justify-center text-xs"
+                      :class="cell ? 'border-emerald-500/50 bg-slate-700' : 'border-slate-700 bg-slate-900'"
+                    >
+                      {{ cell ? getIngredientIcon(cell) : '' }}
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Ingredients List -->
+                <div class="flex-1 min-w-0">
+                  <div class="text-slate-400 text-[10px] mb-1 font-medium">Required:</div>
+                  <div class="space-y-0.5">
+                    <div 
+                      v-for="ingredient in recipe.ingredients" 
+                      :key="`${ingredient.tokenContract}-${ingredient.tokenId}`"
+                      class="flex items-center gap-1 bg-slate-700 rounded px-1.5 py-0.5"
+                    >
+                      <span class="text-xs">{{ getIngredientIcon(ingredient) }}</span>
+                      <span class="text-white flex-1 text-[10px] truncate">
+                        Token #{{ ingredient.tokenId }}
+                      </span>
+                      <span class="text-emerald-400 font-medium text-[10px] whitespace-nowrap">
+                        × {{ ingredient.amount }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tags -->
+              <div class="flex gap-2 text-xs flex-wrap mt-2">
+                <span v-if="recipe.category" class="px-2 py-1 rounded bg-blue-900/50 text-blue-300 border border-blue-700">
+                  [{{ recipe.category }}]
+                </span>
+                <span class="px-2 py-1 rounded bg-emerald-900/50 text-emerald-300 border border-emerald-700">
+                  [blockchain]
+                </span>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="mt-3 flex gap-2">
-        <Button
-          @click="autofillRecipe(selectedRecipe)"
-          label="Autofill Recipe"
-          icon="pi pi-bolt"
-          severity="success"
-          class="flex-1"
-          size="small"
-        />
-        <Button
-          @click="clearSelection"
-          label="Close"
-          icon="pi pi-times"
-          severity="secondary"
-          size="small"
-          outlined
-        />
-      </div>
+        <!-- No results -->
+        <div v-if="displayRecipes.length === 0" class="text-center py-8">
+          <div class="text-slate-500 text-2xl mb-2">🔍</div>
+          <p class="text-slate-400 text-xs">No recipes found</p>
+        </div>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import Button from 'primevue/button';
-import Tag from 'primevue/tag';
-import InputText from 'primevue/inputtext';
-import Select from 'primevue/select';
-import IconField from 'primevue/iconfield';
-import InputIcon from 'primevue/inputicon';
+import { ref, computed, onMounted } from 'vue';
 import { useRecipesStore } from '@/stores/recipes';
-import { useInventoryStore } from '@/stores/inventory';
 import { useToastStore } from '@/stores/toast';
-import ItemIcon from './ItemIcon.vue';
-import type { Recipe } from '@/types';
+import type { BlockchainRecipe, BlockchainRecipeIngredient } from '@/types';
 
 const recipesStore = useRecipesStore();
-const inventoryStore = useInventoryStore();
 const toastStore = useToastStore();
 
-const searchQuery = ref('');
-const selectedCategory = ref('');
-const selectedRecipe = ref<Recipe | null>(null);
+const expandedRecipe = ref<BlockchainRecipe | null>(null);
 
-const categoryOptions = [
-  { label: 'All Categories', value: '' },
-  { label: 'Weapons', value: 'weapon' },
-  { label: 'Tools', value: 'tool' },
-  { label: 'Armor', value: 'armor' },
-  { label: 'Materials', value: 'material' },
-  { label: 'Consumables', value: 'consumable' }
-];
-
-const filteredRecipes = computed(() => {
-  let recipes = recipesStore.allRecipes;
-
-  // Filter by search query
-  if (searchQuery.value) {
-    recipes = recipes.filter(recipe =>
-      recipe.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-      recipe.result.name.toLowerCase().includes(searchQuery.value.toLowerCase())
-    );
-  }
-
-  // Filter by category
-  if (selectedCategory.value) {
-    recipes = recipes.filter(recipe =>
-      recipe.result.category === selectedCategory.value
-    );
-  }
-
-  return recipes;
+// Display blockchain recipes
+const displayRecipes = computed(() => {
+  return recipesStore.allBlockchainRecipes;
 });
 
-const selectRecipe = (recipe: Recipe) => {
-  selectedRecipe.value = recipe;
+// Load recipes function
+const loadRecipes = async () => {
+  try {
+    await recipesStore.fetchBlockchainRecipes();
+    toastStore.showToast({
+      type: 'success',
+      message: `Loaded ${recipesStore.allBlockchainRecipes.length} recipes`
+    });
+  } catch (error: any) {
+    toastStore.showToast({
+      type: 'error',
+      message: `Failed to load recipes: ${error.message}`
+    });
+  }
 };
 
-const clearSelection = () => {
-  selectedRecipe.value = null;
+// Load on mount if not already loaded
+onMounted(() => {
+  if (recipesStore.allBlockchainRecipes.length === 0 && 
+      !recipesStore.isLoading && 
+      !recipesStore.error) {
+    console.log('📚 RecipeBook: Loading recipes...');
+    loadRecipes();
+  }
+});
+
+// Toggle recipe expansion
+const toggleRecipe = (recipe: BlockchainRecipe) => {
+  if (expandedRecipe.value && expandedRecipe.value._id === recipe._id) {
+    expandedRecipe.value = null;
+  } else {
+    expandedRecipe.value = recipe;
+  }
 };
 
-const getRecipeGrid = (recipe: Recipe) => {
-  const flatGrid: (any | null)[] = [];
-  for (let i = 0; i < 3; i++) {
-    for (let j = 0; j < 3; j++) {
-      flatGrid.push(recipe.grid[i][j]);
+// Get recipe grid with ingredients in their positions (0-8 for 3x3)
+const getRecipeGrid = (recipe: BlockchainRecipe): (BlockchainRecipeIngredient | null)[] => {
+  const grid: (BlockchainRecipeIngredient | null)[] = new Array(9).fill(null);
+  recipe.ingredients.forEach(ingredient => {
+    if (ingredient.position >= 0 && ingredient.position < 9) {
+      grid[ingredient.position] = ingredient;
     }
-  }
-  return flatGrid;
-};
-
-const getRarityClasses = (rarity: string) => {
-  switch (rarity) {
-    case 'common': return 'bg-slate-500 text-white';
-    case 'uncommon': return 'bg-emerald-500 text-white';
-    case 'rare': return 'bg-blue-500 text-white';
-    case 'epic': return 'bg-purple-500 text-white';
-    case 'legendary': return 'bg-yellow-500 text-black';
-    default: return 'bg-slate-500 text-white';
-  }
-};
-
-const autofillRecipe = (recipe: Recipe) => {
-  // This will be handled by the parent component
-  emit('autofill', recipe);
-  toastStore.showToast({
-    type: 'info',
-    message: `Autofilled ${recipe.name} recipe`
   });
+  return grid;
+};
+
+// Get icon for blockchain recipes
+const getRecipeIcon = (recipe: BlockchainRecipe): string => {
+  if (!recipe.category) return '📋';
+  
+  switch (recipe.category.toLowerCase()) {
+    case 'weapon': return '⚔️';
+    case 'tool': return '⛏️';
+    case 'armor': return '🛡️';
+    case 'material': return '📦';
+    case 'consumable': return '🧪';
+    default: return '📋';
+  }
+};
+
+// Get icon for ingredient (using tokenId as placeholder)
+const getIngredientIcon = (ingredient: BlockchainRecipeIngredient): string => {
+  // For now, use a generic icon based on tokenId
+  // This could be enhanced to fetch actual token metadata
+  const icons = ['🔹', '🔸', '⬜', '⬛', '🟦', '🟧', '🟩', '🟥', '🟪', '🟨'];
+  return icons[ingredient.tokenId % icons.length];
 };
 
 const emit = defineEmits<{
-  autofill: [recipe: Recipe];
+  autofill: [recipe: BlockchainRecipe];
 }>();
 </script>
+
+<style scoped>
+.skeleton-card {
+  background: #334155;
+  border-radius: 0.375rem;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    max-height: 0;
+  }
+  to {
+    opacity: 1;
+    max-height: 500px;
+  }
+}
+
+.animate-slideDown {
+  animation: slideDown 0.3s ease-out forwards;
+}
+</style>
