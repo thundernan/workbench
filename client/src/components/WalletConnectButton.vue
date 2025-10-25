@@ -191,6 +191,9 @@ const toastStore = useToastStore();
 
 const showWalletModal = ref(false);
 
+// Modal delay configuration (in milliseconds)
+const MODAL_DELAY = 1000;
+
 // Handle connect button click
 const handleConnectClick = () => {
   showWalletModal.value = true;
@@ -235,6 +238,9 @@ const connectToWallet = async (walletId: string) => {
     await walletStore.connectWallet(walletId);
     showWalletModal.value = false;
     
+    // Save flag that wallet was successfully connected
+    localStorage.setItem('wallet_ever_connected', 'true');
+    
     toastStore.showToast({
       type: 'success',
       message: `Connected to ${walletStore.shortAddress}`
@@ -260,6 +266,9 @@ const switchToWallet = async (walletId: string) => {
     // Connect to new wallet
     await walletStore.connectWallet(walletId);
     showWalletModal.value = false;
+    
+    // Save flag that wallet was successfully connected
+    localStorage.setItem('wallet_ever_connected', 'true');
     
     toastStore.showToast({
       type: 'success',
@@ -310,9 +319,22 @@ const getInstallLink = (walletId: string): string => {
   return links[walletId] || 'https://ethereum.org/en/wallets/find-wallet/';
 };
 
-// Check for existing connection on mount
+// Check for existing connection on mount and show modal if not connected
 onMounted(async () => {
   await walletStore.checkConnection();
+  
+  // Check if user has ever connected a wallet
+  const hasEverConnected = localStorage.getItem('wallet_ever_connected');
+  
+  // Show modal if:
+  // 1. Wallet is NOT currently connected
+  // 2. AND user has NEVER connected a wallet before
+  if (!walletStore.connected && !hasEverConnected) {
+    // Small delay for smooth appearance
+    setTimeout(() => {
+      showWalletModal.value = true;
+    }, MODAL_DELAY);
+  }
 });
 </script>
 

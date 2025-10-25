@@ -328,14 +328,18 @@ export class CraftingContractService {
  * Get contract address from environment or default
  */
 export function getContractAddress(): string {
-  return import.meta.env.VITE_CRAFTING_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000';
+  return import.meta.env.VITE_WORKBENCH_CONTRACT_ADDRESS || 
+         import.meta.env.VITE_CRAFTING_CONTRACT_ADDRESS || 
+         '0x51E66B9bE9221B2eF0B30071fad1527A003F4449';
 }
 
 /**
  * Get token contract address from environment or default
  */
 export function getTokenContractAddress(): string {
-  return import.meta.env.VITE_TOKEN_CONTRACT_ADDRESS || '0x0000000000000000000000000000000000000000';
+  return import.meta.env.VITE_ERC1155_CONTRACT_ADDRESS ||
+         import.meta.env.VITE_TOKEN_CONTRACT_ADDRESS || 
+         '0x0000000000000000000000000000000000000000';
 }
 
 /**

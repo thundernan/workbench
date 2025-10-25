@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { WalletProvider, TransactionRequest, CraftingTransaction } from '@/types';
 import Web3WalletService from '@/services/walletService';
+import { DEFAULT_NETWORK } from '@/config/wallet';
 
 export const useWalletStore = defineStore('wallet', () => {
   const address = ref<string | null>(null);
@@ -43,6 +44,18 @@ export const useWalletStore = defineStore('wallet', () => {
       // Get chain ID
       try {
         chainId.value = await walletService.getChainId();
+        
+        // Check if we're on the correct network
+        if (chainId.value !== DEFAULT_NETWORK.chainId) {
+          console.warn(`Wrong network. Expected ${DEFAULT_NETWORK.chainId}, got ${chainId.value}`);
+          // Optionally auto-switch to correct network
+          try {
+            await walletService.switchToZkSyncEra();
+            chainId.value = DEFAULT_NETWORK.chainId;
+          } catch (switchError) {
+            console.warn('Failed to switch to correct network:', switchError);
+          }
+        }
       } catch (chainError) {
         console.warn('Failed to get chain ID:', chainError);
       }
