@@ -3,8 +3,8 @@
 
 # Build settings
 [build]
-  # Build command that builds both client and server
-  command = "npm run build:all"
+  # Build command - only build client (server runs as serverless function)
+  command = "npm run build:netlify"
   
   # The directory to publish (client build output)
   publish = "client/dist"

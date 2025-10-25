@@ -10,6 +10,7 @@
     "server:build": "cd server && npm run build",
     "client:build": "cd client && npm run build",
     "build": "npm run server:build && npm run client:build",
+    "build:netlify": "cd client && npm install && npm run build",
     "build:all": "npm run install:all && npm run build",
     "build:concurrent": "concurrently \"npm run server:build\" \"npm run client:build\"",
     "server:start": "cd server && npm start",
