@@ -3,8 +3,9 @@
  */
 
 // API Base URL
-// Development: proxy will redirect to localhost:3001
-// Production: set VITE_API_BASE_URL to your deployed server URL
+// Development: uses proxy (vite.config.ts redirects /api to localhost:3001)
+// Production: set VITE_API_BASE_URL to your deployed server URL (should include /api)
+// If VITE_API_BASE_URL is not set, defaults to '/api' which works with proxy or same-domain deployment
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 /**
@@ -116,9 +117,13 @@ export interface HealthCheck {
 export const apiService = {
   /**
    * Health check
+   * Note: Health endpoint is at root level, not under /api
    */
   async healthCheck(): Promise<HealthCheck> {
-    return fetchAPI<HealthCheck>('/health');
+    // Health is at /health (root), so we need to construct the URL differently
+    const baseUrl = import.meta.env.VITE_API_BASE_URL?.replace('/api', '') || '';
+    const healthUrl = baseUrl ? `${baseUrl}/health` : '/health';
+    return fetchAPI<HealthCheck>(healthUrl);
   },
 
   /**
