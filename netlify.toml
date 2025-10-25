@@ -16,6 +16,7 @@
 [build.environment]
   NODE_VERSION = "18"
   NPM_FLAGS = "--legacy-peer-deps"
+  NPM_CONFIG_PRODUCTION = "false"
 
 # Redirect API calls to serverless functions
 [[redirects]]
