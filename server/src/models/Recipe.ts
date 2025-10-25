@@ -1,7 +1,7 @@
 import mongoose, { Schema } from 'mongoose';
 import { IRecipeDocument } from '../types';
 
-// Recipe ingredient sub-schema
+// Recipe ingredient sub-schema (matches blockchain struct)
 const recipeIngredientSchema = new Schema({
   tokenContract: {
     type: String,
@@ -17,11 +17,6 @@ const recipeIngredientSchema = new Schema({
     type: Number,
     required: [true, 'Token ID is required'],
     min: [0, 'Token ID must be non-negative']
-  },
-  amount: {
-    type: Number,
-    required: [true, 'Amount is required'],
-    min: [1, 'Amount must be at least 1']
   },
   position: {
     type: Number,
@@ -69,6 +64,16 @@ const recipeSchema = new Schema<IRecipeDocument>({
       message: 'At least one ingredient is required'
     }
   },
+  requiresExactPattern: {
+    type: Boolean,
+    default: true,
+    required: [true, 'requiresExactPattern is required']
+  },
+  active: {
+    type: Boolean,
+    default: true,
+    required: [true, 'active status is required']
+  },
   name: {
     type: String,
     required: [true, 'Recipe name is required'],
@@ -96,6 +101,10 @@ const recipeSchema = new Schema<IRecipeDocument>({
     type: Number,
     min: [0, 'Crafting time must be non-negative'],
     default: 0
+  },
+  metadata: {
+    type: Schema.Types.Mixed,
+    default: {}
   }
 }, {
   timestamps: true,

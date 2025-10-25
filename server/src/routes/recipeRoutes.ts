@@ -1,8 +1,73 @@
 import { Router } from 'express';
-import { getRecipes } from '../controllers/recipeController';
+import { createRecipe, getRecipes } from '../controllers/recipeController';
 import { validateQuery } from '../middleware/validation';
 
 const router = Router();
+
+/**
+ * @swagger
+ * /api/recipes:
+ *   post:
+ *     summary: Create a new recipe
+ *     tags: [Recipes]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - blockchainRecipeId
+ *               - resultTokenContract
+ *               - resultTokenId
+ *               - ingredients
+ *               - name
+ *             properties:
+ *               blockchainRecipeId:
+ *                 type: string
+ *               resultTokenContract:
+ *                 type: string
+ *               resultTokenId:
+ *                 type: number
+ *               resultAmount:
+ *                 type: number
+ *                 default: 1
+ *               ingredients:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     tokenContract:
+ *                       type: string
+ *                     tokenId:
+ *                       type: number
+ *                     position:
+ *                       type: number
+ *               requiresExactPattern:
+ *                 type: boolean
+ *                 default: true
+ *               active:
+ *                 type: boolean
+ *                 default: true
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               category:
+ *                 type: string
+ *               difficulty:
+ *                 type: number
+ *               craftingTime:
+ *                 type: number
+ *               metadata:
+ *                 type: object
+ *     responses:
+ *       201:
+ *         description: Recipe created successfully
+ *       409:
+ *         description: Recipe already exists
+ */
+router.post('/', createRecipe);
 
 /**
  * @swagger

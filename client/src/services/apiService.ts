@@ -90,6 +90,33 @@ export interface Recipe {
 }
 
 /**
+ * User Balance Interface
+ */
+export interface UserBalance {
+  tokenContract: string;
+  tokenId: number;
+  balance: string;
+  ingredientDataId: string;
+}
+
+/**
+ * Inventory Item Interface (with metadata)
+ */
+export interface InventoryItem {
+  tokenContract: string;
+  tokenId: number;
+  balance: string;
+  metadata: {
+    name?: string;
+    image?: string;
+    description?: string;
+    category?: string;
+    [key: string]: any;
+  };
+  ingredientDataId: string;
+}
+
+/**
  * API Response wrapper
  */
 export interface ApiResponse<T> {
@@ -190,6 +217,97 @@ export const apiService = {
     if (!response.data) {
       throw new Error('Recipe not found');
     }
+    return response.data;
+  },
+
+  /**
+   * Get user's token balances from blockchain
+   * @param address - Wallet address
+   * @returns User balances (non-zero only)
+   */
+  async getUserBalance(address: string): Promise<{
+    address: string;
+    balances: UserBalance[];
+    totalTokens: number;
+    allTokensChecked: number;
+    contractAddress: string;
+  }> {
+    const response = await fetchAPI<ApiResponse<{
+      address: string;
+      balances: UserBalance[];
+      totalTokens: number;
+      allTokensChecked: number;
+      contractAddress: string;
+    }>>(`/ingredients/blockchain/user-balance/${address}`);
+    
+    if (!response.data) {
+      throw new Error('Failed to fetch user balance');
+    }
+    
+    return response.data;
+  },
+
+  /**
+   * Get user's inventory with metadata from blockchain
+   * @param address - Wallet address
+   * @param includeZero - Include tokens with zero balance (default: false)
+   * @returns User inventory with ingredient metadata
+   */
+  async getUserInventory(address: string, includeZero: boolean = false): Promise<{
+    address: string;
+    inventory: InventoryItem[];
+    totalItems: number;
+    allTokensChecked: number;
+    contractAddress: string;
+  }> {
+    const queryParams = new URLSearchParams();
+    if (includeZero) {
+      queryParams.append('includeZero', 'true');
+    }
+    
+    const queryString = queryParams.toString();
+    const endpoint = queryString 
+      ? `/ingredients/blockchain/user-inventory/${address}?${queryString}`
+      : `/ingredients/blockchain/user-inventory/${address}`;
+    
+    const response = await fetchAPI<ApiResponse<{
+      address: string;
+      inventory: InventoryItem[];
+      totalItems: number;
+      allTokensChecked: number;
+      contractAddress: string;
+    }>>(endpoint);
+    
+    if (!response.data) {
+      throw new Error('Failed to fetch user inventory');
+    }
+    
+    return response.data;
+  },
+
+  /**
+   * Get single token balance for a user
+   * @param address - Wallet address
+   * @param tokenId - Token ID
+   * @returns Token balance
+   */
+  async getTokenBalance(address: string, tokenId: number): Promise<{
+    address: string;
+    tokenId: number;
+    balance: string;
+    contractAddress: string;
+  }> {
+    const response = await fetchAPI<ApiResponse<{
+      address: string;
+      tokenId: number;
+      balance: string;
+      contractAddress: string;
+    }>>(`/ingredients/blockchain/balance/${address}/${tokenId}`);
+    
+    if (!response.data) {
+      throw new Error('Failed to fetch token balance');
+    }
+    
     return response.data;
   },
 };
