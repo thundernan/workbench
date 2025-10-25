@@ -263,19 +263,7 @@
     
     <!-- Bottom Notification Bar -->
     <div class="bg-slate-800 border-t-2 border-slate-700 px-6 py-4">
-      <div class="text-slate-400 text-xs mb-1">
-        Notification/Toasts
-      </div>
-      <div class="flex gap-3 mt-3 text-xs flex-wrap">
-        <div 
-          v-for="(notification, idx) in notifications" 
-          :key="idx"
-          class="px-3 py-1 rounded"
-          :class="getNotificationClass(notification.type)"
-        >
-          {{ notification.message }}
-      </div>
-    </div>
+     
     </div>
 
     <ToastNotification />
