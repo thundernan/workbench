@@ -1,44 +1,37 @@
 <template>
   <div class="wallet-connect">
     <!-- Connect Button -->
-    <Button
+    <button
       v-if="!walletStore.connected"
       @click="handleConnectClick"
-      :loading="walletStore.isLoading"
-      icon="pi pi-wallet"
-      :label="walletStore.isLoading ? 'Connecting...' : 'Connect Wallet'"
-      severity="success"
-      class="p-button-sm"
-    />
+      :disabled="walletStore.isLoading"
+      class="px-4 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors text-xs"
+      :class="{ 'opacity-50 cursor-not-allowed': walletStore.isLoading }"
+    >
+      {{ walletStore.isLoading ? '[Connecting...]' : '[Connect Wallet]' }}
+    </button>
 
     <!-- Connected State -->
     <div v-else class="flex items-center gap-2">
-      <!-- Network Indicator -->
-      <Chip 
-        :label="networkName" 
-        :icon="networkIcon" 
-        :class="networkClass"
-        size="small"
-      />
-      
-      <!-- Address -->
-      <Chip 
-        :label="walletStore.shortAddress" 
-        icon="pi pi-check-circle" 
-        class="bg-emerald-600" 
-        size="small"
-      />
+      <!-- Address with Network -->
+      <button
+        class="px-3 py-1 rounded border border-emerald-500 text-emerald-400 hover:bg-emerald-600/10 transition-colors text-xs flex items-center gap-2"
+        @click="handleConnectClick"
+      >
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span>{{ walletStore.shortAddress }}</span>
+        <span class="text-slate-400">|</span>
+        <span class="text-slate-400">{{ networkName }}</span>
+      </button>
       
       <!-- Disconnect Button -->
-      <Button
+      <button
         @click="disconnectWallet"
-        icon="pi pi-sign-out"
-        severity="danger"
-        size="small"
-        text
-        rounded
-        v-tooltip.bottom="'Disconnect'"
-      />
+        class="px-3 py-1 rounded border border-slate-600 text-slate-400 hover:border-red-500 hover:text-red-400 transition-colors text-xs"
+        title="Disconnect"
+      >
+        [Disconnect]
+      </button>
     </div>
 
     <!-- Wallet Selection Modal -->
@@ -153,8 +146,6 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import Button from 'primevue/button';
-import Chip from 'primevue/chip';
 import Dialog from 'primevue/dialog';
 import Message from 'primevue/message';
 import { useWalletStore } from '@/stores/wallet';

@@ -23,9 +23,7 @@
                 </button>
               </div>
             </div>
-            <button class="px-4 py-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors text-xs">
-              [Connect Wallet]
-            </button>
+            <WalletConnectButton />
           </div>
         </header>
 
@@ -289,6 +287,7 @@
 import { ref, computed } from 'vue';
 import ToastNotification from '@/components/ToastNotification.vue';
 import WelcomeChestModal from '@/components/WelcomeChestModal.vue';
+import WalletConnectButton from '@/components/WalletConnectButton.vue';
 import { useInventoryStore } from '@/stores/inventory';
 import { useRecipesStore } from '@/stores/recipes';
 import { useToastStore } from '@/stores/toast';
