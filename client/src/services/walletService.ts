@@ -14,6 +14,12 @@ export class Web3WalletService {
       installed: false
     },
     {
+      name: 'Trust Wallet',
+      id: 'trust',
+      icon: 'https://trustwallet.com/assets/images/media/assets/TWT.png',
+      installed: false
+    },
+    {
       name: 'Coinbase Wallet',
       id: 'coinbase',
       icon: 'https://images.ctfassets.net/9sy2a0egs6zh/4zJfzJbG3kTDSk5Wo4RJI1/3a7d1b5e5b5e5b5e5b5e5b5e5b5e5b5e/coinbase-wallet-logo.svg',
@@ -31,7 +37,9 @@ export class Web3WalletService {
   private checkWalletAvailability(): void {
     this.walletProviders.forEach(provider => {
       if (provider.id === 'metamask') {
-        provider.installed = typeof window !== 'undefined' && !!window.ethereum;
+        provider.installed = typeof window !== 'undefined' && !!window.ethereum && !window.ethereum.isTrust;
+      } else if (provider.id === 'trust') {
+        provider.installed = typeof window !== 'undefined' && !!window.ethereum?.isTrust;
       } else if (provider.id === 'coinbase') {
         provider.installed = typeof window !== 'undefined' && !!window.coinbaseWalletExtension;
       }
@@ -39,10 +47,11 @@ export class Web3WalletService {
   }
 
   /**
-   * Get available wallet providers
+   * Get all wallet providers (both installed and not installed)
    */
   getAvailableProviders(): WalletProvider[] {
-    return this.walletProviders.filter(provider => provider.installed);
+    // Return all providers, UI will show install status
+    return this.walletProviders;
   }
 
   /**
@@ -74,6 +83,38 @@ export class Web3WalletService {
         throw new Error('User rejected the connection request');
       }
       throw new Error(`Failed to connect to MetaMask: ${error.message}`);
+    }
+  }
+
+  /**
+   * Connect to Trust Wallet
+   */
+  async connectTrust(): Promise<string> {
+    if (!window.ethereum?.isTrust) {
+      throw new Error('Trust Wallet is not installed. Please install Trust Wallet extension.');
+    }
+
+    try {
+      // Request account access
+      const accounts = await window.ethereum.request({
+        method: 'eth_requestAccounts'
+      });
+
+      if (accounts.length === 0) {
+        throw new Error('No accounts found');
+      }
+
+      // Create ethers provider and signer
+      this.provider = new ethers.BrowserProvider(window.ethereum);
+      this.signer = await this.provider.getSigner();
+
+      // Return checksummed address from signer
+      return await this.signer.getAddress();
+    } catch (error: any) {
+      if (error.code === 4001) {
+        throw new Error('User rejected the connection request');
+      }
+      throw new Error(`Failed to connect to Trust Wallet: ${error.message}`);
     }
   }
 
@@ -114,6 +155,8 @@ export class Web3WalletService {
     switch (walletId) {
       case 'metamask':
         return this.connectMetaMask();
+      case 'trust':
+        return this.connectTrust();
       case 'coinbase':
         return this.connectCoinbase();
       default:

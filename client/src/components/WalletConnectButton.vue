@@ -55,15 +55,50 @@
     >
       <div class="wallet-selection">
         <div class="modal-header-info">
-          <p class="modal-subtitle">Choose a wallet provider to connect</p>
-          <p class="modal-description">Connect with one of available wallet providers or create a new wallet.</p>
+          <div class="flex items-center justify-between mb-4">
+            <p class="modal-subtitle mb-0">
+              {{ walletStore.connected ? 'Switch Wallet' : 'Choose a wallet provider to connect' }}
+            </p>
+            <button 
+              @click="showWalletModal = false" 
+              class="close-button"
+              aria-label="Close"
+            >
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
+          <p class="modal-description">
+            {{ walletStore.connected 
+              ? 'Disconnect current wallet and connect to a different one.' 
+              : 'Connect with one of available wallet providers or create a new wallet.' 
+            }}
+          </p>
+        </div>
+
+        <!-- Current Connection (if connected) -->
+        <div v-if="walletStore.connected" class="current-wallet-info mb-4">
+          <div class="flex items-center justify-between p-3 bg-emerald-900/20 border-2 border-emerald-600 rounded-lg">
+            <div class="flex items-center gap-3">
+              <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+              <div>
+                <p class="text-white text-sm font-medium">Currently Connected</p>
+                <p class="text-emerald-400 text-xs font-mono">{{ walletStore.shortAddress }}</p>
+              </div>
+            </div>
+            <button
+              @click="disconnectAndClose"
+              class="px-3 py-1.5 rounded border border-red-500 text-red-400 hover:bg-red-500/10 transition-colors text-xs"
+            >
+              Disconnect
+            </button>
+          </div>
         </div>
         
         <div class="wallet-grid">
           <div
             v-for="provider in walletStore.availableProviders"
             :key="provider.id"
-            @click="provider.installed ? connectToWallet(provider.id) : null"
+            @click="provider.installed ? switchToWallet(provider.id) : null"
             class="wallet-option"
             :class="{ 
               'opacity-50 cursor-not-allowed': !provider.installed,
@@ -213,6 +248,32 @@ const connectToWallet = async (walletId: string) => {
   }
 };
 
+const switchToWallet = async (walletId: string) => {
+  try {
+    // If already connected, disconnect first
+    if (walletStore.connected) {
+      await walletStore.disconnectWallet();
+      // Small delay to ensure clean disconnection
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    // Connect to new wallet
+    await walletStore.connectWallet(walletId);
+    showWalletModal.value = false;
+    
+    toastStore.showToast({
+      type: 'success',
+      message: `Switched to ${walletStore.shortAddress}`
+    });
+  } catch (error: any) {
+    console.error('Failed to switch wallet:', error);
+    toastStore.showToast({
+      type: 'error',
+      message: error.message || 'Failed to switch wallet'
+    });
+  }
+};
+
 const disconnectWallet = async () => {
   try {
     await walletStore.disconnectWallet();
@@ -227,6 +288,11 @@ const disconnectWallet = async () => {
       message: error.message || 'Failed to disconnect wallet'
     });
   }
+};
+
+const disconnectAndClose = async () => {
+  await disconnectWallet();
+  showWalletModal.value = false;
 };
 
 const handleImageError = (event: Event) => {
