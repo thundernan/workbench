@@ -57,17 +57,24 @@ async function fetchAPI<T>(
  */
 export interface Recipe {
   _id: string;
-  recipeId: string;
-  newIngredientId: string;
+  id?: string;
+  blockchainRecipeId: string;
+  resultTokenContract: string;
+  resultTokenId: number;
+  resultAmount: number;
   ingredients: Array<{
-    ingredientId: string;
+    tokenContract: string;
+    tokenId: number;
+    amount: number;
     position: number;
   }>;
-  gridSize: number;
-  blockNumber: number;
-  transactionHash: string;
-  createdAt: string;
-  updatedAt: string;
+  name: string;
+  description?: string;
+  category?: string;
+  difficulty?: number;
+  craftingTime?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 /**
@@ -77,6 +84,17 @@ export interface ApiResponse<T> {
   success: boolean;
   data?: T;
   message?: string;
+}
+
+/**
+ * Pagination Result
+ */
+export interface PaginationResult<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 /**
@@ -104,9 +122,37 @@ export const apiService = {
   /**
    * Get all recipes
    */
-  async getRecipes(): Promise<Recipe[]> {
-    const response = await fetchAPI<ApiResponse<Recipe[]>>('/recipes');
-    return response.data || [];
+  async getRecipes(params?: { page?: number; limit?: number; category?: string }): Promise<Recipe[]> {
+    // Build query string
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    if (params?.category) queryParams.append('category', params.category);
+    
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `/recipes?${queryString}` : '/recipes';
+    
+    const response = await fetchAPI<ApiResponse<PaginationResult<Recipe>>>(endpoint);
+    
+    // Extract recipes from paginated response
+    return response.data?.data || [];
+  },
+
+  /**
+   * Get all recipes (all pages)
+   */
+  async getAllRecipes(): Promise<Recipe[]> {
+    // First, get total count
+    const firstPage = await fetchAPI<ApiResponse<PaginationResult<Recipe>>>('/recipes?limit=1');
+    const total = firstPage.data?.total || 0;
+    
+    if (total === 0) {
+      return [];
+    }
+    
+    // Fetch all recipes in one request
+    const response = await fetchAPI<ApiResponse<PaginationResult<Recipe>>>(`/recipes?limit=${total}`);
+    return response.data?.data || [];
   },
 
   /**

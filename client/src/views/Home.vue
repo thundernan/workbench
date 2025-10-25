@@ -169,95 +169,7 @@
 
       <!-- Right Panel - Recipe Book -->
       <div class="w-80 flex flex-col border-2 border-slate-700 rounded-lg bg-slate-800 overflow-hidden">
-        <div class="px-4 py-2 border-b-2 border-slate-700 text-emerald-400 font-semibold">
-          Recipe
-        </div>
-        <div class="flex-1 p-4 overflow-y-auto">
-          <div class="text-slate-500 text-xs mb-4">[recipes]</div>
-          
-          <!-- Recipe Cards -->
-          <div class="space-y-3">
-            <div 
-              v-for="recipe in recipesStore.allRecipes" 
-              :key="recipe.id"
-              class="border border-slate-600 rounded bg-slate-700 hover:border-emerald-400 transition-all duration-200"
-              :class="{ 'border-emerald-400': selectedRecipe?.id === recipe.id }"
-            >
-              <!-- Recipe Header (Always Visible) -->
-              <div 
-                class="flex items-center gap-3 p-3 cursor-pointer"
-                @click="toggleRecipe(recipe)"
-              >
-                <div class="text-2xl">{{ recipe.result.icon }}</div>
-                <div class="flex-1">
-                  <div class="text-white text-sm font-medium">{{ recipe.name }}</div>
-                  <div class="text-slate-400 text-xs">{{ recipe.ingredients.length }} ingredients</div>
-                </div>
-                <button 
-                  @click.stop="autofillRecipe(recipe)"
-                  class="text-emerald-400 hover:text-emerald-300 transition-colors text-lg"
-                  title="Autofill"
-                >
-                  ⚡
-                </button>
-                <!-- Expand/Collapse Icon -->
-                <svg 
-                  class="w-5 h-5 text-slate-400 transition-transform duration-200"
-                  :class="{ 'rotate-180': selectedRecipe?.id === recipe.id }"
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
-
-              <!-- Recipe Details (Expandable) -->
-              <div 
-                v-if="selectedRecipe?.id === recipe.id"
-                class="border-t border-slate-600 p-3 animate-slideDown"
-              >
-                <!-- Mini Grid Preview -->
-                <div class="text-slate-400 text-xs mb-2 font-medium">Recipe Pattern:</div>
-                <div class="grid grid-cols-3 gap-1.5 mb-4">
-                  <div 
-                    v-for="(cell, idx) in getRecipeGridFlat(recipe)" 
-                    :key="idx"
-                    class="aspect-square rounded border flex items-center justify-center"
-                    :class="cell ? 'border-emerald-500/50 bg-slate-600' : 'border-slate-700 bg-slate-800'"
-                  >
-                    <span v-if="cell" class="text-lg">{{ cell.icon }}</span>
-                    <span v-else class="text-slate-700 text-xs">-</span>
-                  </div>
-                </div>
-
-                <!-- Ingredients List -->
-                <div class="text-slate-400 text-xs mb-2 font-medium">Required Items:</div>
-                <div class="space-y-1.5 mb-4">
-                  <div 
-                    v-for="ingredient in recipe.ingredients" 
-                    :key="ingredient.item.id"
-                    class="flex items-center gap-2 text-xs bg-slate-800 rounded px-2 py-1.5"
-                  >
-                    <span class="text-lg">{{ ingredient.item.icon }}</span>
-                    <span class="text-white flex-1">{{ ingredient.item.name }}</span>
-                    <span class="text-emerald-400 font-medium">× {{ ingredient.quantity }}</span>
-                  </div>
-                </div>
-
-                <!-- Tags -->
-                <div class="flex gap-2 text-xs">
-                  <span class="px-2 py-1 rounded bg-blue-900/50 text-blue-300 border border-blue-700">[preview]</span>
-                  <span class="px-2 py-1 rounded bg-emerald-900/50 text-emerald-300 border border-emerald-700">[learned]</span>
-                </div>
-              </div>
-            </div>
-        </div>
-
-          <div class="text-slate-500 text-xs mt-6 border-t border-slate-700 pt-4">
-            [autofill]
-        </div>
-        </div>
+        <RecipeBook @autofill="handleAutofillRecipe" />
       </div>
     </div>
     
@@ -288,10 +200,11 @@ import { ref, computed } from 'vue';
 import ToastNotification from '@/components/ToastNotification.vue';
 import WelcomeChestModal from '@/components/WelcomeChestModal.vue';
 import WalletConnectButton from '@/components/WalletConnectButton.vue';
+import RecipeBook from '@/components/RecipeBook.vue';
 import { useInventoryStore } from '@/stores/inventory';
 import { useRecipesStore } from '@/stores/recipes';
 import { useToastStore } from '@/stores/toast';
-import type { Item, Recipe } from '@/types';
+import type { Item, Recipe, BlockchainRecipe } from '@/types';
 
 const inventoryStore = useInventoryStore();
 const recipesStore = useRecipesStore();
@@ -632,6 +545,21 @@ const toggleRecipe = (recipe: Recipe) => {
   } else {
     selectedRecipe.value = recipe;
   }
+};
+
+// Handler for RecipeBook component autofill
+const handleAutofillRecipe = (recipe: Recipe | BlockchainRecipe) => {
+  // For now, just show a toast for blockchain recipes
+  if ('blockchainRecipeId' in recipe) {
+    toastStore.showToast({
+      type: 'info',
+      message: `Recipe: ${recipe.name} (blockchain recipe - grid autofill coming soon)`
+    });
+    return;
+  }
+  
+  // Use existing autofill for legacy recipes
+  autofillRecipe(recipe as Recipe);
 };
 
 const autofillRecipe = (recipe: Recipe) => {
