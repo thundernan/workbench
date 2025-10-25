@@ -5,7 +5,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 
 // Import your routes from built JavaScript
-const recipeRoutes = require('../../server/dist/routes/recipeRoutes');
+const recipeRoutes = require('../../server/dist/routes/recipeRoutes').default;
 
 // Create Express app
 const app = express();
