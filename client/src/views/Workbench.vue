@@ -3,7 +3,14 @@
     <!-- Mobile Navigation -->
     <div class="lg:hidden bg-slate-800 border-b border-slate-700">
       <div class="flex items-center justify-between p-4">
-        <h1 class="text-xl font-bold text-white">Workbench</h1>
+        <div class="flex items-center gap-2">
+          <img 
+            src="/workbench_icon.png" 
+            alt="Workbench" 
+            class="w-8 h-8"
+          />
+          <h1 class="text-xl font-bold text-white">Workbench</h1>
+        </div>
         <WalletConnectButton />
       </div>
       <div class="flex space-x-1 px-4 pb-4">
