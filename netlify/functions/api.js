@@ -1,22 +1,11 @@
-// Register ts-node for TypeScript support
-require('ts-node').register({
-  transpileOnly: true,
-  compilerOptions: {
-    module: 'commonjs',
-    target: 'es2020',
-    esModuleInterop: true,
-    allowSyntheticDefaultImports: true,
-  },
-});
-
 const express = require('express');
 const serverless = require('serverless-http');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const helmet = require('helmet');
 
-// Import your routes from TypeScript source
-const recipeRoutes = require('../../server/src/routes/recipeRoutes');
+// Import your routes from built JavaScript
+const recipeRoutes = require('../../server/dist/routes/recipeRoutes');
 
 // Create Express app
 const app = express();
