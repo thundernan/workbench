@@ -3,7 +3,9 @@
     v-model:visible="isVisible"
     modal
     header="Connect Wallet"
+    :headerStyle="{ color: '#ffffff' }"
     :style="{ width: '400px' }"
+    :draggable="false"
     class="wallet-modal"
   >
     <div class="wallet-providers">

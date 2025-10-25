@@ -44,21 +44,27 @@
     <!-- Wallet Selection Modal -->
     <Dialog 
       v-model:visible="showWalletModal" 
-      modal 
-      header="Connect Wallet" 
-      :style="{ 
+      modal
+      header="Choose a wallet provider to connect"
+      :style="{
         width: '600px', 
         maxWidth: '90vw',
         backgroundColor: '#1e293b',
         borderRadius: '12px',
         border: '2px solid #334155',
-        padding: '20px'
+        padding: '20px 10px',
+        color: '#ffffff'
       }"
       :closable="true"
+      :draggable="false"
+      :showHeader="false"
       class="wallet-modal"
     >
       <div class="wallet-selection">
-        <p class="modal-subtitle">Choose a wallet to connect to your account:</p>
+        <div class="modal-header-info">
+          <p class="modal-subtitle">Choose a wallet provider to connect</p>
+          <p class="modal-description">Connect with one of available wallet providers or create a new wallet.</p>
+        </div>
         
         <div class="wallet-grid">
           <div
@@ -81,8 +87,9 @@
             </div>
             <div class="wallet-info">
               <h3 class="wallet-name">{{ provider.name }}</h3>
-              <p class="wallet-status" :class="provider.installed ? 'text-emerald-400' : 'text-red-400'">
-                {{ provider.installed ? 'Available' : 'Not Installed' }}
+              <p class="wallet-status" :class="provider.installed ? 'text-emerald-400' : 'text-slate-400'">
+                <i :class="provider.installed ? 'pi pi-check-circle' : 'pi pi-times-circle'" class="mr-1"></i>
+                {{ provider.installed ? 'Ready to connect' : 'Not installed' }}
               </p>
             </div>
             <div class="wallet-action">
@@ -90,10 +97,15 @@
                 v-if="provider.installed" 
                 class="pi pi-arrow-right"
               ></i>
-              <i 
-                v-else 
-                class="pi pi-exclamation-triangle text-orange-400"
-              ></i>
+              <a 
+                v-else
+                :href="getInstallLink(provider.id)"
+                target="_blank"
+                class="install-badge"
+                @click.stop
+              >
+                Install
+              </a>
             </div>
           </div>
         </div>
@@ -112,29 +124,26 @@
           </Message>
         </div>
 
-        <!-- Install Instructions -->
-        <div class="install-instructions">
-          <h4 class="install-title">Don't have a wallet?</h4>
-          <p class="install-description">
-            Install a Web3 wallet to interact with the blockchain
-          </p>
-          <div class="install-links">
-            <a 
-              href="https://metamask.io/" 
-              target="_blank" 
-              class="install-link"
-            >
-              <i class="pi pi-external-link"></i>
-              Install MetaMask
-            </a>
-            <a 
-              href="https://wallet.coinbase.com/" 
-              target="_blank" 
-              class="install-link"
-            >
-              <i class="pi pi-external-link"></i>
-              Install Coinbase Wallet
-            </a>
+        <!-- Help Section -->
+        <div class="help-section">
+          <div class="help-card">
+            <div class="help-icon">
+              <i class="pi pi-question-circle"></i>
+            </div>
+            <div class="help-content">
+              <h4 class="help-title">New to Ethereum wallets?</h4>
+              <p class="help-description">
+                A wallet lets you connect to Workbench and manage your digital assets.
+              </p>
+              <a 
+                href="https://ethereum.org/en/wallets/" 
+                target="_blank" 
+                class="help-link"
+              >
+                Learn more about wallets
+                <i class="pi pi-arrow-right ml-1"></i>
+              </a>
+            </div>
           </div>
         </div>
       </div>
@@ -234,6 +243,16 @@ const handleImageError = (event: Event) => {
   img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiNGM0Y0RjYiLz4KPHBhdGggZD0iTTEyIDEySDIwVjIwSDEyVjEyWiIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4K';
 };
 
+const getInstallLink = (walletId: string): string => {
+  const links: { [key: string]: string } = {
+    metamask: 'https://metamask.io/download/',
+    coinbase: 'https://www.coinbase.com/wallet/downloads',
+    trust: 'https://trustwallet.com/download',
+    walletconnect: 'https://walletconnect.com/'
+  };
+  return links[walletId] || 'https://ethereum.org/en/wallets/find-wallet/';
+};
+
 // Check for existing connection on mount
 onMounted(async () => {
   await walletStore.checkConnection();
@@ -242,15 +261,27 @@ onMounted(async () => {
 
 <style scoped>
 .wallet-selection {
-  padding: 0;
+  padding-right: 20px;
+  padding-left: 20px;
+}
+
+.modal-header-info {
+  margin-bottom: 2rem;
 }
 
 .modal-subtitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: white;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.modal-description {
   font-size: 0.875rem;
   color: #94a3b8;
-  margin-bottom: 1.5rem;
   line-height: 1.6;
-  text-align: center;
+  margin: 0;
 }
 
 .wallet-modal :deep(.p-dialog) {
@@ -276,32 +307,33 @@ onMounted(async () => {
 .wallet-modal :deep(.p-dialog-header) {
   background-color: #1e293b !important;
   background: #1e293b !important;
-  color: white !important;
+  color: #ffffff !important;
   border-radius: 12px 12px 0 0;
   padding: 1.5rem 2rem;
   border-bottom: 2px solid #334155;
 }
 
 .wallet-modal :deep(.p-dialog-header .p-dialog-title) {
-  color: white !important;
-  font-weight: 700;
-  font-size: 1.375rem;
-  letter-spacing: -0.025em;
+  color: #ffffff !important;
+  font-weight: 600;
+  font-size: 1.25rem;
+  letter-spacing: -0.01em;
 }
 
 .wallet-modal :deep(.p-dialog-header .p-dialog-header-icon) {
   color: #94a3b8 !important;
-  opacity: 0.8;
+  background: transparent !important;
+  opacity: 1;
   transition: all 0.2s ease;
   width: 2rem;
   height: 2rem;
-  border-radius: 50%;
+  border-radius: 6px;
 }
 
 .wallet-modal :deep(.p-dialog-header .p-dialog-header-icon:hover) {
-  color: #10b981 !important;
-  opacity: 1;
-  background: rgba(16, 185, 129, 0.1);
+  color: #ffffff !important;
+  background: rgba(148, 163, 184, 0.1) !important;
+  transform: scale(1.05);
 }
 
 .wallet-modal :deep(.p-dialog-content) {
@@ -427,56 +459,100 @@ onMounted(async () => {
   margin-bottom: 1.5rem;
 }
 
-.install-instructions {
-  padding-top: 1.5rem;
+.install-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.875rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid #10b981;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.install-badge:hover {
+  background: #10b981;
+  color: #0f172a;
+  transform: scale(1.05);
+}
+
+.help-section {
+  margin-top: 2rem;
+  padding-top: 2rem;
   border-top: 2px solid #334155;
-  margin-top: 0.5rem;
 }
 
-.install-title {
-  font-size: 0.875rem;
-  font-weight: 700;
-  margin: 0 0 0.5rem 0;
+.help-card {
+  display: flex;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid #334155;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.help-card:hover {
+  border-color: #10b981;
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.help-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(16, 185, 129, 0.1);
+  border-radius: 10px;
+  color: #10b981;
+  font-size: 1.25rem;
+}
+
+.help-content {
+  flex: 1;
+}
+
+.help-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
   color: white;
-  letter-spacing: -0.01em;
+  margin: 0 0 0.375rem 0;
+  line-height: 1.3;
 }
 
-.install-description {
+.help-description {
   font-size: 0.8125rem;
   color: #94a3b8;
-  margin: 0 0 1rem 0;
+  margin: 0 0 0.75rem 0;
   line-height: 1.5;
 }
 
-.install-links {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.install-link {
+.help-link {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
   font-size: 0.8125rem;
   font-weight: 600;
   color: #10b981;
   text-decoration: none;
-  padding: 0.625rem 1rem;
-  border: 2px solid #10b981;
-  border-radius: 8px;
   transition: all 0.2s ease;
-  background: transparent;
 }
 
-.install-link:hover {
-  background: #10b981;
-  color: #0f172a;
-  border-color: #10b981;
+.help-link:hover {
+  color: #34d399;
   transform: translateX(2px);
 }
 
-.install-link .pi {
+.help-link .ml-1 {
+  margin-left: 0.25rem;
   font-size: 0.75rem;
+}
+
+.mr-1 {
+  margin-right: 0.25rem;
 }
 </style>
