@@ -1,0 +1,520 @@
+{
+  "api": {
+    "name": "Workbench Server API",
+    "version": "1.0.0",
+    "description": "Node.js TypeScript REST API for Web3 crafting game ingredient management",
+    "baseUrl": "http://localhost:3001",
+    "protocol": "HTTP/HTTPS",
+    "authentication": "None (Web3 wallet-based)",
+    "contentType": "application/json"
+  },
+  "endpoints": {
+    "root": {
+      "path": "/",
+      "method": "GET",
+      "description": "Returns basic API information",
+      "response": {
+        "success": true,
+        "message": "Workbench Server API",
+        "version": "1.0.0",
+        "endpoints": {
+          "health": "/health",
+          "ingredients": "/api/ingredients",
+          "documentation": "/api-docs"
+        }
+      }
+    },
+    "health": {
+      "path": "/health",
+      "method": "GET",
+      "description": "Health check endpoint",
+      "responses": {
+        "200": {
+          "description": "Server is healthy",
+          "schema": {
+            "success": "boolean",
+            "message": "string",
+            "timestamp": "string (ISO 8601)",
+            "uptime": "number",
+            "database": "string"
+          }
+        },
+        "503": {
+          "description": "Server is unhealthy"
+        }
+      }
+    },
+    "ingredients": {
+      "create": {
+        "path": "/api/ingredients",
+        "method": "POST",
+        "description": "Create a new ingredient",
+        "requestBody": {
+          "required": true,
+          "contentType": "application/json",
+          "schema": {
+        "tokenContract": {
+          "type": "string",
+          "required": true,
+          "pattern": "^0x[a-fA-F0-9]{40}$",
+          "description": "ERC1155 contract address"
+        },
+        "tokenId": {
+          "type": "number",
+          "required": true,
+          "minimum": 0,
+          "description": "Token ID required"
+        },
+        "amount": {
+          "type": "number",
+          "required": true,
+          "minimum": 1,
+          "description": "Amount required"
+        },
+        "position": {
+          "type": "number",
+          "required": true,
+          "minimum": 0,
+          "maximum": 8,
+          "description": "Position in crafting grid (0-8)"
+        },
+        "name": {
+          "type": "string",
+          "required": true,
+          "minLength": 1,
+          "maxLength": 100,
+          "description": "Display name for the ingredient"
+        },
+        "image": {
+          "type": "string",
+          "nullable": true,
+          "description": "Image URL or null"
+        }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ingredient created successfully",
+            "schema": {
+              "success": true,
+              "message": "string",
+              "data": "Ingredient object"
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        }
+      },
+      "getAll": {
+        "path": "/api/ingredients",
+        "method": "GET",
+        "description": "Get all ingredients with pagination and filtering",
+        "queryParameters": {
+          "page": {
+            "type": "number",
+            "required": false,
+            "default": 1,
+            "minimum": 1,
+            "description": "Page number"
+          },
+          "limit": {
+            "type": "number",
+            "required": false,
+            "default": 10,
+            "minimum": 1,
+            "maximum": 100,
+            "description": "Items per page"
+          },
+          "tokenContract": {
+            "type": "string",
+            "required": false,
+            "description": "Filter by contract address"
+          },
+          "tokenId": {
+            "type": "number",
+            "required": false,
+            "description": "Filter by token ID"
+          },
+          "position": {
+            "type": "number",
+            "required": false,
+            "minimum": 0,
+            "maximum": 8,
+            "description": "Filter by position"
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ingredients retrieved successfully",
+            "schema": {
+              "success": true,
+              "message": "string",
+              "data": {
+                "data": "array of Ingredient objects",
+                "total": "number",
+                "page": "number",
+                "limit": "number",
+                "totalPages": "number"
+              }
+            }
+          }
+        }
+      },
+      "getById": {
+        "path": "/api/ingredients/{id}",
+        "method": "GET",
+        "description": "Get ingredient by ID",
+        "pathParameters": {
+          "id": {
+            "type": "string",
+            "required": true,
+            "pattern": "^[0-9a-fA-F]{24}$",
+            "description": "MongoDB ObjectId"
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ingredient retrieved successfully",
+            "schema": {
+              "success": true,
+              "message": "string",
+              "data": "Ingredient object"
+            }
+          },
+          "404": {
+            "description": "Ingredient not found"
+          }
+        }
+      },
+      "update": {
+        "path": "/api/ingredients/{id}",
+        "method": "PUT",
+        "description": "Update ingredient by ID",
+        "pathParameters": {
+          "id": {
+            "type": "string",
+            "required": true,
+            "pattern": "^[0-9a-fA-F]{24}$",
+            "description": "MongoDB ObjectId"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "contentType": "application/json",
+          "schema": {
+            "tokenContract": {
+              "type": "string",
+              "required": false,
+              "pattern": "^0x[a-fA-F0-9]{40}$"
+            },
+            "tokenId": {
+              "type": "number",
+              "required": false,
+              "minimum": 0
+            },
+            "amount": {
+              "type": "number",
+              "required": false,
+              "minimum": 1
+            },
+            "position": {
+              "type": "number",
+              "required": false,
+              "minimum": 0,
+              "maximum": 8
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ingredient updated successfully"
+          },
+          "404": {
+            "description": "Ingredient not found"
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        }
+      },
+      "delete": {
+        "path": "/api/ingredients/{id}",
+        "method": "DELETE",
+        "description": "Delete ingredient by ID",
+        "pathParameters": {
+          "id": {
+            "type": "string",
+            "required": true,
+            "pattern": "^[0-9a-fA-F]{24}$",
+            "description": "MongoDB ObjectId"
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ingredient deleted successfully"
+          },
+          "404": {
+            "description": "Ingredient not found"
+          }
+        }
+      },
+      "getByTokenContract": {
+        "path": "/api/ingredients/token-contract/{tokenContract}",
+        "method": "GET",
+        "description": "Get ingredients by token contract address",
+        "pathParameters": {
+          "tokenContract": {
+            "type": "string",
+            "required": true,
+            "pattern": "^0x[a-fA-F0-9]{40}$",
+            "description": "Token contract address"
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ingredients retrieved successfully",
+            "schema": {
+              "success": true,
+              "message": "string",
+              "data": "array of Ingredient objects"
+            }
+          }
+        }
+      },
+      "getByPosition": {
+        "path": "/api/ingredients/position/{position}",
+        "method": "GET",
+        "description": "Get ingredients by position",
+        "pathParameters": {
+          "position": {
+            "type": "number",
+            "required": true,
+            "minimum": 0,
+            "maximum": 8,
+            "description": "Position in crafting grid"
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ingredients retrieved successfully",
+            "schema": {
+              "success": true,
+              "message": "string",
+              "data": "array of Ingredient objects"
+            }
+          }
+        }
+      },
+      "bulkCreate": {
+        "path": "/api/ingredients/bulk-create",
+        "method": "POST",
+        "description": "Create multiple ingredients",
+        "requestBody": {
+          "required": true,
+          "contentType": "application/json",
+          "schema": {
+            "ingredients": {
+              "type": "array",
+              "required": true,
+              "items": {
+                "tokenContract": "string",
+                "tokenId": "number",
+                "amount": "number",
+                "position": "number"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ingredients created successfully",
+            "schema": {
+              "success": true,
+              "message": "string",
+              "data": "array of Ingredient objects"
+            }
+          },
+          "400": {
+            "description": "Validation error"
+          }
+        }
+      },
+      "cleanup": {
+        "path": "/api/ingredients/cleanup",
+        "method": "DELETE",
+        "description": "Delete all ingredients (for testing/cleanup)",
+        "responses": {
+          "200": {
+            "description": "All ingredients deleted successfully",
+            "schema": {
+              "success": true,
+              "message": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "dataModels": {
+    "Ingredient": {
+      "type": "object",
+      "properties": {
+        "_id": {
+          "type": "string",
+          "description": "MongoDB ObjectId (auto-generated)",
+          "pattern": "^[0-9a-fA-F]{24}$"
+        },
+        "tokenContract": {
+          "type": "string",
+          "required": true,
+          "description": "ERC1155 contract address",
+          "pattern": "^0x[a-fA-F0-9]{40}$",
+          "example": "0x1234567890123456789012345678901234567890"
+        },
+        "tokenId": {
+          "type": "number",
+          "required": true,
+          "description": "Token ID required",
+          "minimum": 0,
+          "example": 1
+        },
+        "amount": {
+          "type": "number",
+          "required": true,
+          "description": "Amount required",
+          "minimum": 1,
+          "example": 5
+        },
+        "position": {
+          "type": "number",
+          "required": true,
+          "description": "Position in crafting grid (0-8 for 3x3)",
+          "minimum": 0,
+          "maximum": 8,
+          "example": 0
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp (auto-generated)"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp (auto-generated)"
+        }
+      }
+    },
+    "ApiResponse": {
+      "type": "object",
+      "properties": {
+        "success": {
+          "type": "boolean",
+          "description": "Whether the request was successful"
+        },
+        "message": {
+          "type": "string",
+          "description": "Response message"
+        },
+        "data": {
+          "type": "object",
+          "description": "Response data (varies by endpoint)"
+        },
+        "error": {
+          "type": "string",
+          "description": "Error message if any"
+        }
+      }
+    },
+    "PaginationResult": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "type": "array",
+          "items": {
+            "$ref": "#/dataModels/Ingredient"
+          }
+        },
+        "total": {
+          "type": "number",
+          "description": "Total number of items"
+        },
+        "page": {
+          "type": "number",
+          "description": "Current page number"
+        },
+        "limit": {
+          "type": "number",
+          "description": "Items per page"
+        },
+        "totalPages": {
+          "type": "number",
+          "description": "Total number of pages"
+        }
+      }
+    }
+  },
+  "errorHandling": {
+    "standardFormat": {
+      "success": false,
+      "message": "string",
+      "error": "string"
+    },
+    "statusCodes": {
+      "200": "Success",
+      "201": "Created successfully",
+      "400": "Bad Request (validation error)",
+      "404": "Not Found",
+      "409": "Conflict (duplicate entry)",
+      "500": "Internal Server Error",
+      "503": "Service Unavailable (database disconnected)"
+    },
+    "validationErrors": {
+      "invalidEthereumAddress": "Token contract must be a valid Ethereum address",
+      "invalidTokenId": "Token ID must be non-negative",
+      "invalidAmount": "Amount must be at least 1",
+      "invalidPosition": "Position must be between 0-8",
+      "invalidObjectId": "Invalid MongoDB ObjectId format"
+    }
+  },
+  "configuration": {
+    "rateLimiting": {
+      "windowMs": 900000,
+      "maxRequests": 100,
+      "description": "15 minutes window, 100 requests per IP"
+    },
+    "cors": {
+      "allowedOrigins": ["http://localhost:3000"],
+      "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+      "headers": ["Content-Type", "Authorization"],
+      "credentials": true
+    },
+    "database": {
+      "type": "MongoDB",
+      "connection": "MongoDB Atlas or local MongoDB",
+      "indexes": [
+        "tokenContract + tokenId (compound)",
+        "position (single)",
+        "createdAt (descending)"
+      ]
+    }
+  },
+  "development": {
+    "setup": [
+      "npm install",
+      "Copy env-config.txt to .env and update MongoDB credentials",
+      "npm run dev",
+      "Access Swagger UI at http://localhost:3001/api-docs",
+      "Test health at http://localhost:3001/health"
+    ],
+    "swaggerUI": "http://localhost:3001/api-docs",
+    "healthCheck": "http://localhost:3001/health"
+  },
+  "web3Integration": {
+    "authentication": "None (wallet-based on client side)",
+    "access": "All endpoints publicly accessible",
+    "protection": "Rate limiting provides basic protection",
+    "cors": "Configured for frontend integration"
+  }
+}
