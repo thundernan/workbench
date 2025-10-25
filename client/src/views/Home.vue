@@ -1,7 +1,7 @@
 <template>
   <div class="workbench-layout bg-slate-900 min-h-screen flex flex-col text-sm font-mono">
     <!-- Header -->
-    <AppHeader />
+    <AppHeader ref="appHeaderRef" />
 
     <!-- Main Content Area -->
     <div class="flex-1 flex gap-4 p-4 overflow-hidden">
@@ -9,7 +9,17 @@
       <div class="w-80 flex flex-col border-2 border-slate-700 rounded-lg bg-slate-800 overflow-hidden">
         <!-- Header with Search -->
         <div class="px-4 py-2 border-b-2 border-slate-700">
-          <div class="text-emerald-400 font-semibold mb-2">Resources</div>
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-emerald-400 font-semibold">Resources</div>
+            <div v-if="inventoryStore.isBlockchainLoaded && walletStore.connected" class="flex items-center gap-1 text-xs text-emerald-400">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>Blockchain</span>
+            </div>
+            <div v-else class="flex items-center gap-1 text-xs text-slate-500">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+              <span>Local</span>
+            </div>
+          </div>
           <input
             v-model="inventorySearch"
             type="text"
@@ -20,8 +30,22 @@
 
         <!-- Resources List -->
         <div class="flex-1 p-4 overflow-y-auto">
+          <!-- Loading State -->
+          <div v-if="inventoryStore.isLoading" class="text-center py-8">
+            <div class="text-emerald-400 text-sm mb-2">
+              <i class="pi pi-spin pi-spinner"></i>
+            </div>
+            <div class="text-slate-400 text-sm">Loading inventory...</div>
+          </div>
+
+          <!-- Error State -->
+          <div v-else-if="inventoryStore.error" class="text-center py-8 px-4">
+            <div class="text-red-400 text-sm mb-2">⚠️</div>
+            <div class="text-red-400 text-xs">{{ inventoryStore.error }}</div>
+          </div>
+
           <!-- Item Cards -->
-          <div class="space-y-3">
+          <div v-else class="space-y-3">
             <div 
               v-for="invItem in filteredInventoryItems" 
               :key="invItem.item.id"
@@ -48,7 +72,7 @@
           </div>
 
           <!-- Empty State -->
-          <div v-if="filteredInventoryItems.length === 0" class="text-center py-8">
+          <div v-if="!inventoryStore.isLoading && !inventoryStore.error && filteredInventoryItems.length === 0" class="text-center py-8">
             <div class="text-slate-400 text-sm">No items found</div>
           </div>
         </div>
@@ -155,28 +179,107 @@
     </div>
 
     <ToastNotification />
-    <WelcomeChestModal />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
 import ToastNotification from '@/components/ToastNotification.vue';
-import WelcomeChestModal from '@/components/WelcomeChestModal.vue';
 import RecipeBook from '@/components/RecipeBook.vue';
 import { useInventoryStore } from '@/stores/inventory';
 import { useRecipesStore } from '@/stores/recipes';
 import { useToastStore } from '@/stores/toast';
+import { useWalletStore } from '@/stores/wallet';
 import type { Item, Recipe, BlockchainRecipe } from '@/types';
 
 const inventoryStore = useInventoryStore();
 const recipesStore = useRecipesStore();
 const toastStore = useToastStore();
+const walletStore = useWalletStore();
 
 // Initialize data
-inventoryStore.initializeSampleItems();
+// Don't initialize sample items if we're loading from blockchain
 recipesStore.initializeRecipes();
+
+// Reference to AppHeader component
+const appHeaderRef = ref<InstanceType<typeof AppHeader> | null>(null);
+
+// Load blockchain inventory
+const loadUserInventory = async () => {
+  if (!walletStore.address) {
+    console.warn('⚠️ No wallet address available');
+    return;
+  }
+  
+  try {
+    await inventoryStore.loadBlockchainInventory(walletStore.address);
+    toastStore.showToast({
+      type: 'success',
+      message: `Loaded ${inventoryStore.items.length} items from blockchain`
+    });
+  } catch (error: any) {
+    console.error('Failed to load blockchain inventory:', error);
+    toastStore.showToast({
+      type: 'error',
+      message: 'Failed to load inventory from blockchain'
+    });
+    // Fallback to sample items
+    inventoryStore.initializeSampleItems();
+  }
+};
+
+// Watch for wallet connection changes
+watch(() => walletStore.connected, async (isConnected, wasConnected) => {
+  if (isConnected && !wasConnected && walletStore.address) {
+    // Wallet just connected, load inventory
+    console.log('✅ Wallet connected, loading inventory...');
+    await loadUserInventory();
+  } else if (!isConnected && wasConnected) {
+    // Wallet disconnected, clear inventory
+    console.log('❌ Wallet disconnected, clearing inventory...');
+    inventoryStore.clearBlockchainInventory();
+    inventoryStore.initializeSampleItems();
+  }
+});
+
+// Watch for wallet address changes (account switching)
+watch(() => walletStore.address, async (newAddress, oldAddress) => {
+  if (newAddress && oldAddress && newAddress !== oldAddress && walletStore.connected) {
+    // Account switched, reload inventory
+    console.log('🔄 Account switched, reloading inventory...');
+    toastStore.showToast({
+      type: 'info',
+      message: `Switched to ${walletStore.shortAddress}`
+    });
+    await loadUserInventory();
+  }
+});
+
+// Check wallet connection on mount
+onMounted(async () => {
+  // Check if wallet is already connected (will auto-reconnect if saved in localStorage)
+  await walletStore.checkConnection();
+  
+  // Wait a bit to see if auto-reconnection succeeded
+  await new Promise(resolve => setTimeout(resolve, 300));
+  
+  // If connected, load inventory
+  if (walletStore.connected && walletStore.address) {
+    console.log('✅ Wallet connected, loading inventory...');
+    await loadUserInventory();
+  } else {
+    // If not connected after auto-reconnect attempt, show wallet modal
+    setTimeout(() => {
+      if (!walletStore.connected) {
+        appHeaderRef.value?.openWalletModal();
+      }
+    }, 500); // Small delay for better UX
+    
+    // Initialize with sample items for now
+    inventoryStore.initializeSampleItems();
+  }
+});
 
 // Inventory search
 const inventorySearch = ref('');

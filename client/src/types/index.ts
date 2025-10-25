@@ -6,6 +6,9 @@ export interface Item {
   icon: string;
   rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
   category: 'material' | 'tool' | 'weapon' | 'armor' | 'consumable';
+  // Blockchain fields (optional for legacy items)
+  tokenId?: number;
+  tokenContract?: string;
 }
 
 export interface InventoryItem {

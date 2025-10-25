@@ -1,9 +1,13 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { Item, InventoryItem } from '@/types';
+import { apiService } from '@/services/apiService';
 
 export const useInventoryStore = defineStore('inventory', () => {
   const items = ref<InventoryItem[]>([]);
+  const isLoading = ref(false);
+  const error = ref<string | null>(null);
+  const isBlockchainLoaded = ref(false);
 
   // Add items to inventory
   const addItem = (item: Item, quantity: number = 1) => {
@@ -120,9 +124,71 @@ export const useInventoryStore = defineStore('inventory', () => {
     addItem(allItems[3], 2);  // 2 diamond
   };
 
+  // Load inventory from blockchain
+  const loadBlockchainInventory = async (walletAddress: string) => {
+    try {
+      isLoading.value = true;
+      error.value = null;
+      
+      console.log('🔄 Loading blockchain inventory for:', walletAddress);
+      
+      // Fetch user inventory from blockchain
+      const result = await apiService.getUserInventory(walletAddress, false);
+      
+      console.log('✅ Blockchain inventory loaded:', result);
+      
+      // Clear current items (we'll replace with blockchain data)
+      items.value = [];
+      
+      // Convert blockchain inventory to our format
+      result.inventory.forEach(blockchainItem => {
+        // Create Item from metadata
+        const item: Item = {
+          id: `token_${blockchainItem.tokenId}`,
+          name: blockchainItem.metadata.name || `Token #${blockchainItem.tokenId}`,
+          description: blockchainItem.metadata.description || 'Blockchain ingredient',
+          icon: blockchainItem.metadata.image || '📦',
+          rarity: (blockchainItem.metadata.rarity as any) || 'common',
+          category: (blockchainItem.metadata.category as any) || 'material',
+          tokenId: blockchainItem.tokenId,
+          tokenContract: blockchainItem.tokenContract
+        };
+        
+        // Parse balance (it's a string from blockchain)
+        const quantity = parseInt(blockchainItem.balance, 10);
+        
+        // Add to inventory
+        if (quantity > 0) {
+          items.value.push({ item, quantity });
+        }
+      });
+      
+      isBlockchainLoaded.value = true;
+      console.log(`✅ Loaded ${items.value.length} items from blockchain`);
+      
+      return result;
+    } catch (err: any) {
+      console.error('❌ Failed to load blockchain inventory:', err);
+      error.value = err.message || 'Failed to load inventory';
+      throw err;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  // Clear blockchain inventory
+  const clearBlockchainInventory = () => {
+    items.value = [];
+    isBlockchainLoaded.value = false;
+    error.value = null;
+  };
+
   return {
     items,
     allItems,
+    isLoading,
+    error,
+    isBlockchainLoaded,
     addItem,
     removeItem,
     hasItem,
@@ -130,6 +196,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     getItem,
     totalItems,
     uniqueItems,
-    initializeSampleItems
+    initializeSampleItems,
+    loadBlockchainInventory,
+    clearBlockchainInventory
   };
 });

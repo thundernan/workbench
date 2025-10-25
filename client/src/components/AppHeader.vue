@@ -45,19 +45,28 @@
       </div>
       
       <!-- Wallet Connection -->
-      <WalletConnectButton />
+      <WalletConnectButton ref="walletButtonRef" />
     </div>
   </header>
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import { useRoute } from 'vue-router';
 import WalletConnectButton from './WalletConnectButton.vue';
 
 const route = useRoute();
+const walletButtonRef = ref<InstanceType<typeof WalletConnectButton> | null>(null);
 
 const isActive = (path: string) => {
   return route.path === path;
 };
+
+// Expose method to open wallet modal
+defineExpose({
+  openWalletModal: () => {
+    walletButtonRef.value?.openModal();
+  }
+});
 </script>
 

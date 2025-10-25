@@ -51,6 +51,8 @@
       :closable="true"
       :draggable="false"
       :showHeader="false"
+      :closeOnEscape="true"
+      :dismissableMask="false"
       class="wallet-modal"
     >
       <div class="wallet-selection">
@@ -195,6 +197,13 @@ const showWalletModal = ref(false);
 const handleConnectClick = () => {
   showWalletModal.value = true;
 };
+
+// Expose method to open modal programmatically
+defineExpose({
+  openModal: () => {
+    showWalletModal.value = true;
+  }
+});
 
 // Network information
 const networkName = computed(() => {
@@ -573,5 +582,37 @@ onMounted(async () => {
 
 .mr-1 {
   margin-right: 0.25rem;
+}
+
+.close-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.close-button:hover {
+  color: #ffffff;
+  background: rgba(148, 163, 184, 0.1);
+  transform: scale(1.05);
+}
+
+.close-button .pi {
+  font-size: 1.25rem;
+}
+
+.mb-0 {
+  margin-bottom: 0;
+}
+
+.current-wallet-info {
+  margin-bottom: 1rem;
 }
 </style>
