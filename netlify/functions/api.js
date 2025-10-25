@@ -35,25 +35,58 @@ async function connectToDatabase() {
     throw new Error('MONGODB_URI is not defined in environment variables');
   }
 
-  console.log('Creating new database connection');
-  const connection = await mongoose.connect(MONGODB_URI, {
-    serverSelectionTimeoutMS: 5000,
-    socketTimeoutMS: 45000,
-  });
+  console.log('Creating new database connection...');
+  console.log('Connection string starts with:', MONGODB_URI.substring(0, 20) + '...');
+  
+  try {
+    const connection = await mongoose.connect(MONGODB_URI, {
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      maxPoolSize: 10,
+      minPoolSize: 2,
+    });
 
-  cachedDb = connection;
-  return connection;
+    console.log('Database connected successfully');
+    cachedDb = connection;
+    return connection;
+  } catch (error) {
+    console.error('MongoDB connection failed:', error.message);
+    throw error;
+  }
 }
 
 // Health check route
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
   const dbStatus = mongoose.connection.readyState;
+  
+  let recipeCount = 0;
+  let collections = [];
+  
+  try {
+    if (dbStatus === 1) {
+      // Get collection names
+      const db = mongoose.connection.db;
+      const collectionList = await db.listCollections().toArray();
+      collections = collectionList.map(c => c.name);
+      
+      // Get recipe count if collection exists
+      if (collections.includes('recipes')) {
+        const Recipe = mongoose.connection.collection('recipes');
+        recipeCount = await Recipe.countDocuments();
+      }
+    }
+  } catch (error) {
+    console.error('Error fetching DB stats:', error);
+  }
+  
   res.json({
     success: true,
     message: 'API is running on Netlify Functions',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     database: dbStatus === 1 ? 'connected' : dbStatus === 2 ? 'connecting' : 'disconnected',
+    collections: collections,
+    recipeCount: recipeCount,
   });
 });
 
@@ -86,10 +119,25 @@ const handler = async (event, context) => {
   
   try {
     await connectToDatabase();
-    console.log('Database connected');
   } catch (error) {
     console.error('Database connection error:', error);
-    // Continue anyway - some routes might not need DB
+    
+    // Return error response for DB-dependent routes
+    if (event.path.includes('/api/recipes')) {
+      return {
+        statusCode: 503,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+        body: JSON.stringify({
+          success: false,
+          message: 'Database connection failed. Please check MongoDB configuration.',
+          error: error.message,
+        }),
+      };
+    }
+    // Continue for non-DB routes like health check
   }
   
   return serverless(app)(event, context);
