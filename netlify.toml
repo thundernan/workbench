@@ -18,6 +18,10 @@
   NPM_FLAGS = "--legacy-peer-deps"
   NPM_CONFIG_PRODUCTION = "false"
 
+# Automatically install function dependencies
+[[plugins]]
+  package = "@netlify/plugin-functions-install-core"
+
 # Redirect API calls to serverless functions
 [[redirects]]
   from = "/api/*"
