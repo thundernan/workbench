@@ -25,33 +25,10 @@ const database = Database.getInstance();
 // Security middleware
 app.use(helmet());
 
-// CORS configuration
+// CORS configuration - Allow all origins
 const corsOptions = {
-  origin: function (origin: string | undefined, callback: Function) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
-      'http://localhost:3001', // Server itself
-      'http://127.0.0.1:3001',
-      'http://localhost:3007', // Additional client port
-      'http://127.0.0.1:3007',
-      'http://localhost:5173', // Vite default port
-      'http://127.0.0.1:5173',
-      'https://craft-hack.netlify.app', // Production frontend
-      process.env['CORS_ORIGIN'] || ''
-    ].filter(Boolean);
-    
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      console.log('CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
+  origin: '*', // Allow all origins
+  credentials: false, // Must be false when origin is '*'
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: [
     'Content-Type', 
