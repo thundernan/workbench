@@ -40,6 +40,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { Item } from '@/types';
 
 interface Props {

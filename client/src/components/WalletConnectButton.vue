@@ -208,45 +208,7 @@ const networkName = computed(() => {
   return networks[walletStore.chainId || 1] || `Chain ${walletStore.chainId}`;
 });
 
-const networkIcon = computed(() => {
-  const icons: { [key: number]: string } = {
-    1: 'pi pi-circle-fill',
-    137: 'pi pi-circle-fill',
-    56: 'pi pi-circle-fill',
-    42161: 'pi pi-circle-fill',
-    10: 'pi pi-circle-fill'
-  };
-  return icons[walletStore.chainId || 1] || 'pi pi-circle-fill';
-});
-
-const networkClass = computed(() => {
-  const classes: { [key: number]: string } = {
-    1: 'bg-blue-100 text-blue-800',
-    137: 'bg-purple-100 text-purple-800',
-    56: 'bg-yellow-100 text-yellow-800',
-    42161: 'bg-blue-100 text-blue-800',
-    10: 'bg-red-100 text-red-800'
-  };
-  return classes[walletStore.chainId || 1] || 'bg-gray-100 text-gray-800';
-});
-
-const connectToWallet = async (walletId: string) => {
-  try {
-    await walletStore.connectWallet(walletId);
-    showWalletModal.value = false;
-    
-    toastStore.showToast({
-      type: 'success',
-      message: `Connected to ${walletStore.shortAddress}`
-    });
-  } catch (error: any) {
-    console.error('Failed to connect wallet:', error);
-    toastStore.showToast({
-      type: 'error',
-      message: error.message || 'Failed to connect wallet'
-    });
-  }
-};
+// Removed unused computed properties: networkIcon, networkClass, connectToWallet (using switchToWallet instead)
 
 const switchToWallet = async (walletId: string) => {
   try {
