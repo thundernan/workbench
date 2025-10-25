@@ -86,6 +86,7 @@ const handler = async (event, context) => {
   
   try {
     await connectToDatabase();
+    console.log('Database connected');
   } catch (error) {
     console.error('Database connection error:', error);
     // Continue anyway - some routes might not need DB
