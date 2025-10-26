@@ -1,1 +1,1 @@
-"Made during ETHBishkek 2025 hackathon”
+Made during ETHBishkek 2025 hackathon
