@@ -26,6 +26,26 @@ workbench/
 └── package.json     # Root package for concurrent dev
 ```
 
+## ⛓️ Onchain Deployments
+
+### zkxsolla Network
+| Contract | Address | Explorer |
+|----------|---------|----------|
+| WorkbenchFactory | `0xb4c27e256848cE6168339f44D2B5052EB32B6eF3` | [View on Explorer](https://explorer-sepolia.xsollazk.com/address/0xb4c27e256848cE6168339f44D2B5052EB32B6eF3) |
+| WorkbenchInstance | `0xeaD96f1845C496e479D7010b59C448b36Ed39d0b` | [View on Explorer](https://explorer-sepolia.xsollazk.com/address/0xeaD96f1845C496e479D7010b59C448b36Ed39d0b) |
+| Marketplace | `0x34EC6dA5045CcA928Cb59DAae5C60bE5b6F44E50` | [View on Explorer](https://explorer-sepolia.xsollazk.com/address/0x34EC6dA5045CcA928Cb59DAae5C60bE5b6F44E50) |
+| GameItemsERC1155 | `0x1a7CC24cE809d7Ebc1DC53ef50b1406B12a4871a` | [View on Explorer](https://explorer-sepolia.xsollazk.com/address/0x1a7CC24cE809d7Ebc1DC53ef50b1406B12a4871a) |
+
+### Status Network
+| Contract | Address | Explorer |
+|----------|---------|----------|
+| WorkbenchFactory ✅ | `0xBba2E288c8d0Ba3b36FC7e0e5B7C32B6b9A1dC74` | [View on Explorer](https://sepoliascan.status.network/address/0xBba2E288c8d0Ba3b36FC7e0e5B7C32B6b9A1dC74) |
+| WorkbenchInstance | `0xa64390F04c18194Be5BeB0bd362e6642EB05Ab62` | [View on Explorer](https://sepoliascan.status.network/address/0xa64390F04c18194Be5BeB0bd362e6642EB05Ab62) |
+| Marketplace ✅ | `0xFaa229eD5AD24Dfdfd2348ED716DE49ce042fa25` | [View on Explorer](https://sepoliascan.status.network/address/0xFaa229eD5AD24Dfdfd2348ED716DE49ce042fa25) |
+| GameItemsERC1155 ✅ | `0x931224dB3Be4592Bf985Aaa4B9B20a99e3aC2CC4` | [View on Explorer](https://sepoliascan.status.network/address/0x931224dB3Be4592Bf985Aaa4B9B20a99e3aC2CC4) |
+
+> ✅ = Verified on block explorer
+
 ## 🚀 Quick Start
 
 ### Prerequisites

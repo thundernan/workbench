@@ -8,26 +8,16 @@
 // Contract addresses per network
 export const CONTRACTS_BY_NETWORK = {
   zkxsolla: {
-    // New Factory Pattern (Recommended)
     WorkbenchFactory: '0xb4c27e256848cE6168339f44D2B5052EB32B6eF3',
-    
-    // Legacy Contracts (Still functional)
-    Workbench: '0x3b5d7653dAf63b5Da3c1159D5e18b4B11443dD4c',
-    
-    // Core Contracts
+    WorkbenchInstance: '0xeaD96f1845C496e479D7010b59C448b36Ed39d0b',
     Marketplace: '0x34EC6dA5045CcA928Cb59DAae5C60bE5b6F44E50',
     GameItemsERC1155: '0x1a7CC24cE809d7Ebc1DC53ef50b1406B12a4871a',
   },
   statusnetwork: {
-    // New Factory Pattern (Recommended)
-    WorkbenchFactory: '',
-    
-    // Legacy Contracts (Still functional)
-    Workbench: '',
-    
-    // Core Contracts
-    Marketplace: '',
-    GameItemsERC1155: '',
+    WorkbenchFactory: '0xBba2E288c8d0Ba3b36FC7e0e5B7C32B6b9A1dC74',
+    WorkbenchInstance: '0xa64390F04c18194Be5BeB0bd362e6642EB05Ab62',
+    Marketplace: '0xFaa229eD5AD24Dfdfd2348ED716DE49ce042fa25',
+    GameItemsERC1155: '0x931224dB3Be4592Bf985Aaa4B9B20a99e3aC2CC4',
   },
 } as const;
 
