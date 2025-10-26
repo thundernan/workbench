@@ -1,43 +1,55 @@
 import { defineStore } from 'pinia';
-import { useToast as usePrimeToast } from 'primevue/usetoast';
+import { ref } from 'vue';
+
+export interface Toast {
+  id: number;
+  type: 'success' | 'error' | 'info' | 'warning';
+  message: string;
+  duration: number;
+}
 
 export const useToastStore = defineStore('toast', () => {
-  let toast: ReturnType<typeof usePrimeToast> | null = null;
-
-  const initToast = () => {
-    if (!toast) {
-      toast = usePrimeToast();
-    }
-  };
+  const toasts = ref<Toast[]>([]);
+  let nextId = 0;
 
   const showToast = (options: {
     type: 'success' | 'error' | 'info' | 'warning';
     message: string;
     duration?: number;
   }) => {
-    initToast();
+    const id = nextId++;
+    const duration = options.duration || 5000;
     
-    const severityMap = {
-      success: 'success',
-      error: 'error',
-      info: 'info',
-      warning: 'warn'
+    const toast: Toast = {
+      id,
+      type: options.type,
+      message: options.message,
+      duration
     };
 
-    toast?.add({
-      severity: severityMap[options.type] as any,
-      summary: options.type.charAt(0).toUpperCase() + options.type.slice(1),
-      detail: options.message,
-      life: options.duration || 5000
-    });
+    toasts.value.push(toast);
+
+    // Auto remove after duration
+    setTimeout(() => {
+      removeToast(id);
+    }, duration);
+  };
+
+  const removeToast = (id: number) => {
+    const index = toasts.value.findIndex(t => t.id === id);
+    if (index > -1) {
+      toasts.value.splice(index, 1);
+    }
   };
 
   const clearAllToasts = () => {
-    toast?.removeAllGroups();
+    toasts.value = [];
   };
 
   return {
+    toasts,
     showToast,
+    removeToast,
     clearAllToasts
   };
 });

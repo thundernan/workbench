@@ -124,8 +124,36 @@
 
         <!-- Create Offer Tab -->
         <div v-if="activeTab === 1" class="space-y-6">
-          <div class="bg-slate-800 border-2 border-slate-700 rounded-lg p-6">
-            <h2 class="text-xl font-semibold text-emerald-400 mb-6">Create Trade Offer</h2>
+          <!-- Wallet Connection Warning -->
+          <div v-if="!walletStore.connected" class="bg-yellow-900/30 border-2 border-yellow-600 rounded-lg p-6 text-center">
+            <div class="text-5xl mb-3">⚠️</div>
+            <h3 class="text-xl font-bold text-yellow-400 mb-2">Wallet Not Connected</h3>
+            <p class="text-yellow-200 mb-4">You need to connect your wallet to create trade offers</p>
+            <button
+              @click="toastStore.showToast({ type: 'info', message: 'Please use the Connect Wallet button in the header' })"
+              class="px-6 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg font-semibold transition-colors"
+            >
+              How to Connect
+            </button>
+          </div>
+
+          <!-- No Inventory Warning -->
+          <div v-else-if="inventoryStore.items.length === 0" class="bg-blue-900/30 border-2 border-blue-600 rounded-lg p-6 text-center">
+            <div class="text-5xl mb-3">📦</div>
+            <h3 class="text-xl font-bold text-blue-400 mb-2">Empty Inventory</h3>
+            <p class="text-blue-200 mb-4">You don't have any items to trade. Visit the Shop to get some resources!</p>
+            <button
+              @click="$router.push('/shop')"
+              class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-colors"
+            >
+              Go to Shop
+            </button>
+          </div>
+
+          <!-- Create Offer Form -->
+          <div v-else class="bg-slate-800 border-2 border-slate-700 rounded-lg p-6">
+            <h2 class="text-xl font-semibold text-emerald-400 mb-2">Create Trade Offer</h2>
+            <p class="text-slate-400 text-sm mb-6">List items from your inventory for trade with other players</p>
             
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <!-- Left Side - What You Offer -->
@@ -138,7 +166,8 @@
                   <label class="block text-sm font-medium text-slate-300 mb-2">Select Item</label>
                   <select
                     v-model="offerForm.offeringItemId"
-                    class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
+                    class="w-full px-4 py-2.5 bg-slate-700 border rounded-lg text-white focus:outline-none transition-colors"
+                    :class="formErrors.offeringItem ? 'border-red-500' : 'border-slate-600 focus:border-emerald-400'"
                   >
                     <option value="">Choose an item...</option>
                     <option
@@ -149,6 +178,9 @@
                       {{ inventoryItem.item.icon }} {{ inventoryItem.item.name }} ({{ inventoryItem.quantity }})
                     </option>
                   </select>
+                  <div v-if="formErrors.offeringItem" class="text-red-400 text-xs mt-1">
+                    {{ formErrors.offeringItem }}
+                  </div>
                 </div>
 
                 <div>
@@ -158,21 +190,22 @@
                     type="number"
                     min="1"
                     :max="maxOfferingQuantity"
-                    class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
+                    class="w-full px-4 py-2.5 bg-slate-700 border rounded-lg text-white focus:outline-none transition-colors"
+                    :class="formErrors.offeringQuantity ? 'border-red-500' : 'border-slate-600 focus:border-emerald-400'"
                   />
-                  <div v-if="offerForm.offeringItemId" class="text-slate-400 text-xs mt-1">
-                    Available: {{ maxOfferingQuantity }}
+                  <div v-if="formErrors.offeringQuantity" class="text-red-400 text-xs mt-1">
+                    {{ formErrors.offeringQuantity }}
                   </div>
                 </div>
 
                 <!-- Preview -->
-                <div v-if="selectedOfferingItem" class="bg-slate-700 rounded-lg p-4 border border-slate-600">
+                <div v-if="selectedOfferingItem" class="bg-slate-700 rounded-lg p-4 border-2 border-emerald-500/50 animate-pulse-slow">
                   <div class="text-slate-400 text-xs mb-2">Preview:</div>
                   <div class="flex items-center gap-3">
                     <div class="text-5xl">{{ selectedOfferingItem.icon }}</div>
                     <div>
                       <div class="text-white font-semibold">{{ selectedOfferingItem.name }}</div>
-                      <div class="text-slate-400 text-sm">× {{ offerForm.offeringQuantity }}</div>
+                      <div class="text-emerald-400 text-sm font-bold">× {{ offerForm.offeringQuantity }}</div>
                     </div>
                   </div>
                 </div>
@@ -188,7 +221,8 @@
                   <label class="block text-sm font-medium text-slate-300 mb-2">Select Item</label>
                   <select
                     v-model="offerForm.requestingItemId"
-                    class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
+                    class="w-full px-4 py-2.5 bg-slate-700 border rounded-lg text-white focus:outline-none transition-colors"
+                    :class="formErrors.requestingItem ? 'border-red-500' : 'border-slate-600 focus:border-emerald-400'"
                   >
                     <option value="">Choose an item...</option>
                     <option
@@ -199,6 +233,9 @@
                       {{ item.icon }} {{ item.name }}
                     </option>
                   </select>
+                  <div v-if="formErrors.requestingItem" class="text-red-400 text-xs mt-1">
+                    {{ formErrors.requestingItem }}
+                  </div>
                 </div>
 
                 <div>
@@ -207,39 +244,70 @@
                     v-model.number="offerForm.requestingQuantity"
                     type="number"
                     min="1"
-                    class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
+                    class="w-full px-4 py-2.5 bg-slate-700 border rounded-lg text-white focus:outline-none transition-colors"
+                    :class="formErrors.requestingQuantity ? 'border-red-500' : 'border-slate-600 focus:border-emerald-400'"
                   />
+                  <div v-if="formErrors.requestingQuantity" class="text-red-400 text-xs mt-1">
+                    {{ formErrors.requestingQuantity }}
+                  </div>
                 </div>
 
                 <!-- Preview -->
-                <div v-if="selectedRequestingItem" class="bg-slate-700 rounded-lg p-4 border border-slate-600">
+                <div v-if="selectedRequestingItem" class="bg-slate-700 rounded-lg p-4 border-2 border-blue-500/50 animate-pulse-slow">
                   <div class="text-slate-400 text-xs mb-2">Preview:</div>
                   <div class="flex items-center gap-3">
                     <div class="text-5xl">{{ selectedRequestingItem.icon }}</div>
                     <div>
                       <div class="text-white font-semibold">{{ selectedRequestingItem.name }}</div>
-                      <div class="text-slate-400 text-sm">× {{ offerForm.requestingQuantity }}</div>
+                      <div class="text-blue-400 text-sm font-bold">× {{ offerForm.requestingQuantity }}</div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
 
+            <!-- Validation Summary -->
+            <div v-if="!canCreateOffer && hasFormInput" class="mt-6 bg-yellow-900/30 border border-yellow-600 rounded-lg p-4">
+              <div class="flex items-start gap-3">
+                <div class="text-yellow-500 text-xl">⚠️</div>
+                <div class="flex-1">
+                  <div class="text-yellow-400 font-semibold text-sm mb-1">Cannot Create Offer</div>
+                  <ul class="text-yellow-200 text-xs space-y-1">
+                    <li v-if="!offerForm.offeringItemId">• Select an item to offer</li>
+                    <li v-if="!offerForm.requestingItemId">• Select an item to request</li>
+                    <li v-if="offerForm.offeringQuantity <= 0">• Offering quantity must be greater than 0</li>
+                    <li v-if="offerForm.offeringQuantity > maxOfferingQuantity">• Not enough items in inventory</li>
+                    <li v-if="offerForm.requestingQuantity <= 0">• Requesting quantity must be greater than 0</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            <!-- Success Message -->
+            <div v-if="canCreateOffer" class="mt-6 bg-emerald-900/30 border border-emerald-600 rounded-lg p-4">
+              <div class="flex items-center gap-3">
+                <div class="text-emerald-500 text-xl">✓</div>
+                <div class="text-emerald-400 font-semibold text-sm">Ready to create offer!</div>
+              </div>
+            </div>
+
             <!-- Action Buttons -->
-            <div class="mt-8 flex gap-4">
+            <div class="mt-6 flex gap-4">
               <button
                 @click="createOffer"
-                :disabled="!canCreateOffer"
-                class="flex-1 py-3 rounded-lg font-semibold transition-all duration-200"
-                :class="canCreateOffer
+                :disabled="!canCreateOffer || isCreatingOffer"
+                class="flex-1 py-3 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center gap-2"
+                :class="canCreateOffer && !isCreatingOffer
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-105 shadow-lg shadow-emerald-500/30'
                   : 'bg-slate-700 text-slate-500 cursor-not-allowed'"
               >
-                ✓ Create Offer
+                <span v-if="isCreatingOffer" class="inline-block animate-spin">⚙️</span>
+                <span>{{ isCreatingOffer ? 'Creating Offer...' : '✓ Create Offer' }}</span>
               </button>
               <button
                 @click="resetForm"
-                class="px-8 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors font-semibold"
+                :disabled="isCreatingOffer"
+                class="px-8 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 ✗ Reset
               </button>
@@ -261,8 +329,18 @@
               <div
                 v-for="offer in myOffers"
                 :key="offer.id"
-                class="bg-slate-700 border border-slate-600 rounded-lg p-5"
+                class="bg-slate-700 border rounded-lg p-5 transition-all duration-300"
+                :class="offer.id === lastCreatedOfferId 
+                  ? 'border-emerald-500 border-2 shadow-lg shadow-emerald-500/50 animate-pulse-slow' 
+                  : 'border-slate-600'"
               >
+                <!-- New Badge -->
+                <div v-if="offer.id === lastCreatedOfferId" class="mb-3 flex items-center gap-2">
+                  <div class="px-3 py-1 bg-emerald-600 text-white text-xs font-semibold rounded-full animate-bounce">
+                    ✨ NEW!
+                  </div>
+                </div>
+                
                 <div class="flex items-start justify-between gap-6">
                   <!-- Offer Details -->
                   <div class="flex-1 grid grid-cols-3 gap-4 items-center">
@@ -354,9 +432,27 @@ const offerForm = ref({
   requestingQuantity: 1
 });
 
+// Form state
+const isCreatingOffer = ref(false);
+const formErrors = ref({
+  offeringItem: '',
+  offeringQuantity: '',
+  requestingItem: '',
+  requestingQuantity: ''
+});
+const lastCreatedOfferId = ref<string | null>(null);
+
 // All available items (for requesting)
 const allAvailableItems = computed(() => {
   return inventoryStore.allItems;
+});
+
+// Check if user has started filling the form
+const hasFormInput = computed(() => {
+  return offerForm.value.offeringItemId !== '' || 
+         offerForm.value.requestingItemId !== '' ||
+         offerForm.value.offeringQuantity !== 1 ||
+         offerForm.value.requestingQuantity !== 1;
 });
 
 // Computed properties for form
@@ -423,7 +519,7 @@ const filteredOffers = computed(() => {
   }
 
   return filtered;
-});
+}); 
 
 // Methods
 const initializeSampleOffers = () => {
@@ -548,7 +644,16 @@ const acceptTrade = (offer: TradeOffer) => {
   });
 };
 
-const createOffer = () => {
+const createOffer = async () => {
+  // Clear previous errors
+  formErrors.value = {
+    offeringItem: '',
+    offeringQuantity: '',
+    requestingItem: '',
+    requestingQuantity: ''
+  };
+
+  // Validate wallet connection
   if (!walletStore.connected) {
     toastStore.showToast({
       type: 'warning',
@@ -557,39 +662,86 @@ const createOffer = () => {
     return;
   }
 
-  if (!canCreateOffer.value) return;
+  // Validate form
+  if (!canCreateOffer.value) {
+    toastStore.showToast({
+      type: 'error',
+      message: 'Please fill in all fields correctly'
+    });
+    return;
+  }
 
   const offeringItem = selectedOfferingItem.value;
   const requestingItem = selectedRequestingItem.value;
   
-  if (!offeringItem || !requestingItem) return;
+  if (!offeringItem || !requestingItem) {
+    return;
+  }
 
-  const newOffer: TradeOffer = {
-    id: Math.random().toString(36).substr(2, 9),
-    seller: walletStore.address!,
-    offeringItem,
-    offeringQuantity: offerForm.value.offeringQuantity,
-    requestingItem,
-    requestingQuantity: offerForm.value.requestingQuantity,
-    timestamp: Date.now()
-  };
+  try {
+    isCreatingOffer.value = true;
 
-  // Remove items from inventory
-  inventoryStore.removeItem(offerForm.value.offeringItemId, offerForm.value.offeringQuantity);
+    // Show processing toast
+    toastStore.showToast({
+      type: 'info',
+      message: '⏳ Creating your trade offer...'
+    });
 
-  // Add to my offers
-  myOffers.value.push(newOffer);
+    // Simulate blockchain transaction delay
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
-  // Add to market
-  offers.value.push(newOffer);
+    const offerId = Math.random().toString(36).substr(2, 9);
+    
+    const newOffer: TradeOffer = {
+      id: offerId,
+      seller: walletStore.address!,
+      offeringItem,
+      offeringQuantity: offerForm.value.offeringQuantity,
+      requestingItem,
+      requestingQuantity: offerForm.value.requestingQuantity,
+      timestamp: Date.now()
+    };
 
-  toastStore.showToast({
-    type: 'success',
-    message: 'Trade offer created successfully!'
-  });
+    // Remove items from inventory
+    inventoryStore.removeItem(offerForm.value.offeringItemId, offerForm.value.offeringQuantity);
 
-  resetForm();
-  activeTab.value = 2; // Switch to "My Offers" tab
+    // Add to my offers
+    myOffers.value.push(newOffer);
+
+    // Add to market
+    offers.value.push(newOffer);
+
+    // Mark as last created for highlighting
+    lastCreatedOfferId.value = offerId;
+    
+    // Clear the highlight after 3 seconds
+    setTimeout(() => {
+      lastCreatedOfferId.value = null;
+    }, 3000);
+
+    // Switch to "My Offers" tab immediately
+    activeTab.value = 2;
+
+    toastStore.showToast({
+      type: 'success',
+      message: `✅ Trade offer created successfully!`
+    });
+
+    resetForm();
+    
+    console.log('✅ Trade offer created:', {
+      offering: `${offerForm.value.offeringQuantity}× ${offeringItem.name}`,
+      requesting: `${offerForm.value.requestingQuantity}× ${requestingItem.name}`
+    });
+  } catch (error: any) {
+    console.error('❌ Failed to create offer:', error);
+    toastStore.showToast({
+      type: 'error',
+      message: 'Failed to create trade offer. Please try again.'
+    });
+  } finally {
+    isCreatingOffer.value = false;
+  }
 };
 
 const cancelOffer = (offerId: string) => {
@@ -623,6 +775,14 @@ const resetForm = () => {
     offeringQuantity: 1,
     requestingItemId: '',
     requestingQuantity: 1
+  };
+  
+  // Clear form errors
+  formErrors.value = {
+    offeringItem: '',
+    offeringQuantity: '',
+    requestingItem: '',
+    requestingQuantity: ''
   };
 };
 
@@ -667,6 +827,20 @@ onMounted(() => {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #64748b;
+}
+
+/* Custom animations */
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s ease-in-out infinite;
 }
 </style>
 

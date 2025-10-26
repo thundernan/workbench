@@ -9,17 +9,7 @@
       <div class="w-80 flex flex-col border-2 border-slate-700 rounded-lg bg-slate-800 overflow-hidden">
         <!-- Header with Search -->
         <div class="px-4 py-2 border-b-2 border-slate-700">
-          <div class="flex items-center justify-between mb-2">
-            <div class="text-emerald-400 font-semibold">Resources</div>
-            <div v-if="inventoryStore.isBlockchainLoaded && walletStore.connected" class="flex items-center gap-1 text-xs text-emerald-400">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Blockchain</span>
-            </div>
-            <div v-else class="flex items-center gap-1 text-xs text-slate-500">
-              <span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
-              <span>Local</span>
-            </div>
-          </div>
+          <div class="text-emerald-400 font-semibold mb-2">Resources</div>
           <input
             v-model="inventorySearch"
             type="text"
@@ -30,22 +20,9 @@
 
         <!-- Resources List -->
         <div class="flex-1 p-4 overflow-y-auto">
-          <!-- Loading State -->
-          <div v-if="inventoryStore.isLoading" class="text-center py-8">
-            <div class="text-emerald-400 text-sm mb-2">
-              <i class="pi pi-spin pi-spinner"></i>
-            </div>
-            <div class="text-slate-400 text-sm">Loading inventory...</div>
-          </div>
-
-          <!-- Error State -->
-          <div v-else-if="inventoryStore.error" class="text-center py-8 px-4">
-            <div class="text-red-400 text-sm mb-2">⚠️</div>
-            <div class="text-red-400 text-xs">{{ inventoryStore.error }}</div>
-          </div>
-
+          <!-- MOCKED: No loading or error states -->
           <!-- Item Cards -->
-          <div v-else class="space-y-3">
+          <div class="space-y-3">
             <div 
               v-for="invItem in filteredInventoryItems" 
               :key="invItem.item.id"
@@ -72,8 +49,16 @@
           </div>
 
           <!-- Empty State -->
-          <div v-if="!inventoryStore.isLoading && !inventoryStore.error && filteredInventoryItems.length === 0" class="text-center py-8">
-            <div class="text-slate-400 text-sm">No items found</div>
+          <div v-if="filteredInventoryItems.length === 0" class="text-center py-12 px-4">
+            <div class="text-5xl mb-3">📦</div>
+            <div class="text-white font-semibold mb-2">No Resources</div>
+            <div class="text-slate-400 text-xs mb-4">Your inventory is empty</div>
+            <button
+              @click="$router.push('/shop')"
+              class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold transition-colors"
+            >
+              🏪 Go to Shop
+            </button>
           </div>
         </div>
       </div>
@@ -144,7 +129,15 @@
                <div class="text-slate-400 text-sm font-medium">→ Result</div>
                <div class="w-36 h-36 border-2 rounded-lg flex items-center justify-center text-6xl transition-all duration-200"
                     :class="matchedRecipe ? 'border-emerald-400 bg-slate-700 shadow-lg shadow-emerald-500/30' : 'border-slate-600 bg-slate-900'">
-                 <span v-if="matchedRecipe" class="select-none">{{ matchedRecipe.result.icon }}</span>
+                 <!-- Image icon -->
+                 <img 
+                   v-if="matchedRecipe && matchedRecipe.result.icon && matchedRecipe.result.icon.startsWith('/')" 
+                   :src="matchedRecipe.result.icon" 
+                   :alt="matchedRecipe.result.name"
+                   class="w-full h-full object-contain p-2"
+                 />
+                 <!-- Emoji icon -->
+                 <span v-else-if="matchedRecipe" class="select-none">{{ matchedRecipe.result.icon }}</span>
                  <span v-else class="text-slate-600 text-4xl">?</span>
                </div>
                <div class="text-center w-full px-2">
@@ -155,15 +148,24 @@
              </div>
            </div>
  
-           <!-- Craft Button -->
-           <button 
-             @click="craftItem"
-             :disabled="!canCraft"
-             class="px-8 py-3 rounded-lg text-sm transition-all duration-200 font-semibold"
-             :class="canCraft ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:scale-105 shadow-lg shadow-emerald-500/50' : 'bg-slate-700 text-slate-500 cursor-not-allowed'"
-           >
-             {{ canCraft ? '⚡ Craft Item' : '✗ No match' }}
-           </button>
+          <!-- Craft Button -->
+          <button 
+            @click="craftItem"
+            :disabled="!canCraft || isCrafting"
+            class="px-8 py-3 rounded-lg text-sm transition-all duration-200 font-semibold relative"
+            :class="canCraft && !isCrafting ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:scale-105 shadow-lg shadow-emerald-500/50' : 'bg-slate-700 text-slate-500 cursor-not-allowed'"
+          >
+            <span v-if="isCrafting" class="flex items-center justify-center gap-2">
+              <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Crafting...
+            </span>
+            <span v-else>
+              {{ canCraft ? '⚡ Craft Item' : '✗ No match' }}
+            </span>
+          </button>
          </div>
       </div>
 
@@ -183,7 +185,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
 import ToastNotification from '@/components/ToastNotification.vue';
 import RecipeBook from '@/components/RecipeBook.vue';
@@ -199,86 +201,87 @@ const toastStore = useToastStore();
 const walletStore = useWalletStore();
 
 // Initialize data
-// Don't initialize sample items if we're loading from blockchain
+// MOCKED: Initialize only with pickaxe and wooden sword recipes
 recipesStore.initializeRecipes();
+
+// Filter to keep only pickaxe and wooden sword
+recipesStore.recipes = recipesStore.recipes.filter(recipe => 
+  recipe.id === 'stone_pickaxe' || recipe.id === 'wooden_sword'
+);
+
+// Don't initialize sample items - start with empty inventory
+console.log('🎮 Running in MOCK mode - 2 recipes (pickaxe, sword), empty inventory');
 
 // Reference to AppHeader component
 const appHeaderRef = ref<InstanceType<typeof AppHeader> | null>(null);
 
-// Load blockchain inventory
-const loadUserInventory = async () => {
-  if (!walletStore.address) {
-    console.warn('⚠️ No wallet address available');
-    return;
-  }
-  
-  try {
-    await inventoryStore.loadBlockchainInventory(walletStore.address);
-    toastStore.showToast({
-      type: 'success',
-      message: `Loaded ${inventoryStore.items.length} items from blockchain`
-    });
-  } catch (error: any) {
-    console.error('Failed to load blockchain inventory:', error);
-    toastStore.showToast({
-      type: 'error',
-      message: 'Failed to load inventory from blockchain'
-    });
-    // Fallback to sample items
-    inventoryStore.initializeSampleItems();
-  }
-};
+// COMMENTED OUT: Blockchain inventory loading
+// const loadUserInventory = async () => {
+//   if (!walletStore.address) {
+//     console.warn('⚠️ No wallet address available');
+//     return;
+//   }
+//   
+//   try {
+//     await inventoryStore.loadBlockchainInventory(walletStore.address);
+//     toastStore.showToast({
+//       type: 'success',
+//       message: `Loaded ${inventoryStore.items.length} items from blockchain`
+//     });
+//   } catch (error: any) {
+//     console.error('Failed to load blockchain inventory:', error);
+//     toastStore.showToast({
+//       type: 'error',
+//       message: 'Failed to load inventory from blockchain'
+//     });
+//     // Fallback to sample items
+//     inventoryStore.initializeSampleItems();
+//   }
+// };
 
-// Watch for wallet connection changes
-watch(() => walletStore.connected, async (isConnected, wasConnected) => {
-  if (isConnected && !wasConnected && walletStore.address) {
-    // Wallet just connected, load inventory
-    console.log('✅ Wallet connected, loading inventory...');
-    await loadUserInventory();
-  } else if (!isConnected && wasConnected) {
-    // Wallet disconnected, clear inventory
-    console.log('❌ Wallet disconnected, clearing inventory...');
-    inventoryStore.clearBlockchainInventory();
-    inventoryStore.initializeSampleItems();
-  }
-});
+// COMMENTED OUT: Watch for wallet connection changes
+// watch(() => walletStore.connected, async (isConnected, wasConnected) => {
+//   if (isConnected && !wasConnected && walletStore.address) {
+//     // Wallet just connected, load inventory
+//     console.log('✅ Wallet connected, loading inventory...');
+//     await loadUserInventory();
+//   } else if (!isConnected && wasConnected) {
+//     // Wallet disconnected, clear inventory
+//     console.log('❌ Wallet disconnected, clearing inventory...');
+//     inventoryStore.clearBlockchainInventory();
+//     inventoryStore.initializeSampleItems();
+//   }
+// });
 
-// Watch for wallet address changes (account switching)
-watch(() => walletStore.address, async (newAddress, oldAddress) => {
-  if (newAddress && oldAddress && newAddress !== oldAddress && walletStore.connected) {
-    // Account switched, reload inventory
-    console.log('🔄 Account switched, reloading inventory...');
-    toastStore.showToast({
-      type: 'info',
-      message: `Switched to ${walletStore.shortAddress}`
-    });
-    await loadUserInventory();
-  }
-});
+// COMMENTED OUT: Watch for wallet address changes (account switching)
+// watch(() => walletStore.address, async (newAddress, oldAddress) => {
+//   if (newAddress && oldAddress && newAddress !== oldAddress && walletStore.connected) {
+//     // Account switched, reload inventory
+//     console.log('🔄 Account switched, reloading inventory...');
+//     toastStore.showToast({
+//       type: 'info',
+//       message: `Switched to ${walletStore.shortAddress}`
+//     });
+//     await loadUserInventory();
+//   }
+// });
 
-// Check wallet connection on mount
+// MOCKED: Simplified mount - no blockchain loading
 onMounted(async () => {
-  // Check if wallet is already connected (will auto-reconnect if saved in localStorage)
+  // Check wallet connection
   await walletStore.checkConnection();
   
-  // Wait a bit to see if auto-reconnection succeeded
-  await new Promise(resolve => setTimeout(resolve, 300));
+  // If wallet not connected, show wallet modal after a small delay
+  setTimeout(() => {
+    if (!walletStore.connected) {
+      console.log('💰 Wallet not connected - showing wallet modal');
+      appHeaderRef.value?.openWalletModal();
+    }
+  }, 500);
   
-  // If connected, load inventory
-  if (walletStore.connected && walletStore.address) {
-    console.log('✅ Wallet connected, loading inventory...');
-    await loadUserInventory();
-  } else {
-    // If not connected after auto-reconnect attempt, show wallet modal
-    setTimeout(() => {
-      if (!walletStore.connected) {
-        appHeaderRef.value?.openWalletModal();
-      }
-    }, 500); // Small delay for better UX
-    
-    // Initialize with sample items for now
-    inventoryStore.initializeSampleItems();
-  }
+  // Start with empty inventory but with 2 recipes
+  console.log('📦 Starting with empty inventory');
+  console.log('📚 Mocked recipes loaded:', recipesStore.recipes.length, 'recipes');
 });
 
 // Inventory search
@@ -320,12 +323,49 @@ const filteredInventoryItems = computed(() => {
 });
 
 const matchedRecipe = computed(() => {
+  // First try regular recipes
   const grid2D = [
     [craftingGrid.value[0], craftingGrid.value[1], craftingGrid.value[2]],
     [craftingGrid.value[3], craftingGrid.value[4], craftingGrid.value[5]],
     [craftingGrid.value[6], craftingGrid.value[7], craftingGrid.value[8]]
   ];
-  return recipesStore.matchRecipe(grid2D);
+  const regularMatch = recipesStore.matchRecipe(grid2D);
+  if (regularMatch) return regularMatch;
+
+  // Try blockchain recipes
+  const gridPositions = new Map<number, { tokenContract: string; tokenId: number }>();
+  craftingGrid.value.forEach((item, index) => {
+    if (item && item.tokenId !== undefined && item.tokenContract) {
+      gridPositions.set(index, {
+        tokenContract: item.tokenContract,
+        tokenId: item.tokenId
+      });
+    }
+  });
+
+  const blockchainMatch = recipesStore.matchBlockchainRecipe(gridPositions);
+  if (blockchainMatch) {
+    // Convert blockchain recipe to regular recipe format for UI
+    return {
+      id: blockchainMatch.id || blockchainMatch._id || '',
+      name: blockchainMatch.name,
+      description: blockchainMatch.description || '',
+      result: {
+        id: `token_${blockchainMatch.resultTokenId}`,
+        name: blockchainMatch.result?.name || blockchainMatch.name,
+        description: blockchainMatch.result?.description || blockchainMatch.description || '',
+        icon: blockchainMatch.result?.icon || '📦',
+        rarity: 'rare' as const,
+        category: 'material' as const,
+        tokenId: blockchainMatch.resultTokenId,
+        tokenContract: blockchainMatch.resultTokenContract
+      },
+      ingredients: [],
+      grid: grid2D
+    };
+  }
+
+  return null;
 });
 
 const canCraft = computed(() => {
@@ -535,13 +575,10 @@ const onTrashDrop = (event: DragEvent) => {
     const item = craftingGrid.value[fromIndex];
     
     if (item) {
-      // Remove item from grid (it's deleted, not returned to inventory)
+      // Return item to inventory
+      inventoryStore.addItem(item, 1);
+      // Remove item from grid
       craftingGrid.value[fromIndex] = null;
-      
-      toastStore.showToast({
-        type: 'info',
-        message: `Deleted ${item.name}`
-      });
     }
   }
 
@@ -568,8 +605,39 @@ const clearCraftingGrid = () => {
   craftingGrid.value = new Array(9).fill(null);
 };
 
-const craftItem = () => {
-  if (!matchedRecipe.value) return;
+const isCrafting = ref(false);
+
+const craftItem = async () => {
+  if (!matchedRecipe.value || isCrafting.value) return;
+
+  // Check if wallet is connected
+  if (!walletStore.connected) {
+    toastStore.showToast({
+      type: 'warning',
+      message: 'Please connect your wallet to craft items'
+    });
+    return;
+  }
+
+  isCrafting.value = true;
+
+  // Prepare crafting transaction
+  const craftingTx = {
+    recipeId: matchedRecipe.value.id || 'unknown',
+    ingredients: craftingGrid.value
+      .filter(item => item !== null)
+      .map(item => ({
+        tokenContract: item.tokenContract || '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+        tokenId: item.tokenId || 0,
+        amount: 1
+      }))
+  };
+
+  // Send transaction to MetaMask
+  const txHash = await walletStore.sendCraftTx(craftingTx);
+
+  // Wait for confirmation (simulate for now)
+  await new Promise(resolve => setTimeout(resolve, 2000));
 
   // Clear grid
   craftingGrid.value = new Array(9).fill(null);
@@ -577,7 +645,7 @@ const craftItem = () => {
   // Add result to inventory
   inventoryStore.addItem(matchedRecipe.value.result, 1);
 
-  // Show notification
+  // Show success notification
   toastStore.showToast({
     type: 'success',
     message: `Crafted ${matchedRecipe.value.result.name}!`
@@ -591,6 +659,8 @@ const craftItem = () => {
   if (notifications.value.length > 5) {
     notifications.value.pop();
   }
+
+  isCrafting.value = false;
 };
 
 // Handler for RecipeBook component autofill

@@ -52,6 +52,12 @@ export interface BlockchainRecipe {
   craftingTime?: number;          // Time to craft in seconds
   createdAt?: string;
   updatedAt?: string;
+  // Optional UI display override
+  result?: {
+    icon?: string;
+    name?: string;
+    description?: string;
+  };
 }
 
 // Blockchain Token (ERC1155)

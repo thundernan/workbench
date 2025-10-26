@@ -48,20 +48,21 @@
         padding: '20px 10px',
         color: '#ffffff'
       }"
-      :closable="true"
+      :closable="walletStore.connected"
       :draggable="false"
       :showHeader="false"
-      :closeOnEscape="true"
+      :closeOnEscape="walletStore.connected"
       :dismissableMask="false"
       class="wallet-modal"
     >
       <div class="wallet-selection">
         <div class="modal-header-info">
-          <div class="flex items-center justify-between mb-4">
-            <p class="modal-subtitle mb-0">
+          <div class="mb-4" :class="walletStore.connected ? 'flex items-center justify-between' : ''">
+            <p class="modal-subtitle mb-0" :class="walletStore.connected ? '' : 'text-center'">
               {{ walletStore.connected ? 'Switch Wallet' : 'Choose a wallet provider to connect' }}
             </p>
             <button 
+              v-if="walletStore.connected"
               @click="showWalletModal = false" 
               class="close-button"
               aria-label="Close"
@@ -69,7 +70,7 @@
               <i class="pi pi-times"></i>
             </button>
           </div>
-          <p class="modal-description">
+          <p class="modal-description" :class="walletStore.connected ? '' : 'text-center'">
             {{ walletStore.connected 
               ? 'Disconnect current wallet and connect to a different one.' 
               : 'Connect with one of available wallet providers or create a new wallet.' 
@@ -231,11 +232,6 @@ const switchToWallet = async (walletId: string) => {
     // Connect to new wallet
     await walletStore.connectWallet(walletId);
     showWalletModal.value = false;
-    
-    toastStore.showToast({
-      type: 'success',
-      message: `Switched to ${walletStore.shortAddress}`
-    });
   } catch (error: any) {
     console.error('Failed to switch wallet:', error);
     toastStore.showToast({

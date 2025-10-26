@@ -10,6 +10,9 @@
     <main>
       <router-view />
     </main>
+    
+    <!-- Toast Notifications -->
+    <ToastNotification />
   </div>
 </template>
 
@@ -17,16 +20,17 @@
 import { onMounted } from 'vue';
 import { useRecipesStore } from '@/stores/recipes';
 import { useWalletStore } from '@/stores/wallet';
+import ToastNotification from '@/components/ToastNotification.vue';
 
 // Initialize stores
 const recipesStore = useRecipesStore();
 const walletStore = useWalletStore();
 
-// Fetch recipes on app load
+// MOCKED: Simplified app load - no server fetching
 onMounted(async () => {
-  console.log('🚀 App loaded - initializing...');
+  console.log('🚀 App loaded - MOCK MODE');
   
-  // Check for existing wallet connection
+  // Check for existing wallet connection (for UI display)
   try {
     await walletStore.checkConnection();
     if (walletStore.connected) {
@@ -36,15 +40,19 @@ onMounted(async () => {
     console.warn('⚠️ Wallet check failed:', error);
   }
   
-  // Fetch blockchain recipes from server
-  try {
-    console.log('📚 Fetching recipes from server...');
-    await recipesStore.fetchBlockchainRecipes();
-    console.log(`✅ Loaded ${recipesStore.allBlockchainRecipes.length} recipes`);
-  } catch (error: any) {
-    console.error('❌ Failed to fetch recipes:', error.message);
-    // Don't block app if recipes fail to load
-    // User can retry via recipe book
-  }
+  // MOCKED: Initialize mock blockchain recipes
+  recipesStore.initializeMockBlockchainRecipes();
+  console.log(`📚 Loaded ${recipesStore.allBlockchainRecipes.length} mock blockchain recipes`);
+  
+  // COMMENTED OUT: Real blockchain recipes fetching
+  // try {
+  //   console.log('📚 Fetching recipes from server...');
+  //   await recipesStore.fetchBlockchainRecipes();
+  //   console.log(`✅ Loaded ${recipesStore.allBlockchainRecipes.length} recipes`);
+  // } catch (error: any) {
+  //   console.error('❌ Failed to fetch recipes:', error.message);
+  // }
+  
+  console.log('🎮 Using mock/sample data for recipes and inventory');
 });
 </script>

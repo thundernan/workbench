@@ -4,55 +4,21 @@
     <div class="flex items-center justify-between px-4 py-3 border-b-2 border-slate-700 flex-shrink-0">
       <span class="text-emerald-400 font-semibold text-sm">Recipe</span>
       <div class="flex items-center gap-2">
-        <button
-          v-if="recipesStore.error"
-          @click="loadRecipes"
-          class="text-yellow-400 hover:text-yellow-300 text-xs"
-          title="Retry"
-        >
-          🔄
-        </button>
-        <span v-if="!recipesStore.isLoading" class="text-slate-400 text-xs">
+        <span class="text-slate-400 text-xs">
           {{ recipesStore.allBlockchainRecipes.length }}
-        </span>
-        <span v-else class="text-slate-400 text-xs animate-pulse">
-          ...
         </span>
       </div>
     </div>
 
     <!-- Content Area -->
     <div class="flex-1 overflow-y-auto p-4">
-      <!-- Loading Skeleton -->
-      <div v-if="recipesStore.isLoading" class="space-y-2">
-        <div v-for="i in 5" :key="i" class="skeleton-card animate-pulse">
-          <div class="flex items-center space-x-2 p-2">
-            <div class="w-8 h-8 bg-slate-700 rounded"></div>
-            <div class="flex-1 space-y-1">
-              <div class="h-3 bg-slate-700 rounded w-3/4"></div>
-              <div class="h-2 bg-slate-700 rounded w-1/2"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Error State -->
-      <div v-else-if="recipesStore.error" class="text-center py-8">
-        <div class="text-red-400 text-2xl mb-2">⚠️</div>
-        <p class="text-red-400 text-xs mb-2">{{ recipesStore.error }}</p>
-        <button @click="loadRecipes" class="text-emerald-400 hover:text-emerald-300 text-xs">
-          [Retry]
-        </button>
-      </div>
-
       <!-- Empty State -->
-      <div v-else-if="recipesStore.allBlockchainRecipes.length === 0" class="text-center py-8">
+      <div v-if="recipesStore.allBlockchainRecipes.length === 0" class="text-center py-8">
         <div class="text-slate-500 text-2xl mb-2">📋</div>
-        <p class="text-slate-400 text-xs">No recipes yet</p>
-        <p class="text-slate-500 text-xs mt-1">Syncing from blockchain...</p>
+        <p class="text-slate-400 text-xs">No recipes available</p>
       </div>
 
-      <!-- Recipe List (if loaded) -->
+      <!-- Recipe List -->
       <template v-else>
         <!-- Search hint -->
         <div class="text-slate-500 text-xs mb-3">[recipes]</div>
@@ -110,7 +76,7 @@
                       class="aspect-square rounded border flex items-center justify-center text-xs"
                       :class="cell ? 'border-emerald-500/50 bg-slate-700' : 'border-slate-700 bg-slate-900'"
                     >
-                      {{ cell ? getIngredientIcon(cell) : '' }}
+                      {{ cell ? getTokenIconFromId(cell.tokenId) : '' }}
                     </div>
                   </div>
                 </div>
@@ -124,9 +90,9 @@
                       :key="`${ingredient.tokenContract}-${ingredient.tokenId}`"
                       class="flex items-center gap-1 bg-slate-700 rounded px-1.5 py-0.5"
                     >
-                      <span class="text-xs">{{ getIngredientIcon(ingredient) }}</span>
+                      <span class="text-xs">{{ getTokenIconFromId(ingredient.tokenId) }}</span>
                       <span class="text-white flex-1 text-[10px] truncate">
-                        Token #{{ ingredient.tokenId }}
+                        {{ getTokenName(ingredient.tokenId) }}
                       </span>
                       <span class="text-emerald-400 font-medium text-[10px] whitespace-nowrap">
                         × {{ ingredient.amount }}
@@ -170,35 +136,38 @@ const toastStore = useToastStore();
 
 const expandedRecipe = ref<BlockchainRecipe | null>(null);
 
+// Mock token metadata for ingredient names
+const tokenMetadata: Record<number, { name: string; icon: string }> = {
+  1: { name: 'Wood', icon: '🪵' },
+  2: { name: 'Stone', icon: '🪨' },
+  3: { name: 'Iron', icon: '⬛' },
+  4: { name: 'Diamond', icon: '💎' },
+  5: { name: 'Gold', icon: '🪙' },
+  10: { name: 'Magic Essence', icon: '✨' },
+  15: { name: 'Herbs', icon: '🌿' },
+  20: { name: 'Water', icon: '💧' },
+  100: { name: 'Stone Pickaxe', icon: '⛏️' },
+  101: { name: 'Wooden Sword', icon: '🗡️' }
+};
+
+const getTokenName = (tokenId: number): string => {
+  return tokenMetadata[tokenId]?.name || `Token #${tokenId}`;
+};
+
+const getTokenIconFromId = (tokenId: number): string => {
+  return tokenMetadata[tokenId]?.icon || '❓';
+};
+
 // Display blockchain recipes
 const displayRecipes = computed(() => {
   return recipesStore.allBlockchainRecipes;
 });
 
-// Load recipes function
-const loadRecipes = async () => {
-  try {
-    await recipesStore.fetchBlockchainRecipes();
-    toastStore.showToast({
-      type: 'success',
-      message: `Loaded ${recipesStore.allBlockchainRecipes.length} recipes`
-    });
-  } catch (error: any) {
-    toastStore.showToast({
-      type: 'error',
-      message: `Failed to load recipes: ${error.message}`
-    });
-  }
-};
+// MOCKED: No server loading needed
 
-// Load on mount if not already loaded
+// MOCKED: Recipes are already loaded by App.vue on startup
 onMounted(() => {
-  if (recipesStore.allBlockchainRecipes.length === 0 && 
-      !recipesStore.isLoading && 
-      !recipesStore.error) {
-    console.log('📚 RecipeBook: Loading recipes...');
-    loadRecipes();
-  }
+  console.log(`📚 RecipeBook: Using ${recipesStore.allBlockchainRecipes.length} mock recipes`);
 });
 
 // Toggle recipe expansion
@@ -235,13 +204,6 @@ const getRecipeIcon = (recipe: BlockchainRecipe): string => {
   }
 };
 
-// Get icon for ingredient (using tokenId as placeholder)
-const getIngredientIcon = (ingredient: BlockchainRecipeIngredient): string => {
-  // For now, use a generic icon based on tokenId
-  // This could be enhanced to fetch actual token metadata
-  const icons = ['🔹', '🔸', '⬜', '⬛', '🟦', '🟧', '🟩', '🟥', '🟪', '🟨'];
-  return icons[ingredient.tokenId % icons.length];
-};
 
 const emit = defineEmits<{
   autofill: [recipe: BlockchainRecipe];
@@ -249,24 +211,6 @@ const emit = defineEmits<{
 </script>
 
 <style scoped>
-.skeleton-card {
-  background: #334155;
-  border-radius: 0.375rem;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
-}
-
-.animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
 @keyframes slideDown {
   from {
     opacity: 0;

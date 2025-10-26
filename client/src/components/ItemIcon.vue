@@ -9,7 +9,15 @@
     @click="handleClick"
   >
     <div class="w-full h-full rounded-lg border-2 flex items-center justify-center text-2xl bg-slate-800 border-slate-600">
-      {{ item?.icon || '❓' }}
+      <!-- Image icon -->
+      <img 
+        v-if="item?.icon && item.icon.startsWith('/')" 
+        :src="item.icon" 
+        :alt="item.name"
+        class="w-full h-full object-contain p-1"
+      />
+      <!-- Emoji icon -->
+      <span v-else>{{ item?.icon || '❓' }}</span>
     </div>
     
     <!-- Quantity badge -->

@@ -9,6 +9,186 @@ export const useRecipesStore = defineStore('recipes', () => {
   const isLoading = ref(false);
   const error = ref<string | null>(null);
 
+  // Initialize mock blockchain recipes (simple: pickaxe and wooden sword)
+  const initializeMockBlockchainRecipes = () => {
+    const mockRecipes: BlockchainRecipe[] = [
+      {
+        _id: 'mock_stone_pickaxe',
+        id: 'mock_stone_pickaxe',
+        blockchainRecipeId: '1',
+        resultTokenContract: '0x0000000000000000000000000000000000000001',
+        resultTokenId: 100,
+        resultAmount: 1,
+        ingredients: [
+          {
+            tokenContract: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+            tokenId: 2, // Stone
+            amount: 1,
+            position: 0
+          },
+          {
+            tokenContract: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+            tokenId: 2, // Stone
+            amount: 1,
+            position: 1
+          },
+          {
+            tokenContract: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+            tokenId: 2, // Stone
+            amount: 1,
+            position: 2
+          },
+          {
+            tokenContract: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+            tokenId: 1, // Wood
+            amount: 1,
+            position: 4
+          },
+          {
+            tokenContract: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+            tokenId: 1, // Wood
+            amount: 1,
+            position: 7
+          }
+        ],
+        name: 'Stone Pickaxe',
+        description: 'A sturdy stone pickaxe for mining',
+        category: 'tool',
+        difficulty: 2,
+        craftingTime: 30
+      },
+      {
+        _id: 'mock_wooden_sword',
+        id: 'mock_wooden_sword',
+        blockchainRecipeId: '2',
+        resultTokenContract: '0x0000000000000000000000000000000000000001',
+        resultTokenId: 101,
+        resultAmount: 1,
+        ingredients: [
+          {
+            tokenContract: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+            tokenId: 1, // Wood
+            amount: 1,
+            position: 1
+          },
+          {
+            tokenContract: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+            tokenId: 1, // Wood
+            amount: 1,
+            position: 4
+          },
+          {
+            tokenContract: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+            tokenId: 1, // Wood
+            amount: 1,
+            position: 7
+          }
+        ],
+        name: 'Wooden Sword',
+        description: 'A basic wooden sword for combat',
+        category: 'weapon',
+        difficulty: 1,
+        craftingTime: 20
+      },
+      {
+        _id: 'mock_xsolla_diamond',
+        id: 'mock_xsolla_diamond',
+        blockchainRecipeId: '3',
+        resultTokenContract: '0x0000000000000000000000000000000000000001',
+        resultTokenId: 102,
+        resultAmount: 1,
+        ingredients: [
+          {
+            tokenContract: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+            tokenId: 3, // Diamond
+            amount: 1,
+            position: 1  // Top center
+          },
+          {
+            tokenContract: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+            tokenId: 3, // Diamond
+            amount: 1,
+            position: 5  // Middle left
+          },
+          {
+            tokenContract: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+            tokenId: 3, // Diamond
+            amount: 1,
+            position: 7  // Middle right
+          },
+          {
+            tokenContract: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+            tokenId: 3, // Diamond
+            amount: 1,
+            position: 3  // Bottom center
+          }
+        ],
+        name: 'Xsolla Diamond',
+        description: 'Legendary Xsolla powered gem',
+        category: 'special',
+        difficulty: 5,
+        craftingTime: 60,
+        result: {
+          icon: '/xsolla.png',
+          name: 'Xsolla Diamond',
+          description: 'Legendary Xsolla powered gem'
+        } as { icon: string; name: string; description: string }
+      } as BlockchainRecipe,
+      {
+        _id: 'mock_status_crystal',
+        id: 'mock_status_crystal',
+        blockchainRecipeId: '4',
+        resultTokenContract: '0x0000000000000000000000000000000000000001',
+        resultTokenId: 103,
+        resultAmount: 1,
+        ingredients: [
+          {
+            tokenContract: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+            tokenId: 3, // Diamond
+            amount: 1,
+            position: 1  // Top left (верх слева)
+          },
+          {
+            tokenContract: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+            tokenId: 3, // Diamond
+            amount: 1,
+            position: 4  // Top right (верх справа)
+          },
+          {
+            tokenContract: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+            tokenId: 3, // Diamond
+            amount: 1,
+            position: 7  // Bottom left (низ слева)
+          },
+          {
+            tokenContract: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+            tokenId: 3, // Diamond
+            amount: 1,
+            position: 6  // Bottom right (низ справа)
+          },
+          {
+            tokenContract: '0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b',
+            tokenId: 3, // Diamond
+            amount: 1,
+            position: 5  // Bottom right (низ справа)
+          }
+        ],
+        name: 'Status Crystal',
+        description: 'Legendary Status Network crystal',
+        category: 'special',
+        difficulty: 5,
+        craftingTime: 60,
+        result: {
+          icon: '/status.png',
+          name: 'Status Crystal',
+          description: 'Legendary Status Network crystal'
+        } as { icon: string; name: string; description: string }
+      } as BlockchainRecipe
+    ];
+    
+    blockchainRecipes.value = mockRecipes;
+  };
+
   // Sample recipes data
   const initializeRecipes = () => {
     const sampleRecipes: Recipe[] = [
@@ -216,6 +396,7 @@ export const useRecipesStore = defineStore('recipes', () => {
     isLoading,
     error,
     fetchBlockchainRecipes,
+    initializeMockBlockchainRecipes,
     getBlockchainRecipe,
     getBlockchainRecipeById,
     matchBlockchainRecipe,

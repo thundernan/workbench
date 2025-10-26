@@ -5,13 +5,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2d29ad7a-0386-4b4f-a7e9-105d3fa81f05" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/client/public/workbench_icon.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/client/src/components/AppHeader.vue" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/App.vue" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/App.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/components/AppHeader.vue" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/components/AppHeader.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/components/BlockchainRecipeBook.vue" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/components/BlockchainRecipeBook.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/components/RecipeBook.vue" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/components/RecipeBook.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/components/WalletConnectButton.vue" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/components/WalletConnectButton.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/router/index.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/router/index.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/client/src/stores/recipes.ts" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/stores/recipes.ts" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/client/src/views/Home.vue" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/views/Home.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/views/Inventory.vue" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/views/Inventory.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/views/Trading.vue" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/views/Trading.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/client/src/views/Workbench.vue" beforeDir="false" afterPath="$PROJECT_DIR$/client/src/views/Workbench.vue" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -53,7 +55,7 @@
     "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
     "RunOnceActivity.git.unshallow": "true",
     "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "Merging recipe-fetch",
+    "git-widget-placeholder": "feat/backend-connection",
     "ignore.virus.scanning.warn.message": "true",
     "junie.onboarding.icon.badge.shown": "true",
     "last_opened_file_path": "C:/Users/cacc6/OneDrive/Desktop/workbench",
@@ -84,6 +86,7 @@
       <updated>1761324677470</updated>
       <workItem from="1761324678744" duration="2332000" />
       <workItem from="1761385431403" duration="857000" />
+      <workItem from="1761426393564" duration="1227000" />
     </task>
     <servers />
   </component>

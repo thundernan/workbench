@@ -6,42 +6,15 @@
         Recipe Book
       </h3>
       <div class="flex items-center gap-2">
-        <Button
-          v-if="recipesStore.error"
-          @click="loadRecipes"
-          icon="pi pi-refresh"
-          severity="warning"
-          size="small"
-          text
-          v-tooltip.bottom="'Retry'"
-        />
         <Tag :value="`${recipesStore.allBlockchainRecipes.length} recipes`" severity="success" />
       </div>
     </div>
 
-    <!-- Loading State -->
-    <div v-if="recipesStore.isLoading" class="flex-1 flex items-center justify-center">
-      <div class="text-center">
-        <i class="pi pi-spin pi-spinner text-4xl text-emerald-400 mb-2"></i>
-        <p class="text-slate-400">Loading recipes...</p>
-      </div>
-    </div>
-
-    <!-- Error State -->
-    <div v-else-if="recipesStore.error" class="flex-1 flex items-center justify-center">
-      <div class="text-center">
-        <i class="pi pi-exclamation-triangle text-4xl text-red-400 mb-2"></i>
-        <p class="text-red-400 mb-2">{{ recipesStore.error }}</p>
-        <Button @click="loadRecipes" label="Retry" icon="pi pi-refresh" size="small" />
-      </div>
-    </div>
-
     <!-- Empty State -->
-    <div v-else-if="recipesStore.allBlockchainRecipes.length === 0" class="flex-1 flex items-center justify-center">
+    <div v-if="recipesStore.allBlockchainRecipes.length === 0" class="flex-1 flex items-center justify-center">
       <div class="text-center">
         <i class="pi pi-inbox text-4xl text-slate-500 mb-2"></i>
-        <p class="text-slate-400">No recipes available yet</p>
-        <p class="text-slate-500 text-sm mt-1">Recipes will sync from blockchain events</p>
+        <p class="text-slate-400">No recipes available</p>
       </div>
     </div>
 
@@ -147,8 +120,8 @@
               class="w-10 h-10 rounded border border-slate-600 bg-slate-800 flex items-center justify-center text-xs"
               :class="getPositionClass(position - 1)"
             >
-              <span v-if="hasIngredientAt(position - 1)" class="font-mono text-white">
-                {{ getIngredientAtPosition(position - 1)?.tokenId }}
+              <span v-if="hasIngredientAt(position - 1)" class="text-xl">
+                {{ getTokenIcon(getIngredientAtPosition(position - 1)?.tokenId ?? 0) }}
               </span>
               <span v-else class="text-slate-600">-</span>
             </div>
@@ -159,15 +132,16 @@
         <div class="mb-3 p-2 bg-slate-800 rounded border border-emerald-600">
           <div class="flex items-center justify-between text-xs">
             <span class="text-slate-400">Crafts:</span>
-            <span class="text-emerald-400 font-medium">
-              {{ selectedRecipe.resultAmount }}x Token #{{ selectedRecipe.resultTokenId }}
+            <span class="text-emerald-400 font-medium flex items-center gap-1">
+              <span class="text-base">{{ getTokenIcon(selectedRecipe.resultTokenId) }}</span>
+              {{ selectedRecipe.resultAmount }}x {{ getTokenName(selectedRecipe.resultTokenId) }}
             </span>
           </div>
         </div>
 
         <!-- Ingredients List -->
         <div class="mb-3">
-          <h5 class="text-slate-300 text-sm font-medium mb-2">Required Ingredients:</h5>
+          <h5 class="text-slate-300 text-sm font-medium mb-2">Required:</h5>
           <div class="space-y-1">
             <div
               v-for="(ingredient, idx) in selectedRecipe.ingredients"
@@ -175,8 +149,8 @@
               class="flex items-center justify-between text-xs p-2 bg-slate-800 rounded"
             >
               <div class="flex items-center gap-2">
-                <span class="text-slate-400">Pos {{ ingredient.position }}:</span>
-                <span class="text-white font-mono">Token #{{ ingredient.tokenId }}</span>
+                <span class="text-base">{{ getTokenIcon(ingredient.tokenId) }}</span>
+                <span class="text-white">{{ getTokenName(ingredient.tokenId) }}</span>
               </div>
               <span class="text-emerald-400">x{{ ingredient.amount }}</span>
             </div>
@@ -241,6 +215,28 @@ const searchQuery = ref('');
 const selectedCategory = ref('');
 const selectedRecipe = ref<BlockchainRecipe | null>(null);
 
+// Mock token metadata for ingredient names
+const tokenMetadata: Record<number, { name: string; icon: string }> = {
+  1: { name: 'Wood', icon: '🪵' },
+  2: { name: 'Stone', icon: '🪨' },
+  3: { name: 'Iron', icon: '⬛' },
+  4: { name: 'Diamond', icon: '💎' },
+  5: { name: 'Gold', icon: '🪙' },
+  10: { name: 'Magic Essence', icon: '✨' },
+  15: { name: 'Herbs', icon: '🌿' },
+  20: { name: 'Water', icon: '💧' },
+  100: { name: 'Stone Pickaxe', icon: '⛏️' },
+  101: { name: 'Wooden Sword', icon: '🗡️' }
+};
+
+const getTokenName = (tokenId: number): string => {
+  return tokenMetadata[tokenId]?.name || `Token #${tokenId}`;
+};
+
+const getTokenIcon = (tokenId: number): string => {
+  return tokenMetadata[tokenId]?.icon || '❓';
+};
+
 const categoryOptions = [
   { label: 'All Categories', value: '' },
   { label: 'Weapons', value: 'weapon' },
@@ -281,21 +277,6 @@ const clearSelection = () => {
   selectedRecipe.value = null;
 };
 
-const loadRecipes = async () => {
-  try {
-    await recipesStore.fetchBlockchainRecipes();
-    toastStore.showToast({
-      type: 'success',
-      message: `Loaded ${recipesStore.allBlockchainRecipes.length} recipes`
-    });
-  } catch (error: any) {
-    toastStore.showToast({
-      type: 'error',
-      message: `Failed to load recipes: ${error.message}`
-    });
-  }
-};
-
 const getRecipeIcon = (recipe: BlockchainRecipe): string => {
   // Based on category
   switch (recipe.category) {
@@ -328,20 +309,10 @@ const emit = defineEmits<{
   autofill: [recipe: BlockchainRecipe];
 }>();
 
-// Load recipes on mount (if not already loaded by App.vue)
+// MOCKED: Recipes are already loaded by App.vue on startup
+// No need to fetch from server
 onMounted(() => {
-  // Only fetch if:
-  // 1. No recipes loaded yet
-  // 2. Not currently loading
-  // 3. No error from previous attempt
-  if (recipesStore.allBlockchainRecipes.length === 0 && 
-      !recipesStore.isLoading && 
-      !recipesStore.error) {
-    console.log('📚 BlockchainRecipeBook: Loading recipes...');
-    loadRecipes();
-  } else if (recipesStore.allBlockchainRecipes.length > 0) {
-    console.log(`📚 BlockchainRecipeBook: Using ${recipesStore.allBlockchainRecipes.length} pre-loaded recipes`);
-  }
+  console.log(`📚 BlockchainRecipeBook: Using ${recipesStore.allBlockchainRecipes.length} mock recipes`);
 });
 </script>
 
