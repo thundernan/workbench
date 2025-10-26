@@ -12,7 +12,8 @@ import {
   checkTokenExists,
   getUserBalance,
   getUserInventory,
-  syncIngredientFromBlockchain
+  syncIngredientFromBlockchain,
+  mintIngredient
 } from '../controllers/ingredientController';
 
 const router = Router();
@@ -21,8 +22,9 @@ const router = Router();
  * @swagger
  * /api/ingredients:
  *   post:
- *     summary: Create a new ingredient
+ *     summary: Create a new ingredient with token type on blockchain
  *     tags: [Ingredients]
+ *     description: Creates an ingredient in the database and its corresponding token type on the blockchain. Requires admin role on the smart contract.
  *     requestBody:
  *       required: true
  *       content:
@@ -30,27 +32,93 @@ const router = Router();
  *           schema:
  *             type: object
  *             required:
- *               - tokenContract
- *               - tokenId
  *               - metadata
  *             properties:
- *               tokenContract:
- *                 type: string
- *                 description: ERC1155 token contract address
- *                 example: "0x1234567890123456789012345678901234567890"
- *               tokenId:
- *                 type: number
- *                 description: Token ID
- *                 example: 1
  *               metadata:
  *                 type: object
- *                 description: Additional metadata (name, image, description, etc.)
- *                 example: { "name": "Wood", "image": "wood.png", "description": "Basic crafting material", "category": "material" }
+ *                 description: Ingredient metadata (name, image, description, category, etc.)
+ *                 required:
+ *                   - name
+ *                 properties:
+ *                   name:
+ *                     type: string
+ *                     description: Ingredient name
+ *                     example: "Wood"
+ *                   image:
+ *                     type: string
+ *                     description: Image URL
+ *                     example: "https://example.com/wood.png"
+ *                   description:
+ *                     type: string
+ *                     description: Ingredient description
+ *                     example: "Basic crafting material"
+ *                   category:
+ *                     type: string
+ *                     description: Ingredient category
+ *                     example: "material"
+ *               price:
+ *                 type: number
+ *                 description: Minting price in ETH (e.g., 0.001 for 0.001 ETH). Use 0 or omit for free minting.
+ *                 example: 0.001
+ *                 default: 0
+ *           examples:
+ *             freeItem:
+ *               summary: Free item (no price)
+ *               value:
+ *                 metadata:
+ *                   name: "Wood"
+ *                   image: "https://example.com/wood.png"
+ *                   description: "Basic crafting material"
+ *                   category: "material"
+ *             paidItem:
+ *               summary: Paid item (0.01 ETH)
+ *               value:
+ *                 metadata:
+ *                   name: "Diamond"
+ *                   image: "https://example.com/diamond.png"
+ *                   description: "Rare precious gem"
+ *                   category: "rare"
+ *                 price: 0.01
  *     responses:
  *       201:
- *         description: Ingredient created successfully
- *       409:
- *         description: Ingredient already exists
+ *         description: Ingredient created successfully with blockchain token type
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     ingredientId:
+ *                       type: string
+ *                     ingredientDataId:
+ *                       type: string
+ *                     tokenId:
+ *                       type: number
+ *                     tokenContract:
+ *                       type: string
+ *                     createTransaction:
+ *                       type: string
+ *                     price:
+ *                       type: object
+ *                       properties:
+ *                         wei:
+ *                           type: string
+ *                         eth:
+ *                           type: string
+ *                     metadata:
+ *                       type: object
+ *                     createdAt:
+ *                       type: string
+ *       400:
+ *         description: Invalid price format
+ *       500:
+ *         description: Blockchain service unavailable or token creation failed
  */
 router.post('/', createIngredient);
 
@@ -427,6 +495,81 @@ router.get('/blockchain/user-inventory/:address', getUserInventory);
  *         description: Blockchain service not available
  */
 router.post('/blockchain/sync', syncIngredientFromBlockchain);
+
+/**
+ * @swagger
+ * /api/ingredients/blockchain/mint:
+ *   post:
+ *     summary: Mint new ingredient on blockchain
+ *     tags: [Ingredients - Blockchain]
+ *     description: Creates a new ERC1155 token on the blockchain and stores metadata in database. Requires MINTER_PRIVATE_KEY to be configured on server.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - image
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 description: Ingredient name
+ *                 example: "Diamond"
+ *               image:
+ *                 type: string
+ *                 description: Image URL
+ *                 example: "https://example.com/diamond.png"
+ *               amount:
+ *                 type: number
+ *                 description: Amount to mint
+ *                 example: 1
+ *                 default: 1
+ *               category:
+ *                 type: string
+ *                 description: Ingredient category
+ *                 example: "Rare"
+ *               description:
+ *                 type: string
+ *                 description: Ingredient description
+ *                 example: "A precious gem used in advanced crafting"
+ *     responses:
+ *       201:
+ *         description: Ingredient minted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     ingredient:
+ *                       type: object
+ *                     transaction:
+ *                       type: object
+ *                       properties:
+ *                         hash:
+ *                           type: string
+ *                         blockNumber:
+ *                           type: number
+ *                         from:
+ *                           type: string
+ *                         to:
+ *                           type: string
+ *       400:
+ *         description: Name and image are required
+ *       500:
+ *         description: Server not configured for minting or minting failed
+ *       503:
+ *         description: Blockchain connection not available
+ */
+router.post('/blockchain/mint', mintIngredient);
 
 export default router;
 

@@ -24,6 +24,15 @@
             [Craft]
           </button>
           <button 
+            @click="$router.push('/shop')"
+            class="px-3 py-1 rounded transition-colors"
+            :class="isActive('/shop') 
+              ? 'bg-emerald-600 text-white hover:bg-emerald-700' 
+              : 'border border-slate-600 text-slate-300 hover:border-emerald-400 hover:text-emerald-400'"
+          >
+            [Shop]
+          </button>
+          <button 
             @click="$router.push('/trading')"
             class="px-3 py-1 rounded transition-colors"
             :class="isActive('/trading') 

@@ -13,7 +13,7 @@ const rl = readline.createInterface({
   output: process.stdout
 });
 
-function question(query: string): Promise<string> {
+function question(query) {
   return new Promise((resolve) => {
     rl.question(query, resolve);
   });
@@ -73,7 +73,7 @@ async function setupMongoDB() {
         ]
       });
       console.log(`✅ User '${username}' created successfully`);
-    } catch (error: any) {
+    } catch (error) {
       if (error.code === 51003) {
         console.log(`⚠️  User '${username}' already exists`);
       } else {

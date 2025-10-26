@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createRecipe, getRecipes } from '../controllers/recipeController';
+import { createRecipe, getRecipes, getRecipe, updateRecipe, deleteRecipe } from '../controllers/recipeController';
 import { validateQuery } from '../middleware/validation';
 
 const router = Router();
@@ -17,55 +17,40 @@ const router = Router();
  *           schema:
  *             type: object
  *             required:
- *               - blockchainRecipeId
- *               - resultTokenContract
- *               - resultTokenId
  *               - ingredients
+ *               - outputTokenId
  *               - name
  *             properties:
- *               blockchainRecipeId:
- *                 type: string
- *               resultTokenContract:
- *                 type: string
- *               resultTokenId:
- *                 type: number
- *               resultAmount:
- *                 type: number
- *                 default: 1
  *               ingredients:
  *                 type: array
  *                 items:
  *                   type: object
  *                   properties:
- *                     tokenContract:
- *                       type: string
  *                     tokenId:
  *                       type: number
+ *                     amount:
+ *                       type: number
+ *                       default: 1
  *                     position:
  *                       type: number
+ *                       default: 0
+ *               outputTokenId:
+ *                 type: number
+ *               outputAmount:
+ *                 type: number
+ *                 default: 1
  *               requiresExactPattern:
- *                 type: boolean
- *                 default: true
- *               active:
  *                 type: boolean
  *                 default: true
  *               name:
  *                 type: string
- *               description:
- *                 type: string
- *               category:
- *                 type: string
- *               difficulty:
- *                 type: number
- *               craftingTime:
- *                 type: number
- *               metadata:
- *                 type: object
  *     responses:
  *       201:
  *         description: Recipe created successfully
- *       409:
- *         description: Recipe already exists
+ *       400:
+ *         description: Validation error
+ *       500:
+ *         description: Server error
  */
 router.post('/', createRecipe);
 
@@ -73,9 +58,8 @@ router.post('/', createRecipe);
  * @swagger
  * /api/recipes:
  *   get:
- *     summary: Get all recipes (blockchain-synced data)
+ *     summary: Get all recipes
  *     tags: [Recipes]
- *     description: Retrieves all recipes that have been synced from blockchain RecipeCreated events
  *     parameters:
  *       - in: query
  *         name: page
@@ -90,65 +74,81 @@ router.post('/', createRecipe);
  *           type: number
  *           minimum: 1
  *           maximum: 100
- *           default: 10
+ *           default: 50
  *         description: Items per page
- *       - in: query
- *         name: blockchainRecipeId
- *         schema:
- *           type: string
- *         description: Filter by blockchain recipe ID
- *       - in: query
- *         name: resultTokenContract
- *         schema:
- *           type: string
- *         description: Filter by result token contract address
- *       - in: query
- *         name: resultTokenId
- *         schema:
- *           type: number
- *         description: Filter by result token ID
- *       - in: query
- *         name: category
- *         schema:
- *           type: string
- *         description: Filter by recipe category
- *       - in: query
- *         name: difficulty
- *         schema:
- *           type: number
- *           minimum: 1
- *           maximum: 10
- *         description: Filter by difficulty level
- *       - in: query
- *         name: name
- *         schema:
- *           type: string
- *         description: Filter by recipe name (partial match)
  *     responses:
  *       200:
  *         description: Recipes retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               allOf:
- *                 - $ref: '#/components/schemas/ApiResponse'
- *                 - type: object
- *                   properties:
- *                     data:
- *                       $ref: '#/components/schemas/PaginationResult'
- *       400:
- *         description: Validation error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
- *       500:
- *         description: Server error
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Error'
  */
 router.get('/', validateQuery, getRecipes);
+
+/**
+ * @swagger
+ * /api/recipes/{id}:
+ *   get:
+ *     summary: Get recipe by ID
+ *     tags: [Recipes]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Recipe ID
+ *     responses:
+ *       200:
+ *         description: Recipe retrieved successfully
+ *       404:
+ *         description: Recipe not found
+ */
+router.get('/:id', getRecipe);
+
+/**
+ * @swagger
+ * /api/recipes/{id}:
+ *   put:
+ *     summary: Update recipe
+ *     tags: [Recipes]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Recipe ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Recipe updated successfully
+ *       404:
+ *         description: Recipe not found
+ */
+router.put('/:id', updateRecipe);
+
+/**
+ * @swagger
+ * /api/recipes/{id}:
+ *   delete:
+ *     summary: Delete recipe
+ *     tags: [Recipes]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Recipe ID
+ *     responses:
+ *       200:
+ *         description: Recipe deleted successfully
+ *       404:
+ *         description: Recipe not found
+ */
+router.delete('/:id', deleteRecipe);
 
 export default router;

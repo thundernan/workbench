@@ -147,7 +147,14 @@
               class="w-10 h-10 rounded border border-slate-600 bg-slate-800 flex items-center justify-center text-xs"
               :class="getPositionClass(position - 1)"
             >
-              <span v-if="hasIngredientAt(position - 1)" class="font-mono text-white">
+              <img 
+                v-if="hasIngredientAt(position - 1) && getIngredientAtPosition(position - 1)?.metadata?.image" 
+                :src="getIngredientAtPosition(position - 1)?.metadata?.image"
+                :alt="getIngredientAtPosition(position - 1)?.metadata?.name || 'Ingredient'"
+                class="w-full h-full object-cover rounded"
+                @error="handleImageError"
+              />
+              <span v-else-if="hasIngredientAt(position - 1)" class="font-mono text-white text-xs">
                 {{ getIngredientAtPosition(position - 1)?.tokenId }}
               </span>
               <span v-else class="text-slate-600">-</span>
@@ -175,8 +182,19 @@
               class="flex items-center justify-between text-xs p-2 bg-slate-800 rounded"
             >
               <div class="flex items-center gap-2">
+                <!-- Ingredient image or fallback -->
+                <div class="w-4 h-4 flex-shrink-0">
+                  <img 
+                    v-if="ingredient.metadata?.image" 
+                    :src="ingredient.metadata.image"
+                    :alt="ingredient.metadata.name || 'Ingredient'"
+                    class="w-full h-full object-cover rounded"
+                    @error="handleImageError"
+                  />
+                  <span v-else class="text-xs">🔹</span>
+                </div>
                 <span class="text-slate-400">Pos {{ ingredient.position }}:</span>
-                <span class="text-white font-mono">Token #{{ ingredient.tokenId }}</span>
+                <span class="text-white font-mono">{{ getIngredientName(ingredient) }}</span>
               </div>
               <span class="text-emerald-400">x{{ ingredient.amount }}</span>
             </div>
@@ -297,7 +315,12 @@ const loadRecipes = async () => {
 };
 
 const getRecipeIcon = (recipe: BlockchainRecipe): string => {
-  // Based on category
+  // First try to use outputIngredient.metadata.image
+  if (recipe.outputIngredient?.metadata?.image) {
+    return recipe.outputIngredient.metadata.image;
+  }
+  
+  // Fallback to category-based icons
   switch (recipe.category) {
     case 'weapon': return '⚔️';
     case 'tool': return '⛏️';
@@ -322,6 +345,28 @@ const getPositionClass = (position: number): string => {
 
 const shortAddress = (address: string): string => {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
+};
+
+const getIngredientName = (ingredient: any): string => {
+  // Check if ingredient has metadata with name
+  if (ingredient.metadata && ingredient.metadata.name) {
+    return ingredient.metadata.name;
+  }
+  
+  // Fallback to tokenId if no metadata
+  return `Token #${ingredient.tokenId}`;
+};
+
+// Handle image loading errors by replacing with fallback icon
+const handleImageError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  if (img) {
+    // Replace the image with a fallback icon
+    const parent = img.parentElement;
+    if (parent) {
+      parent.innerHTML = '<span class="text-xs">🔹</span>';
+    }
+  }
 };
 
 const emit = defineEmits<{
