@@ -9,12 +9,10 @@ import swaggerUi from 'swagger-ui-express';
 import Database from './config/database';
 import recipeRoutes from './routes/recipeRoutes';
 import ingredientRoutes from './routes/ingredientRoutes';
-import craftingRoutes from './routes/craftingRoutes';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { specs } from './config/swagger';
-import { BlockchainListener } from './services/blockchainListener';
-import { WORKBENCH_CONTRACT_ABI } from './config/contract';
 import { blockchainConnection } from './config/blockchain';
+import { BlockchainListener } from './services/blockchainListener';
 
 // Load environment variables
 dotenv.config();
@@ -143,7 +141,6 @@ app.get('/health', async (_req, res) => {
 // API routes
 app.use('/api/recipes', recipeRoutes);
 app.use('/api/ingredients', ingredientRoutes);
-app.use('/api/crafting', craftingRoutes);
 
 // Swagger documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
@@ -162,7 +159,6 @@ app.get('/', (_req, res) => {
       health: '/health',
       recipes: '/api/recipes',
       ingredients: '/api/ingredients',
-      crafting: '/api/crafting',
       documentation: '/api-docs'
     }
   });
@@ -174,31 +170,31 @@ app.use(notFound);
 // Error handling middleware
 app.use(errorHandler);
 
+// Global blockchain listener instance
+let blockchainListener: BlockchainListener | null = null;
+
 // Start server
 const startServer = async () => {
   try {
     // Connect to database
     await database.connect();
     
-    // Initialize blockchain connection (singleton)
+    // Initialize blockchain connection (singleton) - ERC1155 only
     const rpcUrl = process.env['BLOCKCHAIN_RPC_URL'];
     const erc1155Address = process.env['ERC1155_CONTRACT_ADDRESS'];
-    const workbenchAddress = process.env['WORKBENCH_CONTRACT_ADDRESS'];
     
-    let blockchainListener: BlockchainListener | null = null;
+    // Initialize blockchain connection with ERC1155 and WorkbenchInstance contracts
+    const workbenchInstanceAddress = process.env['WORKBENCH_INSTANCE_ADDRESS'];
     
-    // Minimum requirement: RPC URL and ERC1155 contract
     if (rpcUrl && erc1155Address && erc1155Address !== '0x0000000000000000000000000000000000000000') {
       try {
-        // Initialize singleton blockchain connection (Workbench is optional)
-        await blockchainConnection.initialize(rpcUrl, erc1155Address, workbenchAddress);
+        // Initialize singleton blockchain connection
+        await blockchainConnection.initialize(rpcUrl, erc1155Address, workbenchInstanceAddress);
         
-        // Initialize blockchain listener for recipe events (only if Workbench is configured)
-        if (workbenchAddress && workbenchAddress !== '0x0000000000000000000000000000000000000000') {
-          blockchainListener = new BlockchainListener(rpcUrl, workbenchAddress, WORKBENCH_CONTRACT_ABI);
-          await blockchainListener.startListening();
-          console.log('🔗 Blockchain listener initialized successfully');
-        }
+        // Start blockchain event listener
+        blockchainListener = new BlockchainListener();
+        await blockchainListener.startListening();
+        console.log('🎧 Blockchain event listener started');
       } catch (error) {
         console.warn('⚠️  Failed to initialize blockchain:', error);
         console.log('📝 Server will continue without blockchain integration');
@@ -206,7 +202,7 @@ const startServer = async () => {
     } else {
       console.log('📝 Blockchain configuration not provided, running in database-only mode');
       console.log('   Required: BLOCKCHAIN_RPC_URL, ERC1155_CONTRACT_ADDRESS');
-      console.log('   Optional: WORKBENCH_CONTRACT_ADDRESS (for crafting features)');
+      console.log('   Optional: WORKBENCH_INSTANCE_ADDRESS');
     }
     
     // Start server
@@ -217,21 +213,12 @@ const startServer = async () => {
       console.log(`📋 Health Check: http://localhost:${PORT}/health`);
       console.log(`🧪 Recipes API: http://localhost:${PORT}/api/recipes`);
       console.log(`🍳 Ingredients API: http://localhost:${PORT}/api/ingredients`);
-      console.log(`⚒️  Crafting API: http://localhost:${PORT}/api/crafting`);
       console.log(`📚 API Documentation: http://localhost:${PORT}/api-docs`);
       if (blockchainConnection.isReady()) {
         console.log(`⛓️  Blockchain Connection: Ready`);
         console.log(`   ERC1155: ${blockchainConnection.getERC1155Address()}`);
-        if (blockchainConnection.hasWorkbenchContract()) {
-          console.log(`   Workbench: ${blockchainConnection.getWorkbenchAddress()}`);
-        } else {
-          console.log(`   Workbench: Not configured (crafting features disabled)`);
-        }
       } else {
         console.log(`⛓️  Blockchain Connection: Not initialized`);
-      }
-      if (blockchainListener?.isActive()) {
-        console.log(`👂 Blockchain Listener: Active (listening for RecipeCreated events)`);
       }
     });
   } catch (error) {
@@ -243,6 +230,9 @@ const startServer = async () => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully');
+  if (blockchainListener) {
+    blockchainListener.stopListening();
+  }
   await database.disconnect();
   await blockchainConnection.close();
   process.exit(0);
@@ -250,6 +240,9 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully');
+  if (blockchainListener) {
+    blockchainListener.stopListening();
+  }
   await database.disconnect();
   await blockchainConnection.close();
   process.exit(0);

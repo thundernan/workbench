@@ -207,6 +207,118 @@ export class IngredientBlockchainService {
   }
 
   /**
+   * Create a new token type
+   * @param id - Token ID
+   * @param name - Token name
+   * @param price - Token price in wei (0 for free minting)
+   * @returns Transaction response
+   */
+  async createTokenType(id: number, name: string, price: bigint = BigInt(0)): Promise<any> {
+    try {
+      console.log(`🪙 Creating token type ID ${id} with name "${name}" and price ${ethers.formatEther(price)} ETH...`);
+      
+      // Get private key from environment
+      const privateKey = process.env['MINTER_PRIVATE_KEY'];
+      if (!privateKey) {
+        throw new Error('MINTER_PRIVATE_KEY not found in environment variables');
+      }
+
+      // Create wallet with signer
+      const provider = blockchainConnection.getProvider();
+      const wallet = new ethers.Wallet(privateKey, provider);
+      
+      // Create contract instance with signer
+      const contractAddress = blockchainConnection.getERC1155Address();
+      const contract = new ethers.Contract(
+        contractAddress,
+        [
+          'function createTokenType(uint256 id, string memory name, uint256 price) external'
+        ],
+        wallet
+      );
+      
+      // Create the token type with price
+      const tx = await contract['createTokenType']?.(id, name, price);
+      console.log(`⏳ Transaction sent: ${tx.hash}`);
+      
+      const receipt = await tx.wait();
+      console.log(`✅ Token type created! Block: ${receipt.blockNumber}`);
+      
+      return {
+        hash: tx.hash,
+        blockNumber: receipt.blockNumber,
+        priceWei: price.toString(),
+        priceEth: ethers.formatEther(price),
+        transaction: tx,
+        receipt: receipt
+      };
+    } catch (error) {
+      console.error(`Failed to create token type ${id}:`, error);
+      throw new Error(`Token type creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Mint a new token
+   * @param to - Recipient address
+   * @param id - Token ID
+   * @param amount - Amount to mint
+   * @param data - Additional data (can contain ingredientData._id)
+   * @returns Transaction response
+   */
+  async mint(to: string, id: number, amount: number, data: Uint8Array): Promise<any> {
+    try {
+      console.log(`🪙 Minting token ID ${id} to ${to} with amount ${amount}...`);
+      
+      // Get private key from environment
+      const privateKey = process.env['MINTER_PRIVATE_KEY'];
+      console.log({privateKey});
+      if (!privateKey) {
+        throw new Error('MINTER_PRIVATE_KEY not found in environment variables');
+      }
+
+      // Create wallet with signer
+      const provider = blockchainConnection.getProvider();
+      const wallet = new ethers.Wallet(privateKey, provider);
+      
+      // Create contract instance with signer
+      const contractAddress = blockchainConnection.getERC1155Address();
+      const contract = new ethers.Contract(
+        contractAddress,
+        [
+          'function mint(address to, uint256 id, uint256 amount, bytes data) returns (bool)'
+        ],
+        wallet
+      );
+      
+      // Mint the token
+      const tx = await contract['mint']?.(to, id, amount, data);
+      console.log(`⏳ Transaction sent: ${tx.hash}`);
+      
+      const receipt = await tx.wait();
+      console.log(`✅ Token minted! Block: ${receipt.blockNumber}`);
+      
+      return {
+        hash: tx.hash,
+        blockNumber: receipt.blockNumber,
+        transaction: tx,
+        receipt: receipt
+      };
+    } catch (error) {
+      console.error(`Failed to mint token ${id}:`, error);
+      throw new Error(`Minting failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Listen for TokenCreated events
+   * @param callback - Callback function to handle events
+   */
+  onTokenCreated(callback: (id: bigint, name: string, event: any) => void): void {
+    this.contract.on('TokenCreated', callback);
+  }
+
+  /**
    * Listen for TransferSingle events (mints, transfers, burns)
    * @param callback - Callback function to handle events
    */

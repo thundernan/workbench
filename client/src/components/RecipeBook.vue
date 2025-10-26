@@ -18,7 +18,7 @@
         <span v-else class="text-slate-400 text-xs animate-pulse">
           ...
         </span>
-      </div>
+    </div>
     </div>
 
     <!-- Content Area -->
@@ -43,7 +43,7 @@
         <button @click="loadRecipes" class="text-emerald-400 hover:text-emerald-300 text-xs">
           [Retry]
         </button>
-      </div>
+    </div>
 
       <!-- Empty State -->
       <div v-else-if="recipesStore.allBlockchainRecipes.length === 0" class="text-center py-8">
@@ -65,23 +65,40 @@
             class="border border-slate-600 rounded bg-slate-700 hover:border-emerald-400 transition-all duration-200"
             :class="{ 'border-emerald-400': expandedRecipe && (expandedRecipe._id === recipe._id) }"
           >
-            <!-- Recipe Header (Always Visible) -->
-            <div 
-              class="flex items-center gap-3 p-3 cursor-pointer"
-              @click="toggleRecipe(recipe)"
-            >
-              <div class="text-2xl">{{ getRecipeIcon(recipe) }}</div>
-              <div class="flex-1 min-w-0">
-                <div class="text-white text-sm font-medium truncate">{{ recipe.name }}</div>
-                <div class="text-slate-400 text-xs">{{ recipe.ingredients.length }} ingredients</div>
-              </div>
-              <button 
-                @click.stop="emit('autofill', recipe)"
-                class="text-emerald-400 hover:text-emerald-300 transition-colors text-lg flex-shrink-0"
-                title="Autofill"
+              <!-- Recipe Header (Always Visible) -->
+              <div
+                class="flex items-center gap-3 p-3 cursor-pointer"
+                @click="toggleRecipe(recipe)"
               >
-                ⚡
-              </button>
+                <!-- Output ingredient image or fallback icon -->
+                <div class="w-8 h-8 flex-shrink-0 relative">
+                  <img
+                    v-if="getRecipeIcon(recipe).startsWith('http')"
+                    :src="getRecipeIcon(recipe)"
+                    :alt="recipe.outputIngredient?.metadata?.name || recipe.name || 'Recipe item'"
+                    class="w-full h-full object-cover rounded"
+                    @error="handleImageError"
+                  />
+                  <div v-else class="text-2xl">{{ getRecipeIcon(recipe) }}</div>
+                  <!-- Craftability indicator -->
+                  <div
+                    v-if="props.userInventory && props.userInventory.length > 0"
+                    class="absolute -top-1 -right-1 w-3 h-3 rounded-full border border-slate-700"
+                    :class="isRecipeCraftable(recipe) ? 'bg-emerald-500' : 'bg-red-500'"
+                    :title="isRecipeCraftable(recipe) ? 'Can craft' : 'Missing ingredients'"
+                  ></div>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-white text-sm font-medium truncate">{{ recipe.name }}</div>
+                  <div class="text-slate-400 text-xs">{{ recipe.ingredients.length }} ingredients</div>
+                </div>
+                <button
+                  @click.stop="emit('autofill', recipe)"
+                  class="text-emerald-400 hover:text-emerald-300 transition-colors text-lg flex-shrink-0"
+                  title="Autofill"
+                >
+                  ⚡
+                </button>
               <!-- Expand/Collapse Icon -->
               <svg 
                 class="w-5 h-5 text-slate-400 transition-transform duration-200 flex-shrink-0"
@@ -110,7 +127,14 @@
                       class="aspect-square rounded border flex items-center justify-center text-xs"
                       :class="cell ? 'border-emerald-500/50 bg-slate-700' : 'border-slate-700 bg-slate-900'"
                     >
-                      {{ cell ? getIngredientIcon(cell) : '' }}
+                      <img 
+                        v-if="cell && cell.metadata?.image" 
+                        :src="cell.metadata.image"
+                        :alt="cell.metadata.name || 'Ingredient'"
+                        class="w-full h-full object-cover rounded"
+                        @error="handleImageError"
+                      />
+                      <span v-else-if="cell">{{ getIngredientIcon(cell) }}</span>
                     </div>
                   </div>
                 </div>
@@ -124,9 +148,19 @@
                       :key="`${ingredient.tokenContract}-${ingredient.tokenId}`"
                       class="flex items-center gap-1 bg-slate-700 rounded px-1.5 py-0.5"
                     >
-                      <span class="text-xs">{{ getIngredientIcon(ingredient) }}</span>
+                      <!-- Ingredient image or fallback icon -->
+                      <div class="w-4 h-4 flex-shrink-0">
+                        <img 
+                          v-if="ingredient.metadata?.image" 
+                          :src="ingredient.metadata.image"
+                          :alt="ingredient.metadata.name || 'Ingredient'"
+                          class="w-full h-full object-cover rounded"
+                          @error="handleImageError"
+                        />
+                        <span v-else class="text-xs">{{ getIngredientIcon(ingredient) }}</span>
+                      </div>
                       <span class="text-white flex-1 text-[10px] truncate">
-                        Token #{{ ingredient.tokenId }}
+                        {{ getIngredientName(ingredient) }}
                       </span>
                       <span class="text-emerald-400 font-medium text-[10px] whitespace-nowrap">
                         × {{ ingredient.amount }}
@@ -160,15 +194,68 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * RecipeBook Component
+ * 
+ * Displays blockchain-synced recipes with crafting possibility checking.
+ * 
+ * Usage Example:
+ * ```vue
+ * <RecipeBook :userInventory="inventory" @autofill="handleAutofill" />
+ * ```
+ * 
+ * The component will:
+ * 1. Display all recipes from the blockchain
+ * 2. Show a green/red indicator for each recipe based on whether the user has enough ingredients
+ * 3. Allow users to expand recipes to see required ingredients and their pattern
+ * 
+ * For checking crafting possibility in a crafting grid:
+ * ```typescript
+ * import { useRecipesStore } from '@/stores/recipes';
+ * 
+ * const recipesStore = useRecipesStore();
+ * 
+ * // Create a map of grid positions (0-8) to tokens
+ * const gridPositions = new Map<number, { tokenContract: string; tokenId: number }>();
+ * gridPositions.set(0, { tokenContract: '0x...', tokenId: 1 });
+ * gridPositions.set(4, { tokenContract: '0x...', tokenId: 2 });
+ * 
+ * // Check if the grid matches any recipe and if user can craft it
+ * const result = recipesStore.checkCraftingPossibility(gridPositions, userInventory);
+ * 
+ * if (result.recipe && result.canCraft) {
+ *   console.log('Can craft:', result.recipe.name);
+ * } else if (result.recipe && !result.canCraft) {
+ *   console.log('Recipe matched but missing ingredients:', result.missingIngredients);
+ * } else {
+ *   console.log('No recipe matched');
+ * }
+ * ```
+ */
 import { ref, computed, onMounted } from 'vue';
 import { useRecipesStore } from '@/stores/recipes';
 import { useToastStore } from '@/stores/toast';
 import type { BlockchainRecipe, BlockchainRecipeIngredient } from '@/types';
 
+// Props
+const props = defineProps<{
+  userInventory?: Array<{ tokenId: number; balance: string; tokenContract: string }>;
+}>();
+
 const recipesStore = useRecipesStore();
 const toastStore = useToastStore();
 
 const expandedRecipe = ref<BlockchainRecipe | null>(null);
+
+/**
+ * Check if a recipe can be crafted with user's inventory
+ */
+const isRecipeCraftable = (recipe: BlockchainRecipe): boolean => {
+  if (!props.userInventory || props.userInventory.length === 0) {
+    return false;
+  }
+  return recipesStore.canCraftRecipe(recipe, props.userInventory);
+};
 
 // Display blockchain recipes
 const displayRecipes = computed(() => {
@@ -215,14 +302,20 @@ const getRecipeGrid = (recipe: BlockchainRecipe): (BlockchainRecipeIngredient | 
   const grid: (BlockchainRecipeIngredient | null)[] = new Array(9).fill(null);
   recipe.ingredients.forEach(ingredient => {
     if (ingredient.position >= 0 && ingredient.position < 9) {
-      grid[ingredient.position] = ingredient;
+      grid[ingredient.position - 1] = ingredient;
     }
   });
   return grid;
 };
 
-// Get icon for blockchain recipes
+// Get recipe icon - return outputIngredient.metadata.image if available, otherwise fallback to category-based icon
 const getRecipeIcon = (recipe: BlockchainRecipe): string => {
+  // First try to use outputIngredient.metadata.image
+  if (recipe?.outputIngredient?.metadata?.image) {
+    return recipe.outputIngredient.metadata.image;
+  }
+  
+  // Fallback to category-based icons
   if (!recipe.category) return '📋';
   
   switch (recipe.category.toLowerCase()) {
@@ -235,12 +328,49 @@ const getRecipeIcon = (recipe: BlockchainRecipe): string => {
   }
 };
 
-// Get icon for ingredient (using tokenId as placeholder)
+// Get ingredient name from metadata or fallback to tokenId
+const getIngredientName = (ingredient: BlockchainRecipeIngredient): string => {
+  // Check if ingredient has metadata with name
+  if (ingredient.metadata && ingredient.metadata.name) {
+    return ingredient.metadata.name;
+  }
+  
+  // Fallback to tokenId if no metadata
+  return `Token #${ingredient.tokenId}`;
+};
+
+// Get icon for ingredient (using metadata category or tokenId as fallback)
 const getIngredientIcon = (ingredient: BlockchainRecipeIngredient): string => {
-  // For now, use a generic icon based on tokenId
-  // This could be enhanced to fetch actual token metadata
+  // Use category-based icons if metadata is available
+  if (ingredient.metadata && ingredient.metadata.category) {
+    switch (ingredient.metadata.category.toLowerCase()) {
+      case 'magic': return '✨';
+      case 'material': return '📦';
+      case 'tool': return '⛏️';
+      case 'weapon': return '⚔️';
+      case 'armor': return '🛡️';
+      case 'consumable': return '🧪';
+      case 'company': return '🏢';
+      case 'meme': return '😄';
+      default: break;
+    }
+  }
+  
+  // Fallback to generic icons based on tokenId
   const icons = ['🔹', '🔸', '⬜', '⬛', '🟦', '🟧', '🟩', '🟥', '🟪', '🟨'];
   return icons[ingredient.tokenId % icons.length];
+};
+
+// Handle image loading errors by replacing with fallback icon
+const handleImageError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  if (img) {
+    // Replace the image with a fallback icon
+    const parent = img.parentElement;
+    if (parent) {
+      parent.innerHTML = '<span class="text-xs">🔹</span>';
+    }
+  }
 };
 
 const emit = defineEmits<{

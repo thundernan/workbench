@@ -32,6 +32,12 @@ export interface BlockchainRecipeIngredient {
   tokenId: number;        // Token ID required
   amount: number;         // Amount required
   position: number;       // Position in crafting grid (0-8 for 3x3)
+  metadata?: {            // Ingredient metadata (name, image, etc.)
+    name?: string;
+    image?: string;
+    description?: string;
+    category?: string;
+  } | null;
 }
 
 export interface BlockchainRecipe {
@@ -42,6 +48,16 @@ export interface BlockchainRecipe {
   resultTokenId: number;          // Token ID of the result
   resultAmount: number;           // Amount produced
   ingredients: BlockchainRecipeIngredient[]; // Required ingredients
+  outputIngredient?: {            // Output ingredient with metadata
+    tokenId: number;
+    amount: number;
+    metadata?: {
+      name?: string;
+      image?: string;
+      description?: string;
+      category?: string;
+    } | null;
+  } | null;
   name: string;                   // Recipe name
   description?: string;           // Recipe description
   category?: string;              // Recipe category (weapon, tool, etc)

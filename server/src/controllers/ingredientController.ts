@@ -4,6 +4,7 @@ import IngredientData from '../models/IngredientData';
 import { asyncHandler } from '../middleware/errorHandler';
 import { IngredientBlockchainService } from '../services/ingredientBlockchainService';
 import { blockchainConnection } from '../config/blockchain';
+import { ethers } from 'ethers';
 
 /**
  * Get blockchain service instance (uses singleton connection)
@@ -22,47 +23,127 @@ const initBlockchainService = (): IngredientBlockchainService | null => {
   }
 };
 
+/**
+ * Helper function to get next available token ID
+ */
+const getNextAvailableTokenId = async (): Promise<number> => {
+  const blockchainService = initBlockchainService();
+  if (!blockchainService) {
+    throw new Error('Blockchain service unavailable');
+  }
+
+  // Find highest token ID in database
+  const lastIngredient = await Ingredient.findOne()
+    .sort({ tokenId: -1 })
+    .lean();
+  
+  const lastTokenId = lastIngredient?.tokenId || 0;
+  
+  // Check blockchain for next available ID
+  let nextTokenId = lastTokenId + 1;
+  while (await blockchainService.tokenExists(nextTokenId)) {
+    nextTokenId++;
+  }
+  
+  return nextTokenId;
+};
+
 // Create a new ingredient with data
 export const createIngredient = asyncHandler(async (req: Request, res: Response) => {
-  const { tokenContract, tokenId, metadata } = req.body;
+  const { metadata, price } = req.body;
 
-  // Check if ingredient already exists
-  const existingIngredient = await Ingredient.findOne({ tokenContract, tokenId });
-  
-  if (existingIngredient) {
-    res.status(409).json({
-      success: false,
-      message: 'Ingredient with this tokenContract and tokenId already exists',
-      data: existingIngredient
-    });
-    return;
+  // Validate and convert price to wei
+  let priceInWei = BigInt(0); // Default to free
+  if (price !== undefined && price !== null) {
+    try {
+      // If price is a number, treat it as ETH and convert to wei
+      if (typeof price === 'number') {
+        priceInWei = ethers.parseEther(price.toString());
+      }
+      // If price is a string, try to parse as ETH
+      else if (typeof price === 'string') {
+        priceInWei = ethers.parseEther(price);
+      }
+      // If price is already a bigint or can be converted
+      else {
+        priceInWei = BigInt(price);
+      }
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid price format. Provide price in ETH (e.g., 0.001) or wei as string.'
+      });
+      return;
+    }
   }
 
   // 1. Create ingredient data first
   const ingredientData = await IngredientData.create({
-    metadata: metadata || {}
+    metadata: {
+      ...(metadata || {}),
+      price: priceInWei.toString() // Store price in metadata as string (wei)
+    }
   });
 
-  // 2. Create ingredient with reference to ingredient data
+  // 2. Create ingredient record
+  const tokenId = await getNextAvailableTokenId();
   const ingredient = await Ingredient.create({
-    tokenContract,
-    tokenId,
+    tokenContract: blockchainConnection.getERC1155Address(),
+    tokenId: tokenId,
     ingredientData: ingredientData._id
   });
 
-  res.status(201).json({
-    success: true,
-    message: 'Ingredient created successfully',
-    data: {
-      _id: ingredient._id,
-      tokenContract: ingredient.tokenContract,
-      tokenId: ingredient.tokenId,
-      ingredientData: ingredientData._id,
-      metadata: ingredientData.metadata,
-      createdAt: ingredient.createdAt,
-      updatedAt: ingredient.updatedAt
-    }
-  });
+  // 3. Create token type on blockchain
+  const blockchainService = initBlockchainService();
+  if (!blockchainService) {
+    // Clean up created data if blockchain service unavailable
+    await Ingredient.findByIdAndDelete(ingredient._id);
+    await IngredientData.findByIdAndDelete(ingredientData._id);
+    res.status(500).json({
+      success: false,
+      message: 'Blockchain service unavailable'
+    });
+    return;
+  }
+
+  try {
+    // Create token type on blockchain with price
+    const createResult = await blockchainService.createTokenType(
+      tokenId,
+      metadata?.name || 'Unnamed Ingredient',
+      priceInWei
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Ingredient created successfully with token type on blockchain.',
+      data: {
+        ingredientId: ingredient._id,
+        ingredientDataId: ingredientData._id,
+        tokenId: tokenId,
+        tokenContract: ingredient.tokenContract,
+        createTransaction: createResult.hash,
+        price: {
+          wei: createResult.priceWei,
+          eth: createResult.priceEth
+        },
+        metadata: ingredientData.metadata,
+        createdAt: ingredient.createdAt
+      }
+    });
+
+  } catch (createError) {
+    // Clean up created data if token type creation fails
+    await Ingredient.findByIdAndDelete(ingredient._id);
+    await IngredientData.findByIdAndDelete(ingredientData._id);
+    
+    console.error('Failed to create token type:', createError);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to create token type on blockchain',
+      error: createError instanceof Error ? createError.message : 'Unknown error'
+    });
+  }
 });
 
 // Get all ingredients with their data
@@ -606,5 +687,153 @@ export const syncIngredientFromBlockchain = asyncHandler(async (req: Request, re
       updatedAt: ingredient.updatedAt
     }
   });
+});
+
+/**
+ * Mint new ingredient on blockchain
+ * POST /api/ingredients/blockchain/mint
+ * Body: { name: string, image: string, amount?: number, category?: string, description?: string }
+ */
+export const mintIngredient = asyncHandler(async (req: Request, res: Response) => {
+  const { name, image, amount = 1, category, description } = req.body;
+  
+  // Validate required fields
+  if (!name || !image) {
+    res.status(400).json({
+      success: false,
+      message: 'Name and image are required'
+    });
+    return;
+  }
+  
+  // Check for private key
+  const privateKey = process.env['MINTER_PRIVATE_KEY'];
+  if (!privateKey) {
+    res.status(500).json({
+      success: false,
+      message: 'Server not configured for minting. MINTER_PRIVATE_KEY is required.'
+    });
+    return;
+  }
+  
+  // Initialize blockchain connection
+  if (!blockchainConnection.isReady()) {
+    res.status(503).json({
+      success: false,
+      message: 'Blockchain connection not available'
+    });
+    return;
+  }
+  
+  try {
+    // Create wallet with private key
+    const provider = blockchainConnection.getProvider();
+    const wallet = new ethers.Wallet(privateKey, provider);
+    const contractAddress = blockchainConnection.getERC1155Address();
+    
+    // Get contract with signer
+    const contract = new ethers.Contract(
+      contractAddress,
+      [
+        'function publicMint(uint256 id, uint256 amount) payable returns (bool)',
+        'function tokenPrices(uint256 id) view returns (uint256)',
+        'function totalSupply(uint256 id) view returns (uint256)',
+        'function exists(uint256 id) view returns (bool)'
+      ],
+      wallet
+    );
+    
+    // Find next available token ID
+    let tokenId = 1;
+    let exists = true;
+    
+    // Check existing tokens in database to find the next ID
+    const lastIngredient = await Ingredient.findOne({ tokenContract: contractAddress })
+      .sort({ tokenId: -1 })
+      .limit(1);
+    
+    if (lastIngredient) {
+      tokenId = lastIngredient.tokenId + 1;
+    }
+    
+    // Verify token doesn't exist on blockchain
+    try {
+      exists = await contract['exists']?.(tokenId);
+      while (exists) {
+        tokenId++;
+        exists = await contract['exists']?.(tokenId);
+      }
+    } catch (error) {
+      console.log('Token existence check failed, using tokenId:', tokenId);
+    }
+    
+    console.log(`🪙 Minting token ID ${tokenId} with amount ${amount}...`);
+    
+    // Get token price (if any)
+    let price = ethers.parseEther('0');
+    try {
+      const tokenPrice = await contract['tokenPrices']?.(tokenId);
+      if (tokenPrice) {
+        price = tokenPrice * BigInt(amount);
+      }
+    } catch (error) {
+      console.log('No price set for token, minting for free');
+    }
+    
+    // Mint the token
+    const tx = await contract['publicMint']?.(tokenId, amount, { value: price });
+    console.log(`⏳ Transaction sent: ${tx.hash}`);
+    
+    const receipt = await tx.wait();
+    console.log(`✅ Token minted! Block: ${receipt.blockNumber}`);
+    
+    // Prepare metadata
+    const metadata = {
+      name,
+      image,
+      category: category || 'Uncategorized',
+      description: description || `${name} ingredient`,
+      tokenId,
+      contractAddress
+    };
+    
+    // Store in database
+    const ingredientData = await IngredientData.create({ metadata });
+    
+    const ingredient = await Ingredient.create({
+      tokenContract: contractAddress,
+      tokenId,
+      ingredientData: ingredientData._id
+    });
+    
+    // Populate the ingredient data
+    await ingredient.populate('ingredientData');
+    
+    res.status(201).json({
+      success: true,
+      message: 'Ingredient minted successfully',
+      data: {
+        ingredient: {
+          _id: ingredient._id,
+          tokenContract: ingredient.tokenContract,
+          tokenId: ingredient.tokenId,
+          metadata: ingredientData.metadata
+        },
+        transaction: {
+          hash: tx.hash,
+          blockNumber: receipt.blockNumber,
+          from: wallet.address,
+          to: contractAddress
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Failed to mint ingredient:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to mint ingredient',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 

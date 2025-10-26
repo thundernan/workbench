@@ -10,6 +10,9 @@
     <main>
       <router-view />
     </main>
+    
+    <!-- PrimeVue Toast Component -->
+    <Toast />
   </div>
 </template>
 
@@ -17,6 +20,7 @@
 import { onMounted } from 'vue';
 import { useRecipesStore } from '@/stores/recipes';
 import { useWalletStore } from '@/stores/wallet';
+import Toast from 'primevue/toast';
 
 // Initialize stores
 const recipesStore = useRecipesStore();

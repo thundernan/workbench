@@ -2,21 +2,22 @@ import { ethers } from 'ethers';
 
 /**
  * Singleton Blockchain Connection Manager
- * Initializes once on server start and provides connections to services
+ * Initializes once on server start and provides ERC1155 contract connection
+ * For inventory and token balance features only
  */
 class BlockchainConnection {
   private static instance: BlockchainConnection;
   private provider: ethers.Provider | null = null;
   private erc1155Contract: ethers.Contract | null = null;
-  private workbenchContract: ethers.Contract | null = null;
+  private workbenchInstanceContract: ethers.Contract | null = null;
   private isInitialized: boolean = false;
 
   // Configuration
   private rpcUrl: string = '';
   private erc1155Address: string = '';
-  private workbenchAddress: string = '';
+  private workbenchInstanceAddress: string = '';
 
-  // ABIs
+  // ERC1155 ABI
   private static readonly ERC1155_ABI = [
     // View functions
     'function balanceOf(address account, uint256 id) view returns (uint256)',
@@ -27,30 +28,42 @@ class BlockchainConnection {
     'function totalSupply(uint256 id) view returns (uint256)',
     'function exists(uint256 id) view returns (bool)',
     
+    // Admin functions
+    'function createTokenType(uint256 id, string memory name) external',
+    
+    // Minting functions
+    'function publicMint(uint256 id, uint256 amount) payable returns (bool)',
+    'function publicMintBatch(uint256[] ids, uint256[] amounts) payable returns (bool)',
+    'function mint(address to, uint256 id, uint256 amount, bytes data) returns (bool)',
+    
     // Events
     'event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)',
     'event TransferBatch(address indexed operator, address indexed from, address indexed to, uint256[] ids, uint256[] values)',
     'event URI(string value, uint256 indexed id)',
-    
-    // Minting functions
-    'function publicMint(uint256 id, uint256 amount) payable',
-    'function publicMintBatch(uint256[] ids, uint256[] amounts) payable'
+    'event TokenCreated(uint256 indexed id, string name)'
   ];
 
-  private static readonly WORKBENCH_ABI = [
+  // WorkbenchInstance ABI
+  private static readonly WORKBENCH_INSTANCE_ABI = [
     // View functions
-    'function canCraft(uint256 recipeId, address crafter) view returns (bool)',
-    'function getRecipe(uint256 recipeId) view returns (tuple(tuple(address tokenContract, uint256 tokenId, uint8 position)[] ingredients, address outputContract, uint256 outputTokenId, uint256 outputAmount, bool requiresExactPattern, bool active, string name))',
-    'function getActiveRecipeIds() view returns (uint256[])',
-    'function craftingFee() view returns (uint256)',
+    'function getRecipe(uint256 recipeId) view returns (uint256 outputTokenId, uint256 outputAmount, bool requiresExactPattern, bool active, string memory name, uint256 ingredientCount)',
+    'function getRecipeIngredient(uint256 recipeId, uint256 ingredientIndex) view returns (uint256 tokenId, uint256 amount, uint8 position)',
+    'function getRecipeIngredients(uint256 recipeId) view returns (tuple(uint256 tokenId, uint256 amount, uint8 position)[] ingredients)',
+    'function canCraft(uint256 recipeId, address user) view returns (bool hasIngredients)',
+    'function validateGrid(uint256 recipeId, uint256[9] tokenIds, uint256[9] amounts) view returns (bool isValid)',
+    'function getRecipeCount() view returns (uint256 count)',
+    'function getActiveRecipeIds() view returns (uint256[] activeRecipeIds)',
     
-    // State-changing functions
-    'function craftWithoutGrid(uint256 recipeId) payable',
-    'function craftWithGrid(uint256 recipeId, uint8[] positions) payable',
+    // Write functions
+    'function createRecipe(tuple(uint256 tokenId, uint256 amount, uint8 position)[] ingredients, uint256 outputTokenId, uint256 outputAmount, bool requiresExactPattern, string memory name) external returns (uint256 recipeId)',
+    'function craftWithGrid(uint256 recipeId, uint256[9] tokenIds, uint256[9] amounts) external',
+    'function craftWithoutGrid(uint256 recipeId) external',
+    'function toggleRecipe(uint256 recipeId) external',
     
     // Events
-    'event RecipeCreated(uint256 indexed recipeId, address indexed creator, uint256 outputTokenId, string name)',
-    'event ItemCrafted(uint256 indexed recipeId, address indexed crafter, uint256 outputTokenId, uint256 outputAmount)'
+    'event RecipeCreated(uint256 indexed recipeId, string name, uint256 outputTokenId, uint256 outputAmount)',
+    'event ItemCrafted(uint256 indexed recipeId, address indexed crafter, uint256 outputTokenId, uint256 amount)',
+    'event RecipeToggled(uint256 indexed recipeId, bool active)'
   ];
 
   private constructor() {
@@ -68,16 +81,16 @@ class BlockchainConnection {
   }
 
   /**
-   * Initialize blockchain connections
+   * Initialize blockchain connection
    * Should be called once on server start
    * @param rpcUrl - RPC provider URL (required)
    * @param erc1155Address - ERC1155 contract address (required)
-   * @param workbenchAddress - Workbench contract address (optional)
+   * @param workbenchInstanceAddress - WorkbenchInstance contract address (optional)
    */
   public async initialize(
     rpcUrl: string,
     erc1155Address: string,
-    workbenchAddress?: string
+    workbenchInstanceAddress?: string
   ): Promise<void> {
     if (this.isInitialized) {
       console.log('⚠️  Blockchain connection already initialized');
@@ -88,14 +101,14 @@ class BlockchainConnection {
       console.log('🔗 Initializing blockchain connection...');
       console.log(`   RPC URL: ${rpcUrl}`);
       console.log(`   ERC1155 Contract: ${erc1155Address}`);
-      if (workbenchAddress) {
-        console.log(`   Workbench Contract: ${workbenchAddress}`);
+      if (workbenchInstanceAddress) {
+        console.log(`   WorkbenchInstance Contract: ${workbenchInstanceAddress}`);
       }
 
       // Store configuration
       this.rpcUrl = rpcUrl;
       this.erc1155Address = erc1155Address;
-      this.workbenchAddress = workbenchAddress || '';
+      this.workbenchInstanceAddress = workbenchInstanceAddress || '';
 
       // Initialize provider with network configuration (disables ENS)
       // zkxsolla network (chainId: 555776) doesn't support ENS
@@ -111,23 +124,20 @@ class BlockchainConnection {
       const network = await this.provider.getNetwork();
       console.log(`✅ Connected to network: ${network.name} (chainId: ${network.chainId})`);
 
-      // Initialize ERC1155 contract (required)
+      // Initialize ERC1155 contract
       this.erc1155Contract = new ethers.Contract(
         erc1155Address,
         BlockchainConnection.ERC1155_ABI,
         this.provider
       );
 
-      // Initialize Workbench contract (optional)
-      if (workbenchAddress && workbenchAddress !== '0x0000000000000000000000000000000000000000') {
-        this.workbenchContract = new ethers.Contract(
-          workbenchAddress,
-          BlockchainConnection.WORKBENCH_ABI,
+      // Initialize WorkbenchInstance contract if address provided
+      if (workbenchInstanceAddress) {
+        this.workbenchInstanceContract = new ethers.Contract(
+          workbenchInstanceAddress,
+          BlockchainConnection.WORKBENCH_INSTANCE_ABI,
           this.provider
         );
-        console.log('✅ Workbench contract initialized');
-      } else {
-        console.log('⚠️  Workbench contract not configured (crafting features disabled)');
       }
 
       this.isInitialized = true;
@@ -166,20 +176,27 @@ class BlockchainConnection {
   }
 
   /**
-   * Get the Workbench contract instance
+   * Get the WorkbenchInstance contract instance
    */
-  public getWorkbenchContract(): ethers.Contract {
-    if (!this.workbenchContract) {
-      throw new Error('Workbench contract not initialized. Make sure WORKBENCH_CONTRACT_ADDRESS is configured.');
+  public getWorkbenchInstanceContract(): ethers.Contract {
+    if (!this.workbenchInstanceContract) {
+      throw new Error('WorkbenchInstance contract not initialized. Call initialize() with workbenchInstanceAddress first.');
     }
-    return this.workbenchContract;
+    return this.workbenchInstanceContract;
   }
 
   /**
-   * Check if Workbench contract is available
+   * Get WorkbenchInstance contract address
    */
-  public hasWorkbenchContract(): boolean {
-    return this.workbenchContract !== null;
+  public getWorkbenchInstanceAddress(): string {
+    return this.workbenchInstanceAddress;
+  }
+
+  /**
+   * Check if WorkbenchInstance contract is available
+   */
+  public hasWorkbenchInstanceContract(): boolean {
+    return this.workbenchInstanceContract !== null;
   }
 
   /**
@@ -187,13 +204,6 @@ class BlockchainConnection {
    */
   public getERC1155Address(): string {
     return this.erc1155Address;
-  }
-
-  /**
-   * Get Workbench contract address
-   */
-  public getWorkbenchAddress(): string {
-    return this.workbenchAddress;
   }
 
   /**
@@ -212,7 +222,6 @@ class BlockchainConnection {
     }
     this.provider = null;
     this.erc1155Contract = null;
-    this.workbenchContract = null;
     this.isInitialized = false;
     console.log('🔌 Blockchain connection closed');
   }

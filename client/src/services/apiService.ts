@@ -79,12 +79,48 @@ export interface Recipe {
     tokenId: number;
     amount: number;
     position: number;
+    metadata?: {
+      name?: string;
+      image?: string;
+      description?: string;
+      category?: string;
+    } | null;
   }>;
+  outputIngredient?: {
+    tokenId: number;
+    amount: number;
+    metadata?: {
+      name?: string;
+      image?: string;
+      description?: string;
+      category?: string;
+    } | null;
+  } | null;
   name: string;
   description?: string;
   category?: string;
   difficulty?: number;
   craftingTime?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Ingredient Interface (from backend)
+ */
+export interface Ingredient {
+  _id: string;
+  tokenContract: string;
+  tokenId: number;
+  ingredientData: string; // Just the ID reference
+  metadata: {
+    name?: string;
+    image?: string;
+    description?: string;
+    category?: string;
+    price?: string; // Price in wei as string
+    [key: string]: any;
+  };
   createdAt?: string;
   updatedAt?: string;
 }
@@ -178,6 +214,24 @@ export const apiService = {
     const response = await fetchAPI<ApiResponse<PaginationResult<Recipe>>>(endpoint);
     
     // Extract recipes from paginated response
+    return response.data?.data || [];
+  },
+
+  /**
+   * Get all ingredients
+   */
+  async getIngredients(params?: { page?: number; limit?: number }): Promise<Ingredient[]> {
+    // Build query string
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.append('page', params.page.toString());
+    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `/ingredients?${queryString}` : '/ingredients';
+    
+    const response = await fetchAPI<ApiResponse<PaginationResult<Ingredient>>>(endpoint);
+    
+    // Extract ingredients from paginated response
     return response.data?.data || [];
   },
 

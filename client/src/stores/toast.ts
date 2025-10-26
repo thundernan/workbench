@@ -6,7 +6,12 @@ export const useToastStore = defineStore('toast', () => {
 
   const initToast = () => {
     if (!toast) {
-      toast = usePrimeToast();
+      try {
+        toast = usePrimeToast();
+      } catch (error) {
+        console.warn('PrimeVue Toast not available, using fallback:', error);
+        toast = null;
+      }
     }
   };
 
@@ -17,6 +22,12 @@ export const useToastStore = defineStore('toast', () => {
   }) => {
     initToast();
     
+    // Fallback to console if PrimeVue Toast is not available
+    if (!toast) {
+      console.log(`[${options.type.toUpperCase()}] ${options.message}`);
+      return;
+    }
+    
     const severityMap = {
       success: 'success',
       error: 'error',
@@ -24,16 +35,27 @@ export const useToastStore = defineStore('toast', () => {
       warning: 'warn'
     };
 
-    toast?.add({
-      severity: severityMap[options.type] as any,
-      summary: options.type.charAt(0).toUpperCase() + options.type.slice(1),
-      detail: options.message,
-      life: options.duration || 5000
-    });
+    try {
+      toast.add({
+        severity: severityMap[options.type] as any,
+        summary: options.type.charAt(0).toUpperCase() + options.type.slice(1),
+        detail: options.message,
+        life: options.duration || 5000
+      });
+    } catch (error) {
+      console.warn('Toast display failed, using console fallback:', error);
+      console.log(`[${options.type.toUpperCase()}] ${options.message}`);
+    }
   };
 
   const clearAllToasts = () => {
-    toast?.removeAllGroups();
+    if (toast) {
+      try {
+        toast.removeAllGroups();
+      } catch (error) {
+        console.warn('Clear toasts failed:', error);
+      }
+    }
   };
 
   return {

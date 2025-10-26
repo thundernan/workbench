@@ -130,6 +130,7 @@ export const useRecipesStore = defineStore('recipes', () => {
         resultTokenId: recipe.resultTokenId,
         resultAmount: recipe.resultAmount,
         ingredients: recipe.ingredients,
+        outputIngredient: recipe.outputIngredient, // Include the outputIngredient field
         name: recipe.name,
         description: recipe.description,
         category: recipe.category,
@@ -203,6 +204,79 @@ export const useRecipesStore = defineStore('recipes', () => {
     return blockchainRecipes.value.filter(r => r.category === category);
   };
 
+  /**
+   * Check if user can craft a specific recipe based on their inventory
+   * @param recipe - The recipe to check
+   * @param userInventory - User's blockchain inventory with tokenId and balance
+   * @returns Boolean indicating if all ingredients are available
+   */
+  const canCraftRecipe = (
+    recipe: BlockchainRecipe,
+    userInventory: Array<{ tokenId: number; balance: string; tokenContract: string }>
+  ): boolean => {
+    // Check each ingredient required by the recipe
+    for (const ingredient of recipe.ingredients) {
+      // Find matching token in user inventory
+      const inventoryItem = userInventory.find(
+        item => item.tokenId === ingredient.tokenId && 
+                item.tokenContract.toLowerCase() === ingredient.tokenContract.toLowerCase()
+      );
+
+      // If not found or insufficient balance, can't craft
+      if (!inventoryItem) return false;
+      
+      const userBalance = parseInt(inventoryItem.balance);
+      if (isNaN(userBalance) || userBalance < ingredient.amount) return false;
+    }
+
+    return true;
+  };
+
+  /**
+   * Check if a crafting grid matches any recipe and if user can craft it
+   * @param gridPositions - Map of position to token info
+   * @param userInventory - User's blockchain inventory
+   * @returns Object with matched recipe and craftability info
+   */
+  const checkCraftingPossibility = (
+    gridPositions: Map<number, { tokenContract: string; tokenId: number }>,
+    userInventory: Array<{ tokenId: number; balance: string; tokenContract: string }>
+  ): { recipe: BlockchainRecipe | null; canCraft: boolean; missingIngredients: Array<{ tokenId: number; required: number; available: number }> } => {
+    // Find matching recipe
+    const matchedRecipe = matchBlockchainRecipe(gridPositions);
+    
+    if (!matchedRecipe) {
+      return { recipe: null, canCraft: false, missingIngredients: [] };
+    }
+
+    // Check if user can craft
+    const missingIngredients: Array<{ tokenId: number; required: number; available: number }> = [];
+    
+    for (const ingredient of matchedRecipe.ingredients) {
+      const inventoryItem = userInventory.find(
+        item => item.tokenId === ingredient.tokenId && 
+                item.tokenContract.toLowerCase() === ingredient.tokenContract.toLowerCase()
+      );
+      
+      const available = inventoryItem ? parseInt(inventoryItem.balance) : 0;
+      const required = ingredient.amount;
+      
+      if (available < required) {
+        missingIngredients.push({
+          tokenId: ingredient.tokenId,
+          required,
+          available
+        });
+      }
+    }
+
+    return {
+      recipe: matchedRecipe,
+      canCraft: missingIngredients.length === 0,
+      missingIngredients
+    };
+  };
+
   return {
     // Legacy
     recipes,
@@ -221,5 +295,7 @@ export const useRecipesStore = defineStore('recipes', () => {
     matchBlockchainRecipe,
     allBlockchainRecipes,
     recipesByCategory,
+    canCraftRecipe,
+    checkCraftingPossibility,
   };
 });
