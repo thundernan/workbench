@@ -6,6 +6,22 @@ A blockchain-based crafting game built with Vue.js, Node.js, TypeScript, and Mon
 
 ```
 workbench/
+├── blockchain/      # Smart contracts and blockchain infrastructure
+│   ├── contracts/   # Solidity smart contracts
+│   │   ├── WorkbenchFactory.sol
+│   │   ├── WorkbenchInstance.sol
+│   │   ├── Marketplace.sol
+│   │   ├── GameItemsERC1155.sol
+│   │   └── utils/   # Utility contracts (ERC20/721/1155 factories)
+│   ├── config/      # Contract addresses and network configs
+│   ├── scripts/     # Deployment and utility scripts
+│   ├── tasks/       # Hardhat tasks
+│   ├── test/        # Smart contract tests
+│   ├── zk-deploy/   # zkSync deployment scripts
+│   ├── deployments-zk/  # Deployment artifacts for zkSync
+│   ├── typechain-types/ # TypeScript contract bindings
+│   ├── hardhat.config.ts
+│   └── foundry.toml
 ├── client/          # Vue.js frontend application
 │   ├── src/
 │   │   ├── components/
