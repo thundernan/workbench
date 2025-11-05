@@ -169,33 +169,21 @@ import Dialog from 'primevue/dialog';
 import Message from 'primevue/message';
 import { useWalletStore } from '@/stores/wallet';
 import { useToastStore } from '@/stores/toast';
+import { getNetworkName, DEFAULT_CHAIN_ID } from '@/config/wallet';
 
 const walletStore = useWalletStore();
 const toastStore = useToastStore();
 
 const showWalletModal = ref(false);
 
-// Network information
+// Network information - use config
 const networkName = computed(() => {
-  const networks: { [key: number]: string } = {
-    1: 'Ethereum',
-    137: 'Polygon',
-    56: 'BSC',
-    42161: 'Arbitrum',
-    10: 'Optimism'
-  };
-  return networks[walletStore.chainId || 1] || `Chain ${walletStore.chainId}`;
+  return getNetworkName(walletStore.chainId);
 });
 
 const networkClass = computed(() => {
-  const classes: { [key: number]: string } = {
-    1: 'bg-blue-100 text-blue-800',
-    137: 'bg-purple-100 text-purple-800',
-    56: 'bg-yellow-100 text-yellow-800',
-    42161: 'bg-blue-100 text-blue-800',
-    10: 'bg-red-100 text-red-800'
-  };
-  return classes[walletStore.chainId || 1] || 'bg-gray-100 text-gray-800';
+  // Use a generic class since network names come from config
+  return 'bg-blue-100 text-blue-800';
 });
 
 const connectToWallet = async (walletId: string) => {
@@ -239,11 +227,12 @@ const testTransaction = async () => {
 
 const testNetworkSwitch = async () => {
   try {
-    await walletStore.switchNetwork(137); // Switch to Polygon
+    // Use the primary network's chain ID from config
+    await walletStore.switchNetwork(DEFAULT_CHAIN_ID);
     
     toastStore.showToast({
       type: 'success',
-      message: 'Switched to Polygon network'
+      message: `Switched to ${getNetworkName(DEFAULT_CHAIN_ID)} network`
     });
   } catch (error: any) {
     console.error('Network switch failed:', error);

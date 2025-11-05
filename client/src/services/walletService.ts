@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import type { WalletProvider, TransactionRequest, CraftingTransaction } from '@/types';
+import { NETWORKS, getNetworkByChainId, networkToWalletConfig, isSupportedChain } from '@/config/wallet';
 
 export class Web3WalletService {
   private provider: ethers.Provider | null = null;
@@ -225,39 +226,23 @@ export class Web3WalletService {
    * Add a new network
    */
   private async addNetwork(chainId: number): Promise<void> {
-    const networks: { [key: number]: any } = {
-      1: {
-        chainId: '0x1',
-        chainName: 'Ethereum Mainnet',
-        rpcUrls: ['https://mainnet.infura.io/v3/YOUR_PROJECT_ID'],
-        blockExplorerUrls: ['https://etherscan.io'],
-        nativeCurrency: {
-          name: 'Ether',
-          symbol: 'ETH',
-          decimals: 18
-        }
-      },
-      137: {
-        chainId: '0x89',
-        chainName: 'Polygon Mainnet',
-        rpcUrls: ['https://polygon-rpc.com'],
-        blockExplorerUrls: ['https://polygonscan.com'],
-        nativeCurrency: {
-          name: 'MATIC',
-          symbol: 'MATIC',
-          decimals: 18
-        }
-      }
-    };
-
-    const networkConfig = networks[chainId];
-    if (!networkConfig) {
-      throw new Error(`Unsupported network: ${chainId}`);
+    // Check if network is supported
+    if (!isSupportedChain(chainId)) {
+      throw new Error(`Unsupported network: ${chainId}. Please add it to the network configuration.`);
     }
+
+    // Get network configuration
+    const network = getNetworkByChainId(chainId);
+    if (!network) {
+      throw new Error(`Network configuration not found for chain ID: ${chainId}`);
+    }
+
+    // Convert to wallet format
+    const walletConfig = networkToWalletConfig(network);
 
     await window.ethereum.request({
       method: 'wallet_addEthereumChain',
-      params: [networkConfig]
+      params: [walletConfig]
     });
   }
 

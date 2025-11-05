@@ -185,6 +185,7 @@ import Dialog from 'primevue/dialog';
 import Message from 'primevue/message';
 import { useWalletStore } from '@/stores/wallet';
 import { useToastStore } from '@/stores/toast';
+import { getNetworkName } from '@/config/wallet';
 
 const walletStore = useWalletStore();
 const toastStore = useToastStore();
@@ -196,16 +197,9 @@ const handleConnectClick = () => {
   showWalletModal.value = true;
 };
 
-// Network information
+// Network information - use config
 const networkName = computed(() => {
-  const networks: { [key: number]: string } = {
-    1: 'Ethereum',
-    137: 'Polygon',
-    56: 'BSC',
-    42161: 'Arbitrum',
-    10: 'Optimism'
-  };
-  return networks[walletStore.chainId || 1] || `Chain ${walletStore.chainId}`;
+  return getNetworkName(walletStore.chainId);
 });
 
 // Removed unused computed properties: networkIcon, networkClass, connectToWallet (using switchToWallet instead)

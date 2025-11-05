@@ -196,6 +196,7 @@ import apiService, { type Ingredient } from '@/services/apiService';
 import { ethers } from 'ethers';
 import AppHeader from '@/components/AppHeader.vue';
 import WalletConnectButton from '@/components/WalletConnectButton.vue';
+import { getTransactionUrl } from '@/config/wallet';
 
 // Extend Window interface for ethereum (if not already defined)
 declare global {
@@ -570,7 +571,12 @@ const buyIngredient = async (ingredient: Ingredient) => {
     });
     console.log("minting done");
     console.log(`⏳ Transaction sent: ${tx.hash}`);
-    console.log(`🔗 View on explorer: https://explorer.zkxsolla.com/tx/${tx.hash}`);
+    
+    // Get explorer URL from config based on current chain ID
+    const explorerUrl = getTransactionUrl(walletStore.chainId, tx.hash);
+    if (explorerUrl) {
+      console.log(`🔗 View on explorer: ${explorerUrl}`);
+    }
 
     // Show pending toast
     toastStore.showToast({
