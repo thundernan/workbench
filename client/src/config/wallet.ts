@@ -14,10 +14,10 @@ export const WALLETCONNECT_CONFIG = {
 // Network configurations
 export const NETWORKS = {
   ethereum: {
-    chainId: 1,
+    chainId: 1660990954,
     name: 'Ethereum Mainnet',
-    rpcUrl: 'https://mainnet.infura.io/v3/YOUR_INFURA_KEY',
-    blockExplorer: 'https://etherscan.io',
+    rpcUrl: 'https://public.sepolia.rpc.status.network',
+    blockExplorer: 'https://sepoliascan.status.network',
     nativeCurrency: {
       name: 'Ether',
       symbol: 'ETH',
@@ -40,6 +40,6 @@ export const NETWORKS = {
 
 // Contract addresses (replace with your actual contract addresses)
 export const CONTRACTS = {
-  workbench: '0x0000000000000000000000000000000000000000', // Replace with your contract address
-  marketplace: '0x0000000000000000000000000000000000000000' // Replace with your marketplace contract
+  workbench: '0xBba2E288c8d0Ba3b36FC7e0e5B7C32B6b9A1dC74', // Replace with your contract address
+  marketplace: '0x34EC6dA5045CcA928Cb59DAae5C60bE5b6F44E50' // Replace with your marketplace contract
 };

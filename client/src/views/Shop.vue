@@ -197,10 +197,16 @@ import { ethers } from 'ethers';
 import AppHeader from '@/components/AppHeader.vue';
 import WalletConnectButton from '@/components/WalletConnectButton.vue';
 
-// Extend Window interface for ethereum
+// Extend Window interface for ethereum (if not already defined)
 declare global {
   interface Window {
-    ethereum?: any;
+    ethereum?: {
+      isMetaMask?: boolean;
+      isTrust?: boolean;
+      request: (args: { method: string; params?: any[] }) => Promise<any>;
+      on?: (event: string, callback: (...args: any[]) => void) => void;
+      removeListener?: (event: string, callback: (...args: any[]) => void) => void;
+    };
   }
 }
 
@@ -362,14 +368,148 @@ const buyIngredient = async (ingredient: Ingredient) => {
       throw new Error('No Web3 wallet detected. Please install MetaMask or another Web3 wallet.');
     }
 
-    // Create fresh BrowserProvider and get signer (ethers v6)
-    const provider = new ethers.BrowserProvider(window.ethereum);
-    const signer = await provider.getSigner();
-    const signerAddress = await signer.getAddress();
+    // Validate that the provider is Ethereum-compatible (not Solana or other chains)
+    // Trust Wallet can inject Solana providers, so we need to check
+    let provider: ethers.BrowserProvider;
+    try {
+      // First test if the provider supports basic Ethereum JSON-RPC methods
+      // We'll catch the Solana RPC error here
+      try {
+        const testChainId = await window.ethereum.request({ method: 'eth_chainId' });
+        if (!testChainId || testChainId === 'null' || testChainId === 'undefined') {
+          throw new Error('Provider does not support Ethereum JSON-RPC methods');
+        }
+        console.log('✅ Valid Ethereum provider detected, chainId:', testChainId);
+      } catch (chainIdError: any) {
+        console.error('❌ eth_chainId test failed:', chainIdError);
+        // Check for Solana RPC errors in various formats
+        const errorMsg = chainIdError.message || chainIdError.error?.message || '';
+        const errorData = chainIdError.data || chainIdError.error?.data || {};
+        const errorCode = chainIdError.code || chainIdError.error?.code;
+        
+        if (errorMsg.includes('Invalid RPC URL') || 
+            errorMsg.includes('solana') ||
+            errorMsg.toLowerCase().includes('solana.twnodes.com') ||
+            errorCode === -32603 ||
+            (typeof errorData === 'object' && errorData.message?.includes('solana'))) {
+          throw new Error(
+            'Trust Wallet is configured for Solana network. ' +
+            'Please switch to Ethereum network in your Trust Wallet settings, or use a different wallet like MetaMask.'
+          );
+        }
+        // If eth_chainId fails for other reasons, still try to create provider
+      }
+
+      // Create fresh BrowserProvider - this may internally call eth_blockNumber
+      provider = new ethers.BrowserProvider(window.ethereum);
+      
+      // Try to get network info - this will call eth_blockNumber internally
+      // This is where the Solana RPC error typically occurs
+      try {
+        const network = await provider.getNetwork();
+        console.log('✅ Connected to network:', network.name, 'chainId:', network.chainId.toString());
+      } catch (networkError: any) {
+        console.error('❌ Network detection failed:', networkError);
+        console.error('❌ Network error details:', {
+          message: networkError.message,
+          code: networkError.code,
+          error: networkError.error,
+          data: networkError.data,
+          reason: networkError.reason,
+          info: networkError.info
+        });
+        
+        // Check if it's the Solana RPC error - ethers.js wraps errors in various ways
+        const errorMessage = networkError.message || networkError.error?.message || networkError.reason || '';
+        const errorData = networkError.data || networkError.error?.data || networkError.info || {};
+        const errorCode = networkError.code || networkError.error?.code;
+        
+        // Check error message for Solana indicators
+        const isSolanaError = 
+          errorMessage.includes('Invalid RPC URL') || 
+          errorMessage.includes('solana') ||
+          errorMessage.toLowerCase().includes('solana.twnodes.com') ||
+          (typeof errorData === 'object' && 
+           (errorData.message?.includes('solana') || 
+            errorData.message?.includes('Invalid RPC URL') ||
+            errorData.method === 'eth_blockNumber')) ||
+          errorCode === -32603 ||
+          (networkError.error && networkError.error.code === -32603);
+        
+        if (isSolanaError) {
+          throw new Error(
+            'Trust Wallet is configured for Solana network. ' +
+            'Please switch to Ethereum network in your Trust Wallet settings, or use a different wallet like MetaMask.'
+          );
+        }
+        throw networkError;
+      }
+    } catch (providerError: any) {
+      console.error('❌ Provider creation/validation failed:', providerError);
+      console.error('❌ Provider error details:', {
+        message: providerError.message,
+        code: providerError.code,
+        error: providerError.error,
+        data: providerError.data,
+        reason: providerError.reason,
+        info: providerError.info
+      });
+      
+      // Check for Solana RPC errors in various error shapes
+      // ethers.js may wrap errors differently, so check multiple paths
+      const errorMessage = providerError.message || providerError.error?.message || providerError.reason || '';
+      const errorData = providerError.data || providerError.error?.data || providerError.info || {};
+      const errorCode = providerError.code || providerError.error?.code;
+      
+      // Check if this is a Solana RPC error
+      const isSolanaError = 
+        errorMessage.includes('Invalid RPC URL') || 
+        errorMessage.includes('solana') ||
+        errorMessage.toLowerCase().includes('solana.twnodes.com') ||
+        (typeof errorData === 'object' && 
+         (errorData.message?.includes('solana') || 
+          errorData.message?.includes('Invalid RPC URL') ||
+          errorData.method === 'eth_blockNumber' ||
+          errorData.method === 'eth_chainId')) ||
+        errorCode === -32603 ||
+        (providerError.error && providerError.error.code === -32603);
+      
+      if (isSolanaError) {
+        throw new Error(
+          'Trust Wallet is configured for Solana network. ' +
+          'Please switch to Ethereum network in your Trust Wallet settings, or use a different wallet like MetaMask.'
+        );
+      }
+      
+      throw new Error(`Invalid wallet provider: ${providerError.message || providerError.reason || 'Provider does not support Ethereum'}`);
+    }
     
-    console.log('📋 Signer obtained:', {
-      signerAddress: signerAddress
-    });
+    // Get signer - this might also trigger network calls
+    let signer: ethers.JsonRpcSigner;
+    try {
+      signer = await provider.getSigner();
+      const signerAddress = await signer.getAddress();
+      
+      console.log('📋 Signer obtained:', {
+        signerAddress: signerAddress
+      });
+    } catch (signerError: any) {
+      console.error('❌ Failed to get signer:', signerError);
+      const errorMsg = signerError.message || signerError.error?.message || signerError.reason || '';
+      const errorData = signerError.data || signerError.error?.data || signerError.info || {};
+      const errorCode = signerError.code || signerError.error?.code;
+      
+      if (errorMsg.includes('Invalid RPC URL') || 
+          errorMsg.includes('solana') ||
+          errorCode === -32603 ||
+          (typeof errorData === 'object' && errorData.method === 'eth_blockNumber')) {
+        throw new Error(
+          'Trust Wallet is configured for Solana network. ' +
+          'Please switch to Ethereum network in your Trust Wallet settings, or use a different wallet like MetaMask.'
+        );
+      }
+      throw signerError;
+    }
 
     // Create contract instance with comprehensive ABI
     const contract = new ethers.Contract(
@@ -405,6 +545,9 @@ const buyIngredient = async (ingredient: Ingredient) => {
 
     // Check if user has sufficient funds (for paid items)
     if (!isFree && contractPrice > 0) {
+      if (!walletStore.address) {
+        throw new Error('Wallet address not available');
+      }
       const userBalance = await provider.getBalance(walletStore.address);
       if (userBalance < contractPrice) {
         throw new Error(`Insufficient ETH balance. Required: ${ethers.formatEther(contractPrice)} ETH, Available: ${ethers.formatEther(userBalance)} ETH`);
@@ -440,6 +583,9 @@ const buyIngredient = async (ingredient: Ingredient) => {
     console.log(`✅ Transaction confirmed in block: ${receipt.blockNumber}`);
 
     // Check new balance
+    if (!walletStore.address) {
+      throw new Error('Wallet address not available');
+    }
     const newBalance = await contract.balanceOf(walletStore.address, ingredient.tokenId);
     console.log(`📊 New balance: ${newBalance.toString()}`);
 
@@ -462,17 +608,23 @@ const buyIngredient = async (ingredient: Ingredient) => {
     
     let errorMessage = `Failed to ${priceWei === '0' ? 'mint' : 'buy'} ingredient`;
     
-    if (err.message.includes('insufficient funds')) {
+    // Check for Trust Wallet Solana configuration issue
+    if (err.message?.includes('Trust Wallet is configured for Solana') ||
+        err.message?.includes('Invalid RPC URL') ||
+        (err.message?.includes('solana') && err.code === -32603)) {
+      errorMessage = err.message || 
+        'Trust Wallet is configured for Solana network. Please switch to Ethereum network in Trust Wallet settings, or use MetaMask.';
+    } else if (err.message?.includes('insufficient funds')) {
       errorMessage = 'Insufficient ETH balance for this transaction';
-    } else if (err.message.includes('user rejected') || err.message.includes('User denied')) {
+    } else if (err.message?.includes('user rejected') || err.message?.includes('User denied')) {
       errorMessage = 'Transaction was cancelled by user';
-    } else if (err.message.includes('gas')) {
+    } else if (err.message?.includes('gas')) {
       errorMessage = 'Transaction failed due to gas issues. Try again.';
-    } else if (err.message.includes('network')) {
+    } else if (err.message?.includes('network')) {
       errorMessage = 'Network error. Please check your connection.';
-    } else if (err.message.includes('does not exist')) {
+    } else if (err.message?.includes('does not exist')) {
       errorMessage = 'This token is not available for minting';
-    } else if (err.message.includes('execution reverted')) {
+    } else if (err.message?.includes('execution reverted')) {
       errorMessage = 'Transaction failed. Token may not be available for minting.';
     } else if (err.message) {
       errorMessage = err.message;
@@ -502,6 +654,24 @@ const loadUserBalances = async () => {
       return;
     }
 
+    // Validate that the provider is Ethereum-compatible
+    try {
+      const testChainId = await window.ethereum.request({ method: 'eth_chainId' });
+      if (!testChainId || testChainId === 'null' || testChainId === 'undefined') {
+        console.warn('Provider does not support Ethereum JSON-RPC methods');
+        return;
+      }
+    } catch (providerError: any) {
+      console.warn('Provider validation failed in loadUserBalances:', providerError);
+      if (providerError.message?.includes('Invalid RPC URL') || 
+          providerError.message?.includes('solana') ||
+          providerError.code === -32603) {
+        console.warn('Trust Wallet is configured for Solana network. Balances cannot be loaded.');
+        return;
+      }
+      return;
+    }
+
     // Create fresh provider (read-only operations)
     const provider = new ethers.BrowserProvider(window.ethereum);
 
@@ -523,6 +693,10 @@ const loadUserBalances = async () => {
     );
 
     // Get balances for all tokens
+    if (!walletStore.address) {
+      console.warn('Wallet address not available for balance check');
+      return;
+    }
     const tokenIds = ingredients.value.map(ing => ing.tokenId);
     const addresses = new Array(tokenIds.length).fill(walletStore.address);
     
