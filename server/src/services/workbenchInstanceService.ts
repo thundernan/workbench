@@ -45,24 +45,18 @@ export class WorkbenchInstanceService {
         console.log(`  Position [${row},${col}] (${ing.position}): Token ${ing.tokenId} × ${ing.amount}`);
       });
       
-      // Get private key from environment
-      const privateKey = process.env['MINTER_PRIVATE_KEY'];
-      if (!privateKey) {
-        throw new Error('MINTER_PRIVATE_KEY not found in environment variables');
+      // Check if signer is available
+      if (!blockchainConnection.hasSigner()) {
+        throw new Error('Signer not initialized. MINTER_PRIVATE_KEY required for write operations.');
       }
-
-      // Create wallet with signer
-      const provider = blockchainConnection.getProvider();
-      const wallet = new ethers.Wallet(privateKey, provider);
       
-      // Create contract instance with signer
+      // Get contract instance with signer (reuses existing signer from connection)
       const contractAddress = blockchainConnection.getWorkbenchInstanceAddress();
-      const contract = new ethers.Contract(
+      const contract = blockchainConnection.createContractWithSigner(
         contractAddress,
         [
           'function createRecipe(tuple(uint256 tokenId, uint256 amount, uint8 position)[] ingredients, uint256 outputTokenId, uint256 outputAmount, bool requiresExactPattern, string memory name) external returns (uint256 recipeId)'
-        ],
-        wallet
+        ]
       );
       
       // Create the recipe (send only actual ingredients, not empty positions)

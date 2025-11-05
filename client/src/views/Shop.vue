@@ -197,6 +197,13 @@ import { ethers } from 'ethers';
 import AppHeader from '@/components/AppHeader.vue';
 import WalletConnectButton from '@/components/WalletConnectButton.vue';
 
+// Extend Window interface for ethereum
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
+
 const walletStore = useWalletStore();
 const toastStore = useToastStore();
 
@@ -350,13 +357,19 @@ const buyIngredient = async (ingredient: Ingredient) => {
     console.log(`📍 Contract: ${ingredient.tokenContract}`);
     console.log(`🆔 Token ID: ${ingredient.tokenId}`);
 
-    // Get provider and signer
-    const provider = walletStore.provider;
-    const signer = walletStore.signer;
-
-    if (!provider || !signer) {
-      throw new Error('Wallet not properly connected');
+    // Create fresh provider and signer from window.ethereum
+    if (!window.ethereum) {
+      throw new Error('No Web3 wallet detected. Please install MetaMask or another Web3 wallet.');
     }
+
+    // Create fresh BrowserProvider and get signer (ethers v6)
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    const signerAddress = await signer.getAddress();
+    
+    console.log('📋 Signer obtained:', {
+      signerAddress: signerAddress
+    });
 
     // Create contract instance with comprehensive ABI
     const contract = new ethers.Contract(
@@ -370,20 +383,15 @@ const buyIngredient = async (ingredient: Ingredient) => {
       ],
       signer
     );
-
+    
     console.log('📋 Contract instance created:', {
-      address: ingredient.tokenContract,
-      signer: signer.address
+      address: ingredient.tokenContract
     });
-
-    // Get current balance before minting
-    const currentBalance = await contract['balanceOf'](walletStore.address, ingredient.tokenId);
-    console.log(`📊 Current balance: ${currentBalance.toString()}`);
 
     // Get the actual price from contract
     let contractPrice: bigint;
     try {
-      contractPrice = await contract['tokenPrices'](ingredient.tokenId);
+      contractPrice = await contract.tokenPrices(ingredient.tokenId);
       console.log(`💰 Contract price: ${ethers.formatEther(contractPrice)} ETH`);
     } catch (priceError) {
       console.warn('Could not fetch contract price, using metadata price:', priceError);
@@ -412,11 +420,12 @@ const buyIngredient = async (ingredient: Ingredient) => {
       gasLimit: 200000
     });
     
-    const tx = await contract['publicMint'](ingredient.tokenId, 1, {
+    console.log("start minting");
+    const tx = await contract.publicMint(ingredient.tokenId, 1, {
       value: contractPrice,
       gasLimit: 200000 // Set gas limit to prevent estimation issues
     });
-
+    console.log("minting done");
     console.log(`⏳ Transaction sent: ${tx.hash}`);
     console.log(`🔗 View on explorer: https://explorer.zkxsolla.com/tx/${tx.hash}`);
 
@@ -431,7 +440,7 @@ const buyIngredient = async (ingredient: Ingredient) => {
     console.log(`✅ Transaction confirmed in block: ${receipt.blockNumber}`);
 
     // Check new balance
-    const newBalance = await contract['balanceOf'](walletStore.address, ingredient.tokenId);
+    const newBalance = await contract.balanceOf(walletStore.address, ingredient.tokenId);
     console.log(`📊 New balance: ${newBalance.toString()}`);
 
     // Show success toast
@@ -487,12 +496,25 @@ const loadUserBalances = async () => {
   try {
     console.log('🛒 Shop: Loading user balances...');
     
-    const provider = walletStore.provider;
-    if (!provider) return;
+    // Check for window.ethereum
+    if (!window.ethereum) {
+      console.warn('window.ethereum not available');
+      return;
+    }
 
-    // Create contract instance
+    // Create fresh provider (read-only operations)
+    const provider = new ethers.BrowserProvider(window.ethereum);
+
+    // Get contract address
+    const contractAddress = ingredients.value[0]?.tokenContract;
+    if (!contractAddress) {
+      console.warn('No contract address available');
+      return;
+    }
+    
+    // Create contract instance with provider (read-only)
     const contract = new ethers.Contract(
-      ingredients.value[0]?.tokenContract || '',
+      contractAddress,
       [
         'function balanceOf(address account, uint256 id) view returns (uint256)',
         'function balanceOfBatch(address[] accounts, uint256[] ids) view returns (uint256[])'
@@ -504,7 +526,7 @@ const loadUserBalances = async () => {
     const tokenIds = ingredients.value.map(ing => ing.tokenId);
     const addresses = new Array(tokenIds.length).fill(walletStore.address);
     
-    const balances = await contract['balanceOfBatch'](addresses, tokenIds);
+    const balances = await contract.balanceOfBatch(addresses, tokenIds);
     
     // Update balances map
     const newBalances = new Map<number, string>();

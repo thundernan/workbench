@@ -20,36 +20,54 @@
 
         <!-- Resources List -->
         <div class="flex-1 p-4 overflow-y-auto">
-          <!-- Item Cards -->
-          <div class="space-y-3">
+          <!-- Wallet Not Connected -->
+          <div v-if="!walletStore.connected" class="text-center py-8">
+            <div class="text-slate-400 text-lg mb-3">👛</div>
+            <div class="text-slate-400 text-sm mb-2">Connect your wallet</div>
+            <div class="text-slate-500 text-xs">to view your resources</div>
+          </div>
+
+          <!-- Loading Balance -->
+          <div v-else-if="inventoryStore.isLoadingBalance" class="text-center py-8">
+            <div class="text-emerald-400 text-sm animate-pulse">Loading your balance...</div>
+          </div>
+
+          <!-- Error State -->
+          <div v-else-if="inventoryStore.balanceError" class="text-center py-8">
+            <div class="text-red-400 text-sm mb-2">⚠️ Failed to load balance</div>
+            <div class="text-slate-400 text-xs">{{ inventoryStore.balanceError }}</div>
+          </div>
+
+          <!-- User Balance from Blockchain -->
+          <div v-else-if="filteredResources.length > 0" class="space-y-3">
             <div 
-              v-for="invItem in filteredInventoryItems" 
-              :key="invItem.item.id"
-              :draggable="!isPainting"
-              @dragstart="onDragStart($event, invItem.item)"
+              v-for="resource in filteredResources" 
+              :key="resource.id"
+              :draggable="true"
+              @dragstart="onResourceDragStart($event, resource)"
               @dragend="onDragEnd"
-              @mousedown="onInventoryItemMouseDown($event, invItem.item)"
-              class="flex items-center gap-3 p-2 border border-slate-600 rounded bg-slate-700 hover:border-emerald-400 transition-colors"
+              @mousedown="onResourceMouseDown($event, resource)"
+              class="flex items-center gap-3 p-2 border border-slate-600 rounded bg-slate-700 hover:border-emerald-400 transition-colors cursor-move"
               :class="{ 
-                'opacity-50': isDragging && draggedItem?.id === invItem.item.id,
-                'border-emerald-400 shadow-lg shadow-emerald-500/50': isPainting && paintingItem?.id === invItem.item.id,
-                'cursor-move': !isPainting,
-                'cursor-crosshair': isPainting
+                'opacity-50': isDragging && draggedItem?.id === resource.id,
+                'border-emerald-400 shadow-lg shadow-emerald-500/50': isPainting && paintingItem?.id === resource.id
               }"
-              @click="selectInventoryItem(invItem.item)"
+              @click="selectResource(resource)"
             >
-              <div class="text-2xl select-none">{{ invItem.item.icon }}</div>
+              <div class="text-2xl select-none">{{ resource.icon }}</div>
               <div class="flex-1 text-xs">
-                <div class="text-white">{{ invItem.item.name }}</div>
-                <div class="text-slate-400">{{ invItem.item.category }}</div>
+                <div class="text-white">{{ resource.name }}</div>
+                <div class="text-slate-400">{{ resource.category }}</div>
               </div>
-              <div class="text-emerald-400 font-bold">{{ invItem.quantity }}</div>
+              <div class="text-emerald-400 font-bold">{{ (resource as any).balance || '0' }}</div>
             </div>
           </div>
 
-          <!-- Empty State -->
-          <div v-if="filteredInventoryItems.length === 0" class="text-center py-8">
-            <div class="text-slate-400 text-sm">No items found</div>
+          <!-- Empty Balance -->
+          <div v-else class="text-center py-8">
+            <div class="text-slate-400 text-lg mb-3">📦</div>
+            <div class="text-slate-400 text-sm mb-2">No resources yet</div>
+            <div class="text-slate-500 text-xs">Your balance is empty</div>
           </div>
         </div>
       </div>
@@ -160,7 +178,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
 import ToastNotification from '@/components/ToastNotification.vue';
 import WelcomeChestModal from '@/components/WelcomeChestModal.vue';
@@ -168,15 +186,30 @@ import RecipeBook from '@/components/RecipeBook.vue';
 import { useInventoryStore } from '@/stores/inventory';
 import { useRecipesStore } from '@/stores/recipes';
 import { useToastStore } from '@/stores/toast';
+import { useWalletStore } from '@/stores/wallet';
 import type { Item, Recipe, BlockchainRecipe } from '@/types';
 
 const inventoryStore = useInventoryStore();
 const recipesStore = useRecipesStore();
 const toastStore = useToastStore();
+const walletStore = useWalletStore();
 
 // Initialize data
 inventoryStore.initializeSampleItems();
 recipesStore.initializeRecipes();
+
+// Check wallet connection on mount and load balance if connected
+onMounted(async () => {
+  await walletStore.checkConnection();
+  
+  if (walletStore.connected && walletStore.address) {
+    try {
+      await inventoryStore.loadUserBalance(walletStore.address);
+    } catch (error) {
+      console.error('Failed to load balance on mount:', error);
+    }
+  }
+});
 
 // Inventory search
 const inventorySearch = ref('');
@@ -203,6 +236,22 @@ const notifications = ref([
 ]);
 
 // Computed
+const filteredResources = computed(() => {
+  // Use user's blockchain balance instead of all items
+  const resources = inventoryStore.userBalance;
+  
+  if (!inventorySearch.value) {
+    return resources;
+  }
+  
+  const query = inventorySearch.value.toLowerCase();
+  return resources.filter(item =>
+    item.name.toLowerCase().includes(query) ||
+    item.category.toLowerCase().includes(query) ||
+    item.description.toLowerCase().includes(query)
+  );
+});
+
 const filteredInventoryItems = computed(() => {
   if (!inventorySearch.value) {
     return inventoryStore.items;
@@ -247,25 +296,56 @@ const stopPainting = () => {
 const paintCell = (index: number) => {
   if (!isPainting.value || !paintingItem.value) return;
   if (paintedCells.value.has(index)) return; // Already painted this cell
-  if (!inventoryStore.hasItem(paintingItem.value.id, 1)) {
-    stopPainting();
-    toastStore.showToast({
-      type: 'warning',
-      message: `No more ${paintingItem.value.name} in inventory`
-    });
-    return;
-  }
 
   // If cell is occupied, return old item to inventory
   if (craftingGrid.value[index]) {
     const existingItem = craftingGrid.value[index];
-    inventoryStore.addItem(existingItem!, 1);
+    if (existingItem) {
+      inventoryStore.addItem(existingItem, 1);
+    }
   }
 
-  // Place new item in cell
+  // Place new item in cell (infinite from resources catalog)
   craftingGrid.value[index] = paintingItem.value;
-  inventoryStore.removeItem(paintingItem.value.id, 1);
   paintedCells.value.add(index);
+};
+
+// Resource drag handlers (from catalog)
+const onResourceDragStart = (event: DragEvent, item: Item) => {
+  isDragging.value = true;
+  draggedItem.value = item;
+  draggedFromCellIndex.value = null; // From resources catalog
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'copy'; // Copy from resources
+    event.dataTransfer.setData('text/plain', item.id);
+  }
+};
+
+const onResourceMouseDown = (event: MouseEvent, item: Item) => {
+  // Only start painting on left click AND if not dragging
+  if (event.button === 0 && !isDragging.value) {
+    // Don't prevent default here - let drag start first
+    // We'll start painting after a small delay if user is still holding
+    setTimeout(() => {
+      // Check if user is still holding mouse down and not dragging
+      if (!isDragging.value && event.buttons === 1) {
+        startPaintingResource(event, item);
+      }
+    }, 150); // Small delay to allow drag to start
+  }
+};
+
+const selectResource = (item: Item) => {
+  const emptyIndex = craftingGrid.value.findIndex(slot => slot === null);
+  if (emptyIndex !== -1) {
+    craftingGrid.value[emptyIndex] = item;
+  }
+};
+
+const startPaintingResource = (event: MouseEvent, item: Item) => {
+  isPainting.value = true;
+  paintingItem.value = item;
+  paintedCells.value.clear();
 };
 
 const onInventoryItemMouseDown = (event: MouseEvent, item: Item) => {
@@ -361,20 +441,18 @@ const onDrop = (event: DragEvent, index: number) => {
     craftingGrid.value[index] = craftingGrid.value[fromIndex];
     craftingGrid.value[fromIndex] = temp;
   } 
-  // Dragging from inventory to crafting grid
+  // Dragging from resources catalog to crafting grid (infinite supply)
   else {
-    // Check if item exists in inventory
-    if (inventoryStore.hasItem(draggedItem.value.id, 1)) {
-      // If cell is occupied, return old item to inventory
-      if (craftingGrid.value[index]) {
-        const existingItem = craftingGrid.value[index];
-        inventoryStore.addItem(existingItem!, 1);
+    // If cell is occupied, return old item to inventory
+    if (craftingGrid.value[index]) {
+      const existingItem = craftingGrid.value[index];
+      if (existingItem) {
+        inventoryStore.addItem(existingItem, 1);
       }
-      
-      // Place new item in cell
-      craftingGrid.value[index] = draggedItem.value;
-      inventoryStore.removeItem(draggedItem.value.id, 1);
     }
+    
+    // Place new item in cell (from catalog, infinite supply)
+    craftingGrid.value[index] = draggedItem.value;
   }
 
   isDragging.value = false;

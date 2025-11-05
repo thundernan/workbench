@@ -185,11 +185,12 @@ const startServer = async () => {
     
     // Initialize blockchain connection with ERC1155 and WorkbenchInstance contracts
     const workbenchInstanceAddress = process.env['WORKBENCH_INSTANCE_ADDRESS'];
+    const minterPrivateKey = process.env['MINTER_PRIVATE_KEY'];
     
     if (rpcUrl && erc1155Address && erc1155Address !== '0x0000000000000000000000000000000000000000') {
       try {
-        // Initialize singleton blockchain connection
-        await blockchainConnection.initialize(rpcUrl, erc1155Address, workbenchInstanceAddress);
+        // Initialize singleton blockchain connection with signer support
+        await blockchainConnection.initialize(rpcUrl, erc1155Address, workbenchInstanceAddress, minterPrivateKey);
         
         // Start blockchain event listener
         blockchainListener = new BlockchainListener();

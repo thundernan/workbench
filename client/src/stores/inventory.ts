@@ -1,9 +1,16 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { Item, InventoryItem } from '@/types';
+import { apiService, type InventoryItem as ApiInventoryItem } from '@/services/apiService';
+import { useWalletStore } from './wallet';
 
 export const useInventoryStore = defineStore('inventory', () => {
+  const walletStore = useWalletStore();
+  
   const items = ref<InventoryItem[]>([]);
+  const userBalance = ref<Item[]>([]); // User's blockchain balance
+  const isLoadingBalance = ref(false);
+  const balanceError = ref<string | null>(null);
 
   // Add items to inventory
   const addItem = (item: Item, quantity: number = 1) => {
@@ -51,8 +58,142 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   const uniqueItems = computed(() => items.value.length);
 
-  // All available items in the game (catalog)
-  const allItems: Item[] = [
+  // All available items in the game (catalog) - loaded from backend
+  const allItems = ref<Item[]>([]);
+  const isLoading = ref(false);
+  const loadError = ref<string | null>(null);
+
+  // Convert backend inventory item to frontend Item with balance
+  const convertInventoryItemToItem = (inventoryItem: ApiInventoryItem): Item & { balance: string } => {
+    const metadata = inventoryItem.metadata || {};
+    
+    // Get icon from metadata or use default based on category
+    let icon = metadata.icon || '📦';
+    if (!metadata.icon) {
+      // Default icons based on category
+      const categoryIcons: Record<string, string> = {
+        material: '🪵',
+        tool: '⛏️',
+        weapon: '⚔️',
+        armor: '🛡️',
+        consumable: '🧪',
+        rare: '💎',
+        common: '📦'
+      };
+      icon = categoryIcons[metadata.category as string] || '📦';
+    }
+
+    return {
+      id: `token_${inventoryItem.tokenId}`,
+      name: metadata.name || `Token ${inventoryItem.tokenId}`,
+      description: metadata.description || 'An ingredient from the blockchain',
+      icon: icon,
+      rarity: (metadata.rarity || 'common') as any,
+      category: (metadata.category || 'material') as 'material' | 'tool' | 'weapon' | 'armor' | 'consumable',
+      balance: inventoryItem.balance
+    };
+  };
+
+  // Convert backend ingredient to frontend Item
+  const convertIngredientToItem = (ingredient: any): Item => {
+    const metadata = ingredient.metadata || {};
+    
+    // Get icon from metadata or use default based on category
+    let icon = metadata.icon || '📦';
+    if (!metadata.icon) {
+      // Default icons based on category
+      const categoryIcons: Record<string, string> = {
+        material: '🪵',
+        tool: '⛏️',
+        weapon: '⚔️',
+        armor: '🛡️',
+        consumable: '🧪',
+        rare: '💎',
+        common: '📦'
+      };
+      icon = categoryIcons[metadata.category as string] || '📦';
+    }
+
+    return {
+      id: `token_${ingredient.tokenId}`,
+      name: metadata.name || `Token ${ingredient.tokenId}`,
+      description: metadata.description || 'An ingredient from the blockchain',
+      icon: icon,
+      rarity: metadata.rarity || 'common',
+      category: (metadata.category || 'material') as 'material' | 'tool' | 'weapon' | 'armor' | 'consumable'
+    };
+  };
+
+  // Load user's blockchain balance
+  const loadUserBalance = async (address: string) => {
+    isLoadingBalance.value = true;
+    balanceError.value = null;
+    
+    try {
+      console.log(`📡 Loading balance for address: ${address}...`);
+      const inventoryData = await apiService.getUserInventory(address, false);
+      
+      console.log(`✅ Loaded ${inventoryData.inventory.length} items from blockchain`);
+      
+      // Convert backend inventory items to frontend Items with balance
+      userBalance.value = inventoryData.inventory.map(convertInventoryItemToItem);
+      
+      return userBalance.value;
+    } catch (error) {
+      console.error('❌ Failed to load user balance:', error);
+      balanceError.value = error instanceof Error ? error.message : 'Failed to load balance';
+      userBalance.value = [];
+      throw error;
+    } finally {
+      isLoadingBalance.value = false;
+    }
+  };
+
+  // Load ingredients from backend API (all ingredients catalog)
+  const loadIngredientsFromAPI = async () => {
+    isLoading.value = true;
+    loadError.value = null;
+    
+    try {
+      console.log('📡 Loading ingredients from API...');
+      const ingredients = await apiService.getIngredients({ limit: 1000 });
+      
+      console.log(`✅ Loaded ${ingredients.length} ingredients from backend`);
+      
+      // Convert backend ingredients to frontend Items
+      allItems.value = ingredients.map(convertIngredientToItem);
+      
+      return allItems.value;
+    } catch (error) {
+      console.error('❌ Failed to load ingredients from API:', error);
+      loadError.value = error instanceof Error ? error.message : 'Failed to load ingredients';
+      
+      // Fallback to sample items if API fails
+      allItems.value = getSampleItems();
+      return allItems.value;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  // Watch for wallet connection changes
+  watch(() => walletStore.address, async (newAddress, oldAddress) => {
+    if (newAddress && newAddress !== oldAddress) {
+      console.log('👛 Wallet connected, loading user balance...');
+      try {
+        await loadUserBalance(newAddress);
+      } catch (error) {
+        console.error('Failed to load balance on wallet connect:', error);
+      }
+    } else if (!newAddress) {
+      console.log('👛 Wallet disconnected, clearing balance...');
+      userBalance.value = [];
+      balanceError.value = null;
+    }
+  });
+
+  // Sample items as fallback
+  const getSampleItems = (): Item[] => [
     {
       id: 'wood',
       name: 'Wood',
@@ -111,18 +252,24 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   ];
 
-  // Initialize with some sample items
+  // Initialize with some sample items for testing
   const initializeSampleItems = () => {
+    const sampleItems = getSampleItems();
     // Add some sample quantities
-    addItem(allItems[0], 10); // 10 wood
-    addItem(allItems[1], 8);  // 8 stone
-    addItem(allItems[2], 5);  // 5 iron
-    addItem(allItems[3], 2);  // 2 diamond
+    addItem(sampleItems[0], 10); // 10 wood
+    addItem(sampleItems[1], 8);  // 8 stone
+    addItem(sampleItems[2], 5);  // 5 iron
+    addItem(sampleItems[3], 2);  // 2 diamond
   };
 
   return {
     items,
     allItems,
+    userBalance,
+    isLoading,
+    loadError,
+    isLoadingBalance,
+    balanceError,
     addItem,
     removeItem,
     hasItem,
@@ -130,6 +277,10 @@ export const useInventoryStore = defineStore('inventory', () => {
     getItem,
     totalItems,
     uniqueItems,
-    initializeSampleItems
+    initializeSampleItems,
+    loadIngredientsFromAPI,
+    loadUserBalance,
+    convertIngredientToItem,
+    convertInventoryItemToItem
   };
 });
