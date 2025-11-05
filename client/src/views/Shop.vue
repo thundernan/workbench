@@ -86,7 +86,7 @@
         <div class="text-red-400 text-4xl mb-4">⚠️</div>
         <p class="text-red-400 mb-4">{{ error }}</p>
         <button 
-          @click="loadIngredients" 
+          @click="loadIngredients(true)" 
           class="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg transition-colors"
         >
           Try Again
@@ -240,42 +240,58 @@ const filteredIngredients = computed(() => {
   return ingredients.value;
 });
 
+// Track if we're currently loading to prevent duplicate requests
+let isLoadingIngredients = false;
+let lastLoadTime = 0;
+const LOAD_DEBOUNCE_MS = 1000; // Debounce requests by 1 second
+
 // Load ingredients from backend
-const loadIngredients = async () => {
+const loadIngredients = async (force = false) => {
+  // Prevent duplicate concurrent requests
+  if (isLoadingIngredients && !force) {
+    console.log('🛒 Shop: Already loading ingredients, skipping duplicate request');
+    return;
+  }
+
+  // Debounce rapid requests
+  const now = Date.now();
+  if (!force && now - lastLoadTime < LOAD_DEBOUNCE_MS) {
+    console.log('🛒 Shop: Request debounced, too soon after last request');
+    return;
+  }
+
   console.log('🛒 Shop: Starting to load ingredients...');
   isLoading.value = true;
+  isLoadingIngredients = true;
   error.value = null;
+  lastLoadTime = now;
 
   try {
-    // First test server connectivity
-    console.log('🛒 Shop: Testing server connectivity...');
-    try {
-      const healthCheck = await apiService.healthCheck();
-      console.log('🛒 Shop: Server health check:', healthCheck);
-    } catch (healthErr) {
-      console.warn('🛒 Shop: Health check failed:', healthErr);
-    }
-
+    // Removed health check - it's unnecessary and adds extra API calls
+    // The getIngredients call will fail if server is down anyway
+    
     console.log('🛒 Shop: Calling API service...');
     const fetchedIngredients = await apiService.getIngredients({ limit: 100 });
-    console.log('🛒 Shop: API response received:', fetchedIngredients);
-    console.log('🛒 Shop: Response type:', typeof fetchedIngredients);
-    console.log('🛒 Shop: Response length:', Array.isArray(fetchedIngredients) ? fetchedIngredients.length : 'Not an array');
     
     if (Array.isArray(fetchedIngredients)) {
       ingredients.value = fetchedIngredients;
       console.log(`✅ Shop: Loaded ${fetchedIngredients.length} ingredients`);
-      console.log('🛒 Shop: First ingredient sample:', fetchedIngredients[0]);
     } else {
       console.error('❌ Shop: API response is not an array:', fetchedIngredients);
       error.value = 'Invalid response format from server';
     }
   } catch (err: any) {
     console.error('❌ Shop: Failed to load ingredients:', err);
-    error.value = err.message || 'Failed to load ingredients';
+    
+    // Check if it's a rate limit error
+    if (err.message?.includes('Too many requests') || err.message?.includes('rate limit')) {
+      error.value = 'Too many requests. Please wait a moment and try again.';
+    } else {
+      error.value = err.message || 'Failed to load ingredients';
+    }
   } finally {
-    console.log('🛒 Shop: Setting isLoading to false');
     isLoading.value = false;
+    isLoadingIngredients = false;
   }
 };
 
@@ -564,7 +580,7 @@ const buyIngredient = async (ingredient: Ingredient) => {
       gasLimit: 200000
     });
     
-    console.log("start minting");
+    console.log("start minting", contract);
     const tx = await contract.publicMint(ingredient.tokenId, 1, {
       value: contractPrice,
       gasLimit: 200000 // Set gas limit to prevent estimation issues
@@ -645,11 +661,32 @@ const buyIngredient = async (ingredient: Ingredient) => {
   }
 };
 
+// Track balance loading to prevent duplicate requests
+let isLoadingBalances = false;
+let lastBalanceLoadTime = 0;
+const BALANCE_DEBOUNCE_MS = 2000; // Debounce balance requests by 2 seconds
+
 // Load user balances for all ingredients
-const loadUserBalances = async () => {
+const loadUserBalances = async (force = false) => {
   if (!walletStore.connected || ingredients.value.length === 0) {
     return;
   }
+
+  // Prevent duplicate concurrent requests
+  if (isLoadingBalances && !force) {
+    console.log('🛒 Shop: Already loading balances, skipping duplicate request');
+    return;
+  }
+
+  // Debounce rapid requests
+  const now = Date.now();
+  if (!force && now - lastBalanceLoadTime < BALANCE_DEBOUNCE_MS) {
+    console.log('🛒 Shop: Balance request debounced, too soon after last request');
+    return;
+  }
+
+  isLoadingBalances = true;
+  lastBalanceLoadTime = now;
 
   try {
     console.log('🛒 Shop: Loading user balances...');
@@ -717,8 +754,14 @@ const loadUserBalances = async () => {
     userBalances.value = newBalances;
     console.log('✅ Shop: User balances loaded:', Object.fromEntries(newBalances));
     
-  } catch (err) {
+  } catch (err: any) {
     console.error('❌ Shop: Failed to load user balances:', err);
+    // Don't show error for rate limiting on blockchain calls, just log it
+    if (err.message?.includes('Too many requests') || err.message?.includes('rate limit')) {
+      console.warn('Rate limit reached for balance requests, will retry later');
+    }
+  } finally {
+    isLoadingBalances = false;
   }
 };
 
@@ -752,19 +795,39 @@ const testMinting = async () => {
   await buyIngredient(freeIngredient);
 };
 
-// Load ingredients on mount
+// Load ingredients on mount (only once, with delay)
 onMounted(async () => {
-  await loadIngredients();
-  // Load balances after ingredients are loaded
-  if (walletStore.connected) {
-    await loadUserBalances();
+  // Only load if we don't have ingredients already
+  if (ingredients.value.length === 0) {
+    // Add initial delay to avoid competing with App.vue's recipe fetch
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    await loadIngredients();
+  }
+  
+  // Load balances after ingredients are loaded (with longer delay to avoid rate limiting)
+  if (walletStore.connected && ingredients.value.length > 0) {
+    // Longer delay to avoid immediate request after page load
+    setTimeout(() => {
+      loadUserBalances();
+    }, 2500);
   }
 });
 
-// Watch for wallet connection changes
+// Watch for wallet connection changes (with debouncing)
+let walletWatchTimeout: ReturnType<typeof setTimeout> | null = null;
 watch(() => walletStore.connected, async (connected) => {
+  // Clear any pending timeout
+  if (walletWatchTimeout) {
+    clearTimeout(walletWatchTimeout);
+    walletWatchTimeout = null;
+  }
+
   if (connected && ingredients.value.length > 0) {
-    await loadUserBalances();
+    // Debounce the balance load when wallet connects
+    walletWatchTimeout = setTimeout(() => {
+      loadUserBalances();
+      walletWatchTimeout = null;
+    }, 1000); // Wait 1 second after wallet connection
   } else {
     userBalances.value.clear();
   }

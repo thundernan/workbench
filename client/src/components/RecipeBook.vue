@@ -251,15 +251,36 @@ const expandedRecipe = ref<BlockchainRecipe | null>(null);
  * Check if a recipe can be crafted with user's inventory
  */
 const isRecipeCraftable = (recipe: BlockchainRecipe): boolean => {
+  if (!recipe) return false;
   if (!props.userInventory || props.userInventory.length === 0) {
     return false;
   }
-  return recipesStore.canCraftRecipe(recipe, props.userInventory);
+  try {
+    return recipesStore.canCraftRecipe(recipe, props.userInventory);
+  } catch (error: any) {
+    console.error('Error checking recipe craftability:', error);
+    return false;
+  }
 };
 
-// Display blockchain recipes
+// Display blockchain recipes - filter out invalid recipes
 const displayRecipes = computed(() => {
-  return recipesStore.allBlockchainRecipes;
+  return recipesStore.allBlockchainRecipes.filter(recipe => {
+    // Validate recipe has required fields
+    if (!recipe) return false;
+    if (!recipe.ingredients || !Array.isArray(recipe.ingredients)) return false;
+    if (recipe.ingredients.length === 0) return false;
+    
+    // Validate each ingredient has required fields
+    // Note: tokenContract may be missing from API, so we allow it to be optional here
+    for (const ingredient of recipe.ingredients) {
+      if (!ingredient) return false;
+      if (typeof ingredient.tokenId !== 'number') return false;
+      // tokenContract is optional - we'll add it in the store if missing
+    }
+    
+    return true;
+  });
 });
 
 // Load recipes function
@@ -299,10 +320,13 @@ const toggleRecipe = (recipe: BlockchainRecipe) => {
 
 // Get recipe grid with ingredients in their positions (0-8 for 3x3)
 const getRecipeGrid = (recipe: BlockchainRecipe): (BlockchainRecipeIngredient | null)[] => {
+  if (!recipe || !recipe.ingredients || !Array.isArray(recipe.ingredients)) {
+    return new Array(9).fill(null);
+  }
   const grid: (BlockchainRecipeIngredient | null)[] = new Array(9).fill(null);
   recipe.ingredients.forEach(ingredient => {
-    if (ingredient.position >= 0 && ingredient.position < 9) {
-      grid[ingredient.position - 1] = ingredient;
+    if (ingredient && typeof ingredient.position === 'number' && ingredient.position >= 0 && ingredient.position < 9) {
+      grid[ingredient.position] = ingredient;
     }
   });
   return grid;
@@ -310,13 +334,16 @@ const getRecipeGrid = (recipe: BlockchainRecipe): (BlockchainRecipeIngredient | 
 
 // Get recipe icon - return outputIngredient.metadata.image if available, otherwise fallback to category-based icon
 const getRecipeIcon = (recipe: BlockchainRecipe): string => {
+  // Validate recipe
+  if (!recipe) return '📋';
+  
   // First try to use outputIngredient.metadata.image
   if (recipe?.outputIngredient?.metadata?.image) {
     return recipe.outputIngredient.metadata.image;
   }
   
   // Fallback to category-based icons
-  if (!recipe.category) return '📋';
+  if (!recipe.category || typeof recipe.category !== 'string') return '📋';
   
   switch (recipe.category.toLowerCase()) {
     case 'weapon': return '⚔️';
@@ -330,19 +357,25 @@ const getRecipeIcon = (recipe: BlockchainRecipe): string => {
 
 // Get ingredient name from metadata or fallback to tokenId
 const getIngredientName = (ingredient: BlockchainRecipeIngredient): string => {
+  if (!ingredient) return 'Unknown';
+  
   // Check if ingredient has metadata with name
-  if (ingredient.metadata && ingredient.metadata.name) {
+  if (ingredient.metadata && ingredient.metadata.name && typeof ingredient.metadata.name === 'string') {
     return ingredient.metadata.name;
   }
   
   // Fallback to tokenId if no metadata
-  return `Token #${ingredient.tokenId}`;
+  const tokenId = typeof ingredient.tokenId === 'number' ? ingredient.tokenId : '?';
+  return `Token #${tokenId}`;
 };
 
 // Get icon for ingredient (using metadata category or tokenId as fallback)
 const getIngredientIcon = (ingredient: BlockchainRecipeIngredient): string => {
+  // Validate ingredient
+  if (!ingredient) return '📦';
+  
   // Use category-based icons if metadata is available
-  if (ingredient.metadata && ingredient.metadata.category) {
+  if (ingredient.metadata && ingredient.metadata.category && typeof ingredient.metadata.category === 'string') {
     switch (ingredient.metadata.category.toLowerCase()) {
       case 'magic': return '✨';
       case 'material': return '📦';
@@ -357,8 +390,9 @@ const getIngredientIcon = (ingredient: BlockchainRecipeIngredient): string => {
   }
   
   // Fallback to generic icons based on tokenId
+  const tokenId = typeof ingredient.tokenId === 'number' ? ingredient.tokenId : 0;
   const icons = ['🔹', '🔸', '⬜', '⬛', '🟦', '🟧', '🟩', '🟥', '🟪', '🟨'];
-  return icons[ingredient.tokenId % icons.length];
+  return icons[tokenId % icons.length];
 };
 
 // Handle image loading errors by replacing with fallback icon

@@ -93,7 +93,6 @@
             </button>
           </div>
         </div>
-        
         <div class="wallet-grid">
           <div
             v-for="provider in walletStore.availableProviders"
@@ -270,6 +269,9 @@ const getInstallLink = (walletId: string): string => {
 onMounted(async () => {
   await walletStore.checkConnection();
 });
+
+// Note: Wallet detection happens automatically via the computed property
+// The availableProviders will update when wallets are installed
 </script>
 
 <style scoped>

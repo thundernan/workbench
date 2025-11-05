@@ -67,7 +67,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   const convertInventoryItemToItem = (inventoryItem: ApiInventoryItem): Item & { balance: string } => {
     const metadata = inventoryItem.metadata || {};
     
-    // Get icon from metadata or use default based on category
+    // Get icon from metadata - prefer image URL if available, otherwise use emoji icon
     let icon = metadata.icon || '📦';
     if (!metadata.icon) {
       // Default icons based on category
@@ -83,15 +83,28 @@ export const useInventoryStore = defineStore('inventory', () => {
       icon = categoryIcons[metadata.category as string] || '📦';
     }
 
+    // Preserve full metadata including image
+    // Spread metadata first, then override with defaults if needed
+    const fullMetadata = {
+      ...metadata, // Include all metadata fields from backend first
+      name: metadata.name || `Token ${inventoryItem.tokenId}`,
+      image: metadata.image || '', // Image URL from backend (preserve if exists)
+      price: metadata.price || 0
+    };
+
     return {
       id: `token_${inventoryItem.tokenId}`,
       name: metadata.name || `Token ${inventoryItem.tokenId}`,
       description: metadata.description || 'An ingredient from the blockchain',
-      icon: icon,
+      icon: icon, // Keep icon for backward compatibility (can be emoji or fallback)
+      metadata: fullMetadata, // Full metadata including image
       rarity: (metadata.rarity || 'common') as any,
       category: (metadata.category || 'material') as 'material' | 'tool' | 'weapon' | 'armor' | 'consumable',
-      balance: inventoryItem.balance
-    };
+      balance: inventoryItem.balance,
+      // Store tokenContract and tokenId for blockchain recipe matching
+      tokenContract: inventoryItem.tokenContract,
+      tokenId: inventoryItem.tokenId
+    } as Item & { balance: string; tokenContract: string; tokenId: number };
   };
 
   // Convert backend ingredient to frontend Item
@@ -114,20 +127,49 @@ export const useInventoryStore = defineStore('inventory', () => {
       icon = categoryIcons[metadata.category as string] || '📦';
     }
 
+    // Preserve full metadata including image
+    const fullMetadata = {
+      ...metadata, // Include all metadata fields from backend first
+      name: metadata.name || `Token ${ingredient.tokenId}`,
+      image: metadata.image || '', // Image URL from backend (preserve if exists)
+      price: metadata.price || 0
+    };
+
     return {
       id: `token_${ingredient.tokenId}`,
       name: metadata.name || `Token ${ingredient.tokenId}`,
       description: metadata.description || 'An ingredient from the blockchain',
       icon: icon,
+      metadata: fullMetadata, // Full metadata including image
       rarity: metadata.rarity || 'common',
       category: (metadata.category || 'material') as 'material' | 'tool' | 'weapon' | 'armor' | 'consumable'
     };
   };
 
+  // Track loading state to prevent duplicate requests
+  let isLoadingBalanceInternal = false;
+  let lastBalanceLoadTime = 0;
+  const BALANCE_LOAD_DEBOUNCE_MS = 3000; // 3 second debounce
+
   // Load user's blockchain balance
-  const loadUserBalance = async (address: string) => {
+  const loadUserBalance = async (address: string, force = false) => {
+    // Prevent duplicate concurrent requests
+    if (isLoadingBalanceInternal && !force) {
+      console.log('📡 Balance: Already loading, skipping duplicate request');
+      return userBalance.value;
+    }
+
+    // Debounce rapid requests
+    const now = Date.now();
+    if (!force && now - lastBalanceLoadTime < BALANCE_LOAD_DEBOUNCE_MS) {
+      console.log('📡 Balance: Request debounced, too soon after last request');
+      return userBalance.value;
+    }
+
     isLoadingBalance.value = true;
+    isLoadingBalanceInternal = true;
     balanceError.value = null;
+    lastBalanceLoadTime = now;
     
     try {
       console.log(`📡 Loading balance for address: ${address}...`);
@@ -143,9 +185,18 @@ export const useInventoryStore = defineStore('inventory', () => {
       console.error('❌ Failed to load user balance:', error);
       balanceError.value = error instanceof Error ? error.message : 'Failed to load balance';
       userBalance.value = [];
+      
+      // Don't throw if it's a rate limit error
+      if (error instanceof Error && 
+          (error.message.includes('Too many requests') || error.message.includes('rate limit'))) {
+        console.warn('Rate limit reached for balance, will retry later');
+        return userBalance.value;
+      }
+      
       throw error;
     } finally {
       isLoadingBalance.value = false;
+      isLoadingBalanceInternal = false;
     }
   };
 
@@ -156,7 +207,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     
     try {
       console.log('📡 Loading ingredients from API...');
-      const ingredients = await apiService.getIngredients({ limit: 1000 });
+      const ingredients = await apiService.getIngredients({ limit: 10 });
       
       console.log(`✅ Loaded ${ingredients.length} ingredients from backend`);
       
@@ -168,99 +219,40 @@ export const useInventoryStore = defineStore('inventory', () => {
       console.error('❌ Failed to load ingredients from API:', error);
       loadError.value = error instanceof Error ? error.message : 'Failed to load ingredients';
       
-      // Fallback to sample items if API fails
-      allItems.value = getSampleItems();
+      // No fallback - return empty array if API fails
+      allItems.value = [];
       return allItems.value;
     } finally {
       isLoading.value = false;
     }
   };
 
-  // Watch for wallet connection changes
+  // Watch for wallet connection changes (with debouncing)
+  let walletWatchTimeout: ReturnType<typeof setTimeout> | null = null;
   watch(() => walletStore.address, async (newAddress, oldAddress) => {
+    // Clear any pending timeout
+    if (walletWatchTimeout) {
+      clearTimeout(walletWatchTimeout);
+      walletWatchTimeout = null;
+    }
+
     if (newAddress && newAddress !== oldAddress) {
-      console.log('👛 Wallet connected, loading user balance...');
-      try {
-        await loadUserBalance(newAddress);
-      } catch (error) {
-        console.error('Failed to load balance on wallet connect:', error);
-      }
+      console.log('👛 Wallet connected, will load user balance...');
+      // Debounce the balance load when wallet connects
+      walletWatchTimeout = setTimeout(async () => {
+        try {
+          await loadUserBalance(newAddress);
+        } catch (error) {
+          console.error('Failed to load balance on wallet connect:', error);
+        }
+        walletWatchTimeout = null;
+      }, 2000); // Wait 2 seconds after wallet connection
     } else if (!newAddress) {
       console.log('👛 Wallet disconnected, clearing balance...');
       userBalance.value = [];
       balanceError.value = null;
     }
   });
-
-  // Sample items as fallback
-  const getSampleItems = (): Item[] => [
-    {
-      id: 'wood',
-      name: 'Wood',
-      description: 'Basic crafting material',
-      icon: '🪵',
-      rarity: 'common',
-      category: 'material'
-    },
-    {
-      id: 'stone',
-      name: 'Stone',
-      description: 'Hard material for tools',
-      icon: '🪨',
-      rarity: 'common',
-      category: 'material'
-    },
-    {
-      id: 'iron',
-      name: 'Iron',
-      description: 'Metal for advanced crafting',
-      icon: '⬛',
-      rarity: 'uncommon',
-      category: 'material'
-    },
-    {
-      id: 'diamond',
-      name: 'Diamond',
-      description: 'Rare precious gem',
-      icon: '💎',
-      rarity: 'rare',
-      category: 'material'
-    },
-    {
-      id: 'wooden_pickaxe',
-      name: 'Wooden Pickaxe',
-      description: 'Basic mining tool',
-      icon: '⛏️',
-      rarity: 'common',
-      category: 'tool'
-    },
-    {
-      id: 'wooden_sword',
-      name: 'Wooden Sword',
-      description: 'A basic wooden sword',
-      icon: '🗡️',
-      rarity: 'common',
-      category: 'weapon'
-    },
-    {
-      id: 'iron_sword',
-      name: 'Iron Sword',
-      description: 'A sharp iron sword',
-      icon: '⚔️',
-      rarity: 'rare',
-      category: 'weapon'
-    }
-  ];
-
-  // Initialize with some sample items for testing
-  const initializeSampleItems = () => {
-    const sampleItems = getSampleItems();
-    // Add some sample quantities
-    addItem(sampleItems[0], 10); // 10 wood
-    addItem(sampleItems[1], 8);  // 8 stone
-    addItem(sampleItems[2], 5);  // 5 iron
-    addItem(sampleItems[3], 2);  // 2 diamond
-  };
 
   return {
     items,
@@ -277,7 +269,6 @@ export const useInventoryStore = defineStore('inventory', () => {
     getItem,
     totalItems,
     uniqueItems,
-    initializeSampleItems,
     loadIngredientsFromAPI,
     loadUserBalance,
     convertIngredientToItem,

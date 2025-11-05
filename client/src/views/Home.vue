@@ -44,6 +44,7 @@
               v-for="resource in filteredResources" 
               :key="resource.id"
               :draggable="true"
+              :data-resource-id="resource.id"
               @dragstart="onResourceDragStart($event, resource)"
               @dragend="onDragEnd"
               @mousedown="onResourceMouseDown($event, resource)"
@@ -54,12 +55,30 @@
               }"
               @click="selectResource(resource)"
             >
-              <div class="text-2xl select-none">{{ resource.icon }}</div>
-              <div class="flex-1 text-xs">
-                <div class="text-white">{{ resource.name }}</div>
-                <div class="text-slate-400">{{ resource.category }}</div>
+              <!-- Display image if available, otherwise use icon -->
+              <div class="flex-shrink-0 w-10 h-10 flex items-center justify-center select-none">
+                <img 
+                  v-if="resource.metadata?.image" 
+                  :src="resource.metadata.image" 
+                  :alt="resource.name"
+                  class="w-full h-full object-contain rounded"
+                  @error="handleImageError($event)"
+                />
+                <span v-else class="text-2xl">{{ resource.icon }}</span>
               </div>
-              <div class="text-emerald-400 font-bold">{{ (resource as any).balance || '0' }}</div>
+              <div class="flex-1 text-xs min-w-0">
+                <div class="text-white truncate">{{ resource.name }}</div>
+                <div class="text-slate-400 truncate">{{ resource.category }}</div>
+                <div v-if="resource.description" class="text-slate-500 text-xs truncate">{{ resource.description }}</div>
+              </div>
+              <div class="text-right">
+                <div class="text-emerald-400 font-bold whitespace-nowrap">
+                  {{ getAvailableQuantity(resource) }}
+                </div>
+                <div class="text-slate-500 text-[10px] whitespace-nowrap">
+                  / {{ (resource as any).balance || '0' }}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -81,7 +100,17 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
             </svg>
             <span>Painting Mode</span>
-            <span class="text-white">{{ paintingItem?.icon }}</span>
+            <!-- Display image if available, otherwise use icon -->
+            <div class="w-5 h-5 flex items-center justify-center">
+              <img
+                v-if="paintingItem?.metadata?.image"
+                :src="paintingItem.metadata.image"
+                :alt="paintingItem.name"
+                class="w-full h-full object-contain"
+                @error="handlePaintingImageError($event)"
+              />
+              <span v-else class="text-white text-base">{{ paintingItem?.icon }}</span>
+            </div>
           </div>
         </div>
          <div class="flex-1 p-6 overflow-y-auto flex flex-col items-center justify-start">
@@ -123,11 +152,21 @@
                      @drop="onDrop($event, index)"
                      @mousedown="onCellMouseDown($event, index)"
                      @mouseenter="onCellMouseEnter(index)"
-                     class="w-28 h-28 border-2 rounded-lg flex items-center justify-center text-5xl transition-all duration-200"
+                     class="w-28 h-28 border-2 rounded-lg flex items-center justify-center transition-all duration-200 relative overflow-hidden"
                      :class="getCellClass(cell, index)"
                      :style="{ cursor: isPainting ? 'crosshair' : (cell ? 'move' : 'pointer') }"
                  >
-                   <span v-if="cell" class="select-none">{{ cell.icon }}</span>
+                   <!-- Display image if available, otherwise use icon -->
+                   <template v-if="cell">
+                     <img
+                       v-if="cell.metadata?.image"
+                       :src="cell.metadata.image"
+                       :alt="cell.name"
+                       class="w-full h-full object-contain p-2 select-none"
+                       @error="handleCellImageError($event)"
+                     />
+                     <span v-else class="select-none text-5xl">{{ cell.icon }}</span>
+                   </template>
                    <span v-else class="text-slate-600 text-sm">[ ]</span>
                  </div>
                </div>
@@ -136,9 +175,19 @@
              <!-- Result Preview -->
              <div class="flex flex-col items-center justify-between border-2 border-slate-700 rounded-lg bg-slate-800 p-5" style="width: 260px; height: 357px;">
                <div class="text-slate-400 text-sm font-medium">→ Result</div>
-               <div class="w-36 h-36 border-2 rounded-lg flex items-center justify-center text-6xl transition-all duration-200"
+               <div class="w-36 h-36 border-2 rounded-lg flex items-center justify-center transition-all duration-200 relative overflow-hidden"
                     :class="matchedRecipe ? 'border-emerald-400 bg-slate-700 shadow-lg shadow-emerald-500/30' : 'border-slate-600 bg-slate-900'">
-                 <span v-if="matchedRecipe" class="select-none">{{ matchedRecipe.result.icon }}</span>
+                 <!-- Display image if available, otherwise use icon -->
+                 <template v-if="matchedRecipe">
+                   <img
+                     v-if="matchedRecipe.result.metadata?.image"
+                     :src="matchedRecipe.result.metadata.image"
+                     :alt="matchedRecipe.result.name"
+                     class="w-full h-full object-contain p-3 select-none"
+                     @error="handleResultImageError($event)"
+                   />
+                   <span v-else class="select-none text-6xl">{{ matchedRecipe.result.icon }}</span>
+                 </template>
                  <span v-else class="text-slate-600 text-4xl">?</span>
                </div>
                <div class="text-center w-full px-2">
@@ -187,6 +236,7 @@ import { useInventoryStore } from '@/stores/inventory';
 import { useRecipesStore } from '@/stores/recipes';
 import { useToastStore } from '@/stores/toast';
 import { useWalletStore } from '@/stores/wallet';
+import { CONTRACTS } from '@/config/wallet';
 import type { Item, Recipe, BlockchainRecipe } from '@/types';
 
 const inventoryStore = useInventoryStore();
@@ -195,19 +245,24 @@ const toastStore = useToastStore();
 const walletStore = useWalletStore();
 
 // Initialize data
-inventoryStore.initializeSampleItems();
 recipesStore.initializeRecipes();
 
-// Check wallet connection on mount and load balance if connected
+// Check wallet connection on mount and load balance if connected (with delay)
 onMounted(async () => {
   await walletStore.checkConnection();
   
   if (walletStore.connected && walletStore.address) {
-    try {
-      await inventoryStore.loadUserBalance(walletStore.address);
-    } catch (error) {
-      console.error('Failed to load balance on mount:', error);
-    }
+    // Delay to avoid competing with other API calls on app mount
+    const address = walletStore.address; // Store in const to satisfy TypeScript
+    setTimeout(async () => {
+      try {
+        if (address) {
+          await inventoryStore.loadUserBalance(address);
+        }
+      } catch (error) {
+        console.error('Failed to load balance on mount:', error);
+      }
+    }, 4000); // Delay 4 seconds to let other components load first
   }
 });
 
@@ -266,12 +321,208 @@ const filteredInventoryItems = computed(() => {
 });
 
 const matchedRecipe = computed(() => {
-  const grid2D = [
-    [craftingGrid.value[0], craftingGrid.value[1], craftingGrid.value[2]],
-    [craftingGrid.value[3], craftingGrid.value[4], craftingGrid.value[5]],
-    [craftingGrid.value[6], craftingGrid.value[7], craftingGrid.value[8]]
-  ];
-  return recipesStore.matchRecipe(grid2D);
+  try {
+    // First try to match legacy recipes
+    console.log('🔍 matchedRecipe computed - craftingGrid:', craftingGrid.value);
+    const grid2D = [
+      [craftingGrid.value[0], craftingGrid.value[1], craftingGrid.value[2]],
+      [craftingGrid.value[3], craftingGrid.value[4], craftingGrid.value[5]],
+      [craftingGrid.value[6], craftingGrid.value[7], craftingGrid.value[8]]
+    ];
+    console.log('🔍 matchedRecipe computed - grid2D:', grid2D);
+    console.log('🔍 matchedRecipe computed - recipesStore:', recipesStore);
+    console.log('🔍 matchedRecipe computed - matchRecipe function:', recipesStore.matchRecipe);
+    console.log('🔍 matchedRecipe computed - recipes.value:', recipesStore.allRecipes);
+    console.log({recipes: recipesStore.recipes})
+    
+    if (typeof recipesStore.matchRecipe !== 'function') {
+      console.error('❌ matchRecipe is not a function!', recipesStore.matchRecipe);
+      return null;
+    }
+    
+    const legacyMatch = recipesStore.matchRecipe(grid2D);
+    console.log(recipesStore)
+    console.log('🔍 matchedRecipe computed - legacyMatch result:', legacyMatch);
+    if (legacyMatch) {
+      return legacyMatch;
+    }
+
+    // Try to match blockchain recipes
+    // Convert grid to positions map for blockchain recipe matching
+    const positions = new Map<number, { tokenContract: string; tokenId: number }>();
+    
+    // Use CONTRACTS from imported config
+    const defaultContract = CONTRACTS.workbench;
+    
+    // Build positions map from crafting grid
+    for (let i = 0; i < craftingGrid.value.length; i++) {
+      const item = craftingGrid.value[i];
+      if (!item) continue;
+      
+      let tokenContract: string | undefined;
+      let tokenId: number | undefined;
+      
+      // Check if item has tokenContract and tokenId (from userBalance)
+      const itemTokenContract = (item as any).tokenContract;
+      const itemTokenId = (item as any).tokenId;
+      
+      if (itemTokenContract && itemTokenId !== undefined && itemTokenId !== null) {
+        // Ensure tokenContract is a string
+        tokenContract = typeof itemTokenContract === 'string' ? itemTokenContract : String(itemTokenContract);
+        // Ensure tokenId is a number
+        tokenId = typeof itemTokenId === 'number' ? itemTokenId : Number(itemTokenId);
+        
+        // Validate the values
+        if (!tokenContract || isNaN(tokenId as number)) {
+          continue;
+        }
+      } else if (item.id && item.id.startsWith('token_')) {
+        // Fallback: parse from id and use default contract
+        const tokenIdStr = item.id.replace('token_', '');
+        const parsedTokenId = parseInt(tokenIdStr, 10);
+        if (!isNaN(parsedTokenId)) {
+          tokenId = parsedTokenId;
+          // Try to find the item in userBalance to get the actual tokenContract
+          const balanceItem = inventoryStore.userBalance.find(r => r.id === item.id);
+          const balanceTokenContract = balanceItem && (balanceItem as any).tokenContract;
+          tokenContract = balanceTokenContract && typeof balanceTokenContract === 'string'
+            ? balanceTokenContract
+            : defaultContract;
+        }
+      }
+      
+      // Only add to positions if we have valid tokenContract and tokenId
+      if (tokenContract && typeof tokenContract === 'string' && tokenContract.length > 0 &&
+          tokenId !== undefined && !isNaN(tokenId as number)) {
+        positions.set(i, {
+          tokenContract: tokenContract,
+          tokenId: tokenId as number
+        });
+      }
+    }
+    
+    // Only try to match if we have positions and recipes are loaded
+    if (positions.size > 0 && recipesStore.allBlockchainRecipes.length > 0) {
+      try {
+        const blockchainMatch = recipesStore.matchBlockchainRecipe(positions);
+        if (blockchainMatch) {
+      // Convert blockchain recipe to a format compatible with the UI
+      // Create a result Item from outputIngredient
+      let resultItem: Item | null = null;
+      if (blockchainMatch.outputIngredient?.metadata) {
+        const metadata = blockchainMatch.outputIngredient.metadata;
+        resultItem = {
+          id: `token_${blockchainMatch.outputIngredient.tokenId}`,
+          name: metadata.name || `Token ${blockchainMatch.outputIngredient.tokenId}`,
+          description: metadata.description || blockchainMatch.description || '',
+          icon: metadata.category === 'weapon' ? '⚔️' : metadata.category === 'tool' ? '⛏️' : metadata.category === 'armor' ? '🛡️' : '📦',
+          metadata: {
+            name: metadata.name || `Token ${blockchainMatch.outputIngredient.tokenId}`,
+            image: metadata.image || '',
+            price: 0
+          },
+          rarity: 'common' as any,
+          category: (metadata.category as any) || 'material'
+        };
+      } else {
+        // Fallback if no outputIngredient metadata
+        resultItem = {
+          id: `token_${blockchainMatch.resultTokenId}`,
+          name: blockchainMatch.name,
+          description: blockchainMatch.description || '',
+          icon: blockchainMatch.category === 'weapon' ? '⚔️' : blockchainMatch.category === 'tool' ? '⛏️' : blockchainMatch.category === 'armor' ? '🛡️' : '📦',
+          metadata: {
+            name: blockchainMatch.name,
+            image: '',
+            price: 0
+          },
+          rarity: 'common' as any,
+          category: (blockchainMatch.category as any) || 'material'
+        };
+      }
+      
+      // Return a Recipe-like object for compatibility
+      return {
+        id: blockchainMatch.blockchainRecipeId,
+        name: blockchainMatch.name,
+        description: blockchainMatch.description || '',
+        result: resultItem!,
+        ingredients: blockchainMatch.ingredients.map(ing => ({
+          item: {
+            id: `token_${ing.tokenId}`,
+            name: ing.metadata?.name || `Token ${ing.tokenId}`,
+            description: ing.metadata?.description || '',
+            icon: ing.metadata?.category === 'weapon' ? '⚔️' : ing.metadata?.category === 'tool' ? '⛏️' : '📦',
+            metadata: {
+              name: ing.metadata?.name || `Token ${ing.tokenId}`,
+              image: ing.metadata?.image || '',
+              price: 0
+            },
+            rarity: 'common' as any,
+            category: (ing.metadata?.category as any) || 'material'
+          },
+          quantity: ing.amount
+        })),
+        // Build grid from recipe pattern for display - align with recipe positions
+        grid: (() => {
+          const recipeGrid2D: (Item | null)[][] = [
+            [null, null, null],
+            [null, null, null],
+            [null, null, null]
+          ];
+          
+          // Map recipe ingredients to their positions in the 2D grid
+          blockchainMatch.ingredients.forEach(ingredient => {
+            if (ingredient.position >= 0 && ingredient.position < 9) {
+              const row = Math.floor(ingredient.position / 3);
+              const col = ingredient.position % 3;
+              
+              // Find the item from userBalance that matches this ingredient
+              const matchingItem = inventoryStore.userBalance.find(item => {
+                const itemTokenId = (item as any).tokenId || parseInt(item.id.replace('token_', ''), 10);
+                const itemContract = (item as any).tokenContract || CONTRACTS.workbench;
+                return itemTokenId === ingredient.tokenId && 
+                       itemContract.toLowerCase() === ingredient.tokenContract.toLowerCase();
+              });
+              
+              // Use matching item from balance, or create a placeholder item
+              if (matchingItem) {
+                recipeGrid2D[row][col] = matchingItem;
+              } else {
+                // Create a placeholder item from ingredient metadata
+                recipeGrid2D[row][col] = {
+                  id: `token_${ingredient.tokenId}`,
+                  name: ingredient.metadata?.name || `Token ${ingredient.tokenId}`,
+                  description: ingredient.metadata?.description || '',
+                  icon: ingredient.metadata?.category === 'weapon' ? '⚔️' : ingredient.metadata?.category === 'tool' ? '⛏️' : '📦',
+                  metadata: {
+                    name: ingredient.metadata?.name || `Token ${ingredient.tokenId}`,
+                    image: ingredient.metadata?.image || '',
+                    price: 0
+                  },
+                  rarity: 'common' as any,
+                  category: (ingredient.metadata?.category as any) || 'material'
+                };
+              }
+            }
+          });
+          
+          return recipeGrid2D;
+        })()
+      } as any;
+        }
+      } catch (matchError) {
+        // Silently fail if matching fails - might be due to invalid data
+        console.warn('Error matching blockchain recipe:', matchError);
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    // Catch any errors in computed property to prevent breaking the UI
+    console.warn('Error in matchedRecipe computed property:', error);
+    return null;
+  }
 });
 
 const canCraft = computed(() => {
@@ -293,19 +544,50 @@ const stopPainting = () => {
   paintedCells.value.clear();
 };
 
+// Helper to check if user has resource available
+const hasResourceAvailable = (item: Item, quantity: number = 1): boolean => {
+  // Check if item exists in user's balance
+  const resource = inventoryStore.userBalance.find(r => r.id === item.id);
+  if (!resource) return false;
+  
+  // Get current balance
+  const balance = parseInt((resource as any).balance || '0', 10);
+  
+  // Count how many of this item are already in the grid
+  const usedInGrid = craftingGrid.value.filter(cell => cell?.id === item.id).length;
+  
+  // Check if we have enough available (balance - already used in grid >= quantity needed)
+  return balance - usedInGrid >= quantity;
+};
+
+// Helper to get available quantity of a resource
+const getAvailableQuantity = (item: Item): number => {
+  const resource = inventoryStore.userBalance.find(r => r.id === item.id);
+  if (!resource) return 0;
+  
+  const balance = parseInt((resource as any).balance || '0', 10);
+  const usedInGrid = craftingGrid.value.filter(cell => cell?.id === item.id).length;
+  
+  return Math.max(0, balance - usedInGrid);
+};
+
 const paintCell = (index: number) => {
   if (!isPainting.value || !paintingItem.value) return;
   if (paintedCells.value.has(index)) return; // Already painted this cell
 
-  // If cell is occupied, return old item to inventory
-  if (craftingGrid.value[index]) {
-    const existingItem = craftingGrid.value[index];
-    if (existingItem) {
-      inventoryStore.addItem(existingItem, 1);
-    }
+  // Check if user has the resource available
+  if (!hasResourceAvailable(paintingItem.value, 1)) {
+    toastStore.showToast({
+      type: 'warning',
+      message: `Not enough ${paintingItem.value.name} available`
+    });
+    return;
   }
 
-  // Place new item in cell (infinite from resources catalog)
+  // If cell is occupied, the old item will be freed (it's already counted in balance)
+  // No need to do anything - the item is just replaced
+
+  // Place new item in cell (only if user has it available)
   craftingGrid.value[index] = paintingItem.value;
   paintedCells.value.add(index);
 };
@@ -336,13 +618,36 @@ const onResourceMouseDown = (event: MouseEvent, item: Item) => {
 };
 
 const selectResource = (item: Item) => {
+  // Check if user has the resource available
+  if (!hasResourceAvailable(item, 1)) {
+    toastStore.showToast({
+      type: 'warning',
+      message: `Not enough ${item.name} available. You have ${getAvailableQuantity(item)} available.`
+    });
+    return;
+  }
+
   const emptyIndex = craftingGrid.value.findIndex(slot => slot === null);
   if (emptyIndex !== -1) {
     craftingGrid.value[emptyIndex] = item;
+  } else {
+    toastStore.showToast({
+      type: 'info',
+      message: 'Crafting grid is full'
+    });
   }
 };
 
 const startPaintingResource = (event: MouseEvent, item: Item) => {
+  // Check if user has the resource available before starting painting
+  if (!hasResourceAvailable(item, 1)) {
+    toastStore.showToast({
+      type: 'warning',
+      message: `Not enough ${item.name} available. You have ${getAvailableQuantity(item)} available.`
+    });
+    return;
+  }
+  
   isPainting.value = true;
   paintingItem.value = item;
   paintedCells.value.clear();
@@ -441,17 +746,24 @@ const onDrop = (event: DragEvent, index: number) => {
     craftingGrid.value[index] = craftingGrid.value[fromIndex];
     craftingGrid.value[fromIndex] = temp;
   } 
-  // Dragging from resources catalog to crafting grid (infinite supply)
+  // Dragging from resources catalog to crafting grid (check availability)
   else {
-    // If cell is occupied, return old item to inventory
-    if (craftingGrid.value[index]) {
-      const existingItem = craftingGrid.value[index];
-      if (existingItem) {
-        inventoryStore.addItem(existingItem, 1);
-      }
+    // Check if user has the resource available
+    if (!hasResourceAvailable(draggedItem.value, 1)) {
+      toastStore.showToast({
+        type: 'warning',
+        message: `Not enough ${draggedItem.value.name} available. You have ${getAvailableQuantity(draggedItem.value)} available.`
+      });
+      isDragging.value = false;
+      draggedItem.value = null;
+      draggedFromCellIndex.value = null;
+      return;
     }
+
+    // If cell is occupied, the old item will be freed (it's already counted in balance)
+    // No need to do anything - the item is just replaced
     
-    // Place new item in cell (from catalog, infinite supply)
+    // Place new item in cell (only if user has it available)
     craftingGrid.value[index] = draggedItem.value;
   }
 
@@ -568,19 +880,124 @@ const craftItem = () => {
   }
 };
 
-// Handler for RecipeBook component autofill
-const handleAutofillRecipe = (recipe: Recipe | BlockchainRecipe) => {
-  // For now, just show a toast for blockchain recipes
+// Handle image loading errors - fallback to icon
+const handleImageError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  // Hide the image and show fallback icon
+  img.style.display = 'none';
+  const parent = img.parentElement;
+  if (parent) {
+    // Check if fallback already exists
+    if (!parent.querySelector('.fallback-icon')) {
+      const fallback = document.createElement('span');
+      fallback.className = 'text-2xl fallback-icon';
+      // Get icon from resource data attribute or use default
+      const resourceId = (img.closest('[draggable="true"]') as HTMLElement)?.dataset?.resourceId;
+      if (resourceId) {
+        const resource = filteredResources.value.find(r => r.id === resourceId);
+        if (resource) {
+          fallback.textContent = resource.icon;
+        }
+      }
+      if (!fallback.textContent) {
+        fallback.textContent = '📦';
+      }
+      parent.appendChild(fallback);
+    }
+  }
+};
+
+// Handle image errors in crafting grid cells
+const handleCellImageError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  img.style.display = 'none';
+  const parent = img.parentElement;
+  if (parent) {
+    if (!parent.querySelector('.fallback-icon')) {
+      const fallback = document.createElement('span');
+      fallback.className = 'text-5xl fallback-icon select-none';
+      // Try to find the cell item to get icon
+      const cellIndex = Array.from(parent.parentElement?.children || []).indexOf(parent);
+      if (cellIndex !== -1 && craftingGrid.value[cellIndex]) {
+        fallback.textContent = craftingGrid.value[cellIndex]?.icon || '📦';
+      } else {
+        fallback.textContent = '📦';
+      }
+      parent.appendChild(fallback);
+    }
+  }
+};
+
+// Handle image errors in result preview
+const handleResultImageError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  img.style.display = 'none';
+  const parent = img.parentElement;
+  if (parent && matchedRecipe.value) {
+    if (!parent.querySelector('.fallback-icon')) {
+      const fallback = document.createElement('span');
+      fallback.className = 'text-6xl fallback-icon select-none';
+      fallback.textContent = matchedRecipe.value.result.icon || '📦';
+      parent.appendChild(fallback);
+    }
+  }
+};
+
+// Handle image errors in painting mode indicator
+const handlePaintingImageError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  img.style.display = 'none';
+  const parent = img.parentElement;
+  if (parent && paintingItem.value) {
+    if (!parent.querySelector('.fallback-icon')) {
+      const fallback = document.createElement('span');
+      fallback.className = 'text-white text-base fallback-icon';
+      fallback.textContent = paintingItem.value.icon || '📦';
+      parent.appendChild(fallback);
+    }
+  }
+};
+
+const handleAutofillRecipe = async (recipe: Recipe | BlockchainRecipe) => {
+  // Handle blockchain recipes
   if ('blockchainRecipeId' in recipe) {
-    toastStore.showToast({
-      type: 'info',
-      message: `Recipe: ${recipe.name} (blockchain recipe - grid autofill coming soon)`
-    });
+    await autofillBlockchainRecipe(recipe);
     return;
   }
 
   // Use existing autofill for legacy recipes
   autofillRecipe(recipe as Recipe);
+};
+
+const autofillBlockchainRecipe = async (recipe: BlockchainRecipe) => {
+  clearCraftingGrid();
+  
+  // Get user's balance to find matching items
+  const userBalance = inventoryStore.userBalance;
+  const { CONTRACTS } = await import('@/config/wallet');
+  
+  // Fill grid according to recipe pattern positions (0-8)
+  for (const ingredient of recipe.ingredients) {
+    // Find matching item in user's balance
+    const balanceItem = userBalance.find(item => {
+      const itemTokenId = (item as any).tokenId || parseInt(item.id.replace('token_', ''), 10);
+      const itemContract = (item as any).tokenContract || CONTRACTS.workbench;
+      
+      return itemTokenId === ingredient.tokenId && 
+             itemContract.toLowerCase() === ingredient.tokenContract.toLowerCase() &&
+             parseInt((item as any).balance || '0', 10) >= ingredient.amount;
+    });
+    
+    if (balanceItem && ingredient.position >= 0 && ingredient.position < 9) {
+      // Place item at the recipe's specified position
+      craftingGrid.value[ingredient.position] = balanceItem;
+    }
+  }
+
+  toastStore.showToast({
+    type: 'info',
+    message: `Autofilled ${recipe.name} recipe`
+  });
 };
 
 const autofillRecipe = (recipe: Recipe) => {

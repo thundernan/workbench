@@ -62,7 +62,17 @@
             >
               <!-- Item Header -->
               <div class="flex items-start justify-between mb-4">
-                <div class="text-6xl">{{ item.icon }}</div>
+                <div class="w-20 h-20 flex items-center justify-center">
+                  <!-- Display image if available, otherwise use icon -->
+                  <img
+                    v-if="item.metadata?.image"
+                    :src="item.metadata.image"
+                    :alt="item.name"
+                    class="w-full h-full object-contain"
+                    @error="handleImageError($event, item)"
+                  />
+                  <span v-else class="text-6xl">{{ item.icon }}</span>
+                </div>
                 <div v-if="hasItemInInventory(item.id)" class="text-emerald-400 text-xl">✓</div>
                 <div v-else class="text-slate-600 text-xl">○</div>
               </div>
@@ -142,7 +152,17 @@
             >
               <!-- Item Header -->
               <div class="flex items-start justify-between mb-4">
-                <div class="text-6xl">{{ resource.item.icon }}</div>
+                <div class="w-20 h-20 flex items-center justify-center">
+                  <!-- Display image if available, otherwise use icon -->
+                  <img
+                    v-if="resource.item.metadata?.image"
+                    :src="resource.item.metadata.image"
+                    :alt="resource.item.name"
+                    class="w-full h-full object-contain"
+                    @error="handleImageError($event, resource.item)"
+                  />
+                  <span v-else class="text-6xl">{{ resource.item.icon }}</span>
+                </div>
                 <div class="text-right">
                   <div class="text-2xl font-bold text-emerald-400">{{ resource.quantity }}</div>
                   <div class="text-xs text-slate-400">qty</div>
@@ -196,7 +216,17 @@
                 class="flex items-center gap-3 p-3 cursor-pointer"
                 @click="toggleRecipeExpanded(recipe)"
               >
-                <div class="text-2xl">{{ recipe.result.icon }}</div>
+                <div class="w-8 h-8 flex items-center justify-center flex-shrink-0">
+                  <!-- Display image if available, otherwise use icon -->
+                  <img
+                    v-if="recipe.result.metadata?.image"
+                    :src="recipe.result.metadata.image"
+                    :alt="recipe.result.name"
+                    class="w-full h-full object-contain"
+                    @error="handleImageError($event, recipe.result)"
+                  />
+                  <span v-else class="text-2xl">{{ recipe.result.icon }}</span>
+                </div>
                 <div class="flex-1 min-w-0">
                   <div class="text-white font-semibold text-sm truncate">{{ recipe.name }}</div>
                   <div class="text-slate-400 text-xs">{{ recipe.ingredients.length }} ingredients</div>
@@ -233,10 +263,19 @@
                       <div 
                         v-for="(cell, idx) in getRecipeGridFlat(recipe)" 
                         :key="idx"
-                        class="aspect-square rounded border flex items-center justify-center text-xs"
+                        class="aspect-square rounded border flex items-center justify-center text-xs overflow-hidden relative"
                         :class="cell ? 'border-emerald-500/50 bg-slate-700' : 'border-slate-700 bg-slate-900'"
                       >
-                        {{ cell ? cell?.icon : '' }}
+                        <template v-if="cell">
+                          <img
+                            v-if="getCellImage(cell)"
+                            :src="getCellImage(cell)!"
+                            :alt="getCellName(cell)"
+                            class="w-full h-full object-contain p-0.5"
+                            @error="(e) => cell && handleImageError(e, cell)"
+                          />
+                          <span v-else class="text-xs">{{ getCellIcon(cell) }}</span>
+                        </template>
                       </div>
                     </div>
                   </div>
@@ -250,7 +289,16 @@
                         :key="ingredient.item.id"
                         class="flex items-center gap-1 bg-slate-700 rounded px-1.5 py-0.5"
                       >
-                        <span class="text-xs">{{ ingredient.item.icon }}</span>
+                        <div class="w-4 h-4 flex items-center justify-center flex-shrink-0">
+                          <img
+                            v-if="ingredient.item.metadata?.image"
+                            :src="ingredient.item.metadata.image"
+                            :alt="ingredient.item.name"
+                            class="w-full h-full object-contain"
+                            @error="handleImageError($event, ingredient.item)"
+                          />
+                          <span v-else class="text-xs">{{ ingredient.item.icon }}</span>
+                        </div>
                         <span class="text-white flex-1 text-[10px] truncate">{{ ingredient.item.name }}</span>
                         <span 
                           class="font-medium text-[10px] whitespace-nowrap"
@@ -433,6 +481,21 @@ const getRecipeGridFlat = (recipe: Recipe) => {
   return flat;
 };
 
+// Helper to safely get cell image
+const getCellImage = (cell: Item | null) => {
+  return cell?.metadata?.image || null;
+};
+
+// Helper to safely get cell name
+const getCellName = (cell: Item | null) => {
+  return cell?.name || '';
+};
+
+// Helper to safely get cell icon
+const getCellIcon = (cell: Item | null) => {
+  return cell?.icon || '';
+};
+
 const canCraftRecipe = (recipe: Recipe) => {
   return recipe.ingredients.every(ingredient =>
     inventoryStore.hasItem(ingredient.item.id, ingredient.quantity)
@@ -445,6 +508,31 @@ const hasEnoughItems = (itemId: string, quantity: number) => {
 
 const getItemQuantity = (itemId: string) => {
   return inventoryStore.getItemQuantity(itemId);
+};
+
+// Handle image loading errors - fallback to icon
+const handleImageError = (event: Event, item: Item) => {
+  const img = event.target as HTMLImageElement;
+  img.style.display = 'none';
+  const parent = img.parentElement;
+  if (parent && item) {
+    // Check if fallback already exists
+    if (!parent.querySelector('.fallback-icon')) {
+      const fallback = document.createElement('span');
+      // Determine size based on parent context
+      if (parent.classList.contains('w-20')) {
+        fallback.className = 'text-6xl fallback-icon';
+      } else if (parent.classList.contains('w-8')) {
+        fallback.className = 'text-2xl fallback-icon';
+      } else if (parent.classList.contains('w-4')) {
+        fallback.className = 'text-xs fallback-icon';
+      } else {
+        fallback.className = 'text-xs fallback-icon';
+      }
+      fallback.textContent = item.icon || '📦';
+      parent.appendChild(fallback);
+    }
+  }
 };
 
 const hasItemInInventory = (itemId: string) => {

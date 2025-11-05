@@ -4,6 +4,11 @@ export interface Item {
   name: string;
   description: string;
   icon: string;
+  metadata: {
+    name: string;
+    image: string;
+    price: number;
+  }
   rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
   category: 'material' | 'tool' | 'weapon' | 'armor' | 'consumable';
 }

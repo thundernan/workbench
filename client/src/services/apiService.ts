@@ -7,13 +7,23 @@
 // Production: set to your deployed server URL
 const SERVER_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 
+// Global request queue and rate limiting
+const requestQueue = new Map<string, Promise<any>>();
+const lastRequestTime = new Map<string, number>();
+const MIN_REQUEST_INTERVAL = 2000; // Minimum 2 seconds between requests to same endpoint
+
+// Global rate limiter - tracks ALL API requests across all endpoints
+let lastGlobalRequestTime = 0;
+const MIN_GLOBAL_REQUEST_INTERVAL = 1500; // Minimum 1.5 seconds between ANY API requests (prevents burst requests)
+
 /**
- * Generic fetch wrapper with error handling
+ * Generic fetch wrapper with error handling and rate limiting
  * Automatically adds /api prefix to all endpoints
  */
 async function fetchAPI<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  retries = 3
 ): Promise<T> {
   // Build full URL with /api prefix
   let url: string;
@@ -25,6 +35,39 @@ async function fetchAPI<T>(
     const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     url = SERVER_BASE_URL ? `${SERVER_BASE_URL}/api${cleanEndpoint}` : `/api${cleanEndpoint}`;
   }
+  
+  // Create a cache key for this request (endpoint + method)
+  const cacheKey = `${options.method || 'GET'}:${url}`;
+  
+  // Check if there's already a pending request for this endpoint
+  const pendingRequest = requestQueue.get(cacheKey);
+  if (pendingRequest) {
+    console.log(`⏳ Waiting for pending request: ${cacheKey}`);
+    return pendingRequest;
+  }
+  
+  // Global rate limiting - ensure minimum interval between ANY API requests
+  const now = Date.now();
+  const timeSinceLastGlobalRequest = now - lastGlobalRequestTime;
+  if (timeSinceLastGlobalRequest < MIN_GLOBAL_REQUEST_INTERVAL) {
+    const waitTime = MIN_GLOBAL_REQUEST_INTERVAL - timeSinceLastGlobalRequest;
+    console.log(`⏸️ Global rate limiting: waiting ${waitTime}ms before request`);
+    await new Promise(resolve => setTimeout(resolve, waitTime));
+  }
+  
+  // Check endpoint-specific rate limiting - wait if request was made too recently
+  const lastTime = lastRequestTime.get(cacheKey);
+  if (lastTime) {
+    const timeSinceLastRequest = Date.now() - lastTime;
+    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+      const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+      console.log(`⏸️ Endpoint rate limiting: waiting ${waitTime}ms before request to ${cacheKey}`);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+  }
+  
+  // Update global request time
+  lastGlobalRequestTime = Date.now();
   
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
@@ -39,29 +82,66 @@ async function fetchAPI<T>(
     },
   };
 
-  try {
-    const response = await fetch(url, config);
+  // Create the request promise and add it to queue
+  const requestPromise = (async () => {
+    try {
+      lastRequestTime.set(cacheKey, Date.now());
+      
+      const response = await fetch(url, config);
 
-    // Handle non-JSON responses
-    const contentType = response.headers.get('content-type');
-    if (!contentType || !contentType.includes('application/json')) {
-      throw new Error(`Server returned non-JSON response: ${response.statusText}`);
+      // Handle non-JSON responses
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Server returned non-JSON response: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      // Handle rate limiting with retry
+      if (response.status === 429 && retries > 0) {
+        const retryAfter = response.headers.get('Retry-After');
+        const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, 4 - retries) * 1000; // Exponential backoff
+        
+        console.warn(`⏳ Rate limited (429). Retrying after ${waitTime}ms... (${retries} retries left)`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        
+        // Remove from queue and retry
+        requestQueue.delete(cacheKey);
+        return fetchAPI<T>(endpoint, options, retries - 1);
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      // Handle rate limit errors with retry
+      if (error instanceof Error) {
+        if ((error.message.includes('Too many requests') || error.message.includes('429')) && retries > 0) {
+          const waitTime = Math.pow(2, 4 - retries) * 1000; // Exponential backoff
+          console.warn(`⏳ Rate limited. Retrying after ${waitTime}ms... (${retries} retries left)`);
+          await new Promise(resolve => setTimeout(resolve, waitTime));
+          
+          // Remove from queue and retry
+          requestQueue.delete(cacheKey);
+          return fetchAPI<T>(endpoint, options, retries - 1);
+        }
+        
+        console.error('API Error:', error.message);
+        throw error;
+      }
+      throw new Error('An unknown error occurred');
+    } finally {
+      // Remove from queue after request completes
+      requestQueue.delete(cacheKey);
     }
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || `HTTP error! status: ${response.status}`);
-    }
-
-    return data;
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error('API Error:', error.message);
-      throw error;
-    }
-    throw new Error('An unknown error occurred');
-  }
+  })();
+  
+  // Add to queue
+  requestQueue.set(cacheKey, requestPromise);
+  
+  return requestPromise;
 }
 
 /**
@@ -237,18 +317,12 @@ export const apiService = {
 
   /**
    * Get all recipes (all pages)
+   * Uses a single request with a high limit instead of two requests
    */
   async getAllRecipes(): Promise<Recipe[]> {
-    // First, get total count
-    const firstPage = await fetchAPI<ApiResponse<PaginationResult<Recipe>>>('/recipes?limit=1');
-    const total = firstPage.data?.total || 0;
-    
-    if (total === 0) {
-      return [];
-    }
-    
-    // Fetch all recipes in one request
-    const response = await fetchAPI<ApiResponse<PaginationResult<Recipe>>>(`/recipes?limit=${total}`);
+    // API limit is 100, so we'll fetch with the maximum allowed limit
+    // If there are more recipes, we'll need to implement pagination
+    const response = await fetchAPI<ApiResponse<PaginationResult<Recipe>>>(`/recipes?limit=100`);
     return response.data?.data || [];
   },
 

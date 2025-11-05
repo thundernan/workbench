@@ -32,6 +32,7 @@ onMounted(async () => {
   
   // Check for existing wallet connection
   try {
+    console.log('🔍 Checking wallet connection...');
     await walletStore.checkConnection();
     if (walletStore.connected) {
       console.log('✅ Wallet already connected:', walletStore.shortAddress);
@@ -40,15 +41,18 @@ onMounted(async () => {
     console.warn('⚠️ Wallet check failed:', error);
   }
   
-  // Fetch blockchain recipes from server
-  try {
-    console.log('📚 Fetching recipes from server...');
-    await recipesStore.fetchBlockchainRecipes();
-    console.log(`✅ Loaded ${recipesStore.allBlockchainRecipes.length} recipes`);
-  } catch (error: any) {
-    console.error('❌ Failed to fetch recipes:', error.message);
-    // Don't block app if recipes fail to load
-    // User can retry via recipe book
-  }
+  // Fetch blockchain recipes from server (with delay to avoid rate limiting)
+  // Longer delay to ensure Shop.vue loads first and avoid rate limiting
+  setTimeout(async () => {
+    try {
+      console.log('📚 Fetching recipes from server...');
+      await recipesStore.fetchBlockchainRecipes();
+      console.log(`✅ Loaded ${recipesStore.allBlockchainRecipes.length} recipes`);
+    } catch (error: any) {
+      console.error('❌ Failed to fetch recipes:', error.message);
+      // Don't block app if recipes fail to load
+      // User can retry via recipe book
+    }
+  }, 3000); // Delay 3 seconds to let Shop.vue load first and avoid rate limiting
 });
 </script>

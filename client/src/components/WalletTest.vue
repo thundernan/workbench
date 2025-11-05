@@ -84,7 +84,7 @@
                 
                 <Button 
                   @click="testNetworkSwitch"
-                  label="Switch to Polygon"
+                  label="Switch to Status Network"
                   icon="pi pi-refresh"
                   class="w-full"
                   severity="secondary"

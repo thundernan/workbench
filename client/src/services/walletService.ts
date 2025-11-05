@@ -1,13 +1,13 @@
 import { ethers } from 'ethers';
 import type { WalletProvider, TransactionRequest, CraftingTransaction } from '@/types';
-import { NETWORKS, getNetworkByChainId, networkToWalletConfig, isSupportedChain } from '@/config/wallet';
+import { getNetworkByChainId, networkToWalletConfig, isSupportedChain, DEFAULT_CHAIN_ID } from '@/config/wallet';
 
 export class Web3WalletService {
   private provider: ethers.Provider | null = null;
   private signer: ethers.Signer | null = null;
 
-  // Supported wallet providers
-  private readonly walletProviders: WalletProvider[] = [
+  // Known wallet providers with icons and metadata
+  private readonly knownWalletProviders: WalletProvider[] = [
     {
       name: 'MetaMask',
       id: 'metamask',
@@ -28,31 +28,110 @@ export class Web3WalletService {
     }
   ];
 
+  // Dynamic list of detected wallets
+  private detectedWallets: WalletProvider[] = [];
+
   constructor() {
-    this.checkWalletAvailability();
+    this.detectWallets();
   }
 
   /**
-   * Check which wallets are available
+   * Detect all available wallets
    */
-  private checkWalletAvailability(): void {
-    this.walletProviders.forEach(provider => {
+  private detectWallets(): void {
+    this.detectedWallets = [];
+    
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const providerss = new ethers.BrowserProvider(window?.ethereum as any);
+    console.log({providerss});
+    // Check known wallets first
+    this.knownWalletProviders.forEach(provider => {
+      let installed = false;
+      
       if (provider.id === 'metamask') {
-        provider.installed = typeof window !== 'undefined' && !!window.ethereum && !window.ethereum.isTrust;
+        installed = !!window.ethereum && !window.ethereum.isTrust && !(window.ethereum as any).isCoinbaseWallet;
       } else if (provider.id === 'trust') {
-        provider.installed = typeof window !== 'undefined' && !!window.ethereum?.isTrust;
+        installed = !!window.ethereum?.isTrust;
       } else if (provider.id === 'coinbase') {
-        provider.installed = typeof window !== 'undefined' && !!window.coinbaseWalletExtension;
+        installed = !!window.coinbaseWalletExtension || !!(window.ethereum as any)?.isCoinbaseWallet;
+      }
+      
+      if (installed) {
+        this.detectedWallets.push({ ...provider, installed: true });
       }
     });
+
+    // Check for any other Ethereum provider (generic wallet)
+    if (window.ethereum) {
+      // Check if it's not already in our known wallets
+      const ethereum = window.ethereum as any;
+      const isKnownWallet = 
+        ethereum.isMetaMask || 
+        ethereum.isTrust || 
+        ethereum.isCoinbaseWallet ||
+        window.coinbaseWalletExtension;
+      
+      if (!isKnownWallet) {
+        // Generic wallet detected - try to get wallet name
+        let walletName = 'Ethereum Wallet';
+        let walletId = 'generic';
+        
+        // Try to detect wallet name from provider
+        if (ethereum.providerMap) {
+          // Some wallets expose providerMap
+          const providers = Object.keys(ethereum.providerMap);
+          if (providers.length > 0) {
+            walletName = providers[0].charAt(0).toUpperCase() + providers[0].slice(1);
+            walletId = providers[0].toLowerCase();
+          }
+        }
+        
+        // Check if wallet has a name property
+        if (ethereum.walletName) {
+          walletName = ethereum.walletName;
+          walletId = walletName.toLowerCase().replace(/\s+/g, '-');
+        }
+        
+        this.detectedWallets.push({
+          name: walletName,
+          id: walletId,
+          icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiM2Mjc0RUUiLz4KPHBhdGggZD0iTTE2IDhMMjAgMTJIMTZWOEgxNlYxMkgxNkwxNiA4WiIgZmlsbD0iI2ZmZiIvPgo8L3N2Zz4K',
+          installed: true
+        });
+      }
+    }
+
+    // Check for Coinbase Wallet as separate provider
+    if (window.coinbaseWalletExtension && !this.detectedWallets.find(w => w.id === 'coinbase')) {
+      const coinbaseProvider = this.knownWalletProviders.find(p => p.id === 'coinbase');
+      if (coinbaseProvider) {
+        this.detectedWallets.push({ ...coinbaseProvider, installed: true });
+      }
+    }
   }
 
   /**
    * Get all wallet providers (both installed and not installed)
    */
   getAvailableProviders(): WalletProvider[] {
-    // Return all providers, UI will show install status
-    return this.walletProviders;
+    // Combine detected wallets with known wallets that aren't installed
+    const allProviders: WalletProvider[] = [];
+    const detectedIds = new Set(this.detectedWallets.map(w => w.id));
+    
+    // Add detected wallets first
+    allProviders.push(...this.detectedWallets);
+    
+    // Add known wallets that aren't detected
+    this.knownWalletProviders.forEach(provider => {
+      if (!detectedIds.has(provider.id)) {
+        allProviders.push({ ...provider, installed: false });
+      }
+    });
+    
+    return allProviders;
   }
 
   /**
@@ -63,28 +142,8 @@ export class Web3WalletService {
       throw new Error('MetaMask is not installed. Please install MetaMask extension.');
     }
 
-    try {
-      // Request account access
-      const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts'
-      });
-
-      if (accounts.length === 0) {
-        throw new Error('No accounts found');
-      }
-
-      // Create ethers provider and signer
-      this.provider = new ethers.BrowserProvider(window.ethereum);
-      this.signer = await this.provider.getSigner();
-
-      // Return checksummed address from signer
-      return await this.signer.getAddress();
-    } catch (error: any) {
-      if (error.code === 4001) {
-        throw new Error('User rejected the connection request');
-      }
-      throw new Error(`Failed to connect to MetaMask: ${error.message}`);
-    }
+    // Use the generic connect method
+    return this.connectGeneric(window.ethereum);
   }
 
   /**
@@ -96,8 +155,113 @@ export class Web3WalletService {
     }
 
     try {
+      // First, try to connect
+      const address = await this.connectGeneric(window.ethereum);
+      
+      // After connection, try to ensure we're on Ethereum network (not Solana)
+      // Trust Wallet might be on Solana by default
+      try {
+        // Try to switch to Status Network immediately after connection
+        // This will work even if wallet is on Solana
+        await this.switchNetwork(DEFAULT_CHAIN_ID);
+        console.log('✅ Successfully switched Trust Wallet to Status Network');
+      } catch (switchError: any) {
+        // If switch fails, try to add the network
+        if (switchError.message?.includes('4902') || switchError.code === 4902) {
+          try {
+            await this.addNetwork(DEFAULT_CHAIN_ID);
+            console.log('✅ Successfully added Status Network to Trust Wallet');
+          } catch (addError) {
+            console.warn('Failed to add/switch network, will try again after connection:', addError);
+            // Don't throw - wallet is connected, just not on right network
+          }
+        } else {
+          console.warn('Failed to switch network:', switchError);
+          // Don't throw - wallet is connected, just not on right network
+        }
+      }
+      
+      return address;
+    } catch (error: any) {
+      // If connection fails due to Solana, try to switch network first
+      if (error.message?.includes('Invalid RPC URL') || 
+          error.message?.includes('solana') ||
+          error.code === -32603) {
+        console.log('⚠️ Trust Wallet is on Solana, attempting to switch to Status Network...');
+        
+        // Try to switch network before retrying connection
+        try {
+          await this.switchNetwork(DEFAULT_CHAIN_ID);
+          // Retry connection after switching
+          return await this.connectGeneric(window.ethereum);
+        } catch (switchError: any) {
+          // If switch fails, try to add network
+          if (switchError.message?.includes('4902') || switchError.code === 4902) {
+            try {
+              await this.addNetwork(DEFAULT_CHAIN_ID);
+              // Retry connection after adding
+              return await this.connectGeneric(window.ethereum);
+            } catch (addError) {
+              throw new Error(
+                'Trust Wallet is configured for Solana network. ' +
+                'Please manually switch to Ethereum network in Trust Wallet settings, then reconnect. ' +
+                `Status Network Chain ID: ${DEFAULT_CHAIN_ID}`
+              );
+            }
+          }
+          throw switchError;
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Connect to Coinbase Wallet
+   */
+  async connectCoinbase(): Promise<string> {
+    // Prefer Coinbase Wallet extension, fallback to window.ethereum if it's Coinbase
+    const ethereum = window.ethereum as any;
+    const coinbaseProvider = window.coinbaseWalletExtension || 
+                            (ethereum?.isCoinbaseWallet ? window.ethereum : null);
+    
+    if (!coinbaseProvider) {
+      throw new Error('Coinbase Wallet is not installed. Please install Coinbase Wallet extension.');
+    }
+
+    // Use the generic connect method
+    return this.connectGeneric(coinbaseProvider);
+  }
+
+  /**
+   * Connect to any generic Ethereum provider
+   */
+  async connectGeneric(provider: any): Promise<string> {
+    if (!provider || typeof provider.request !== 'function') {
+      throw new Error('Invalid wallet provider. The provider must support the Ethereum provider interface.');
+    }
+
+    try {
+      // First, check if we can get chain ID to detect Solana
+      try {
+        const testChainId = await provider.request({ method: 'eth_chainId' });
+        if (!testChainId || testChainId === 'null' || testChainId === 'undefined') {
+          throw new Error('Provider does not support Ethereum JSON-RPC methods');
+        }
+      } catch (chainIdError: any) {
+        // Check if it's a Solana RPC error
+        if (chainIdError.message?.includes('Invalid RPC URL') || 
+            chainIdError.message?.includes('solana') ||
+            chainIdError.code === -32603) {
+          console.warn('⚠️ Detected Solana RPC, will attempt to switch after connection');
+          // Continue with connection - we'll switch network after
+        } else {
+          throw new Error(`Provider validation failed: ${chainIdError.message}`);
+        }
+      }
+
       // Request account access
-      const accounts = await window.ethereum.request({
+      const accounts = await provider.request({
         method: 'eth_requestAccounts'
       });
 
@@ -106,8 +270,17 @@ export class Web3WalletService {
       }
 
       // Create ethers provider and signer
-      this.provider = new ethers.BrowserProvider(window.ethereum);
-      this.signer = await this.provider.getSigner();
+      const browserProvider = new ethers.BrowserProvider(provider);
+      this.provider = browserProvider;
+      
+      // Try to get signer - this might fail if on Solana
+      try {
+        this.signer = await browserProvider.getSigner();
+      } catch (signerError: any) {
+        // If signer fails due to Solana, we'll handle it in the wallet store
+        console.warn('Failed to get signer, might be Solana network:', signerError);
+        throw signerError;
+      }
 
       // Return checksummed address from signer
       return await this.signer.getAddress();
@@ -115,44 +288,15 @@ export class Web3WalletService {
       if (error.code === 4001) {
         throw new Error('User rejected the connection request');
       }
-      throw new Error(`Failed to connect to Trust Wallet: ${error.message}`);
+      throw new Error(`Failed to connect to wallet: ${error.message}`);
     }
   }
 
   /**
-   * Connect to Coinbase Wallet
-   */
-  async connectCoinbase(): Promise<string> {
-    if (!window.coinbaseWalletExtension) {
-      throw new Error('Coinbase Wallet is not installed');
-    }
-
-    try {
-      const accounts = await window.coinbaseWalletExtension.request({
-        method: 'eth_requestAccounts'
-      });
-
-      if (accounts.length === 0) {
-        throw new Error('No accounts found');
-      }
-
-      this.provider = new ethers.BrowserProvider(window.coinbaseWalletExtension);
-      this.signer = await this.provider.getSigner();
-
-      // Return checksummed address from signer
-      return await this.signer.getAddress();
-    } catch (error: any) {
-      if (error.code === 4001) {
-        throw new Error('User rejected the connection request');
-      }
-      throw new Error(`Failed to connect to Coinbase Wallet: ${error.message}`);
-    }
-  }
-
-  /**
-   * Generic connect method
+   * Generic connect method - supports any wallet
    */
   async connect(walletId: string): Promise<string> {
+    // Handle known wallets
     switch (walletId) {
       case 'metamask':
         return this.connectMetaMask();
@@ -160,8 +304,42 @@ export class Web3WalletService {
         return this.connectTrust();
       case 'coinbase':
         return this.connectCoinbase();
+      case 'generic':
+        // Generic wallet - use window.ethereum
+        if (!window.ethereum) {
+          throw new Error('No Ethereum wallet detected. Please install a Web3 wallet.');
+        }
+        return this.connectGeneric(window.ethereum);
       default:
-        throw new Error(`Unsupported wallet: ${walletId}`);
+        // Try to find the wallet provider
+        if (window.ethereum) {
+          const ethereum = window.ethereum as any;
+          // Check if it's a known wallet we haven't explicitly handled
+          if (walletId === 'metamask' || (ethereum.isMetaMask && !ethereum.isTrust && !ethereum.isCoinbaseWallet)) {
+            return this.connectMetaMask();
+          }
+          if (walletId === 'trust' || ethereum.isTrust) {
+            return this.connectTrust();
+          }
+          if (walletId === 'coinbase' || ethereum.isCoinbaseWallet) {
+            return this.connectCoinbase();
+          }
+          
+          // Generic provider - use window.ethereum
+          return this.connectGeneric(window.ethereum);
+        }
+        
+        // Check for Coinbase Wallet extension
+        if (walletId === 'coinbase' && window.coinbaseWalletExtension) {
+          return this.connectCoinbase();
+        }
+        
+        // Last resort: try window.ethereum if it exists
+        if (window.ethereum) {
+          return this.connectGeneric(window.ethereum);
+        }
+        
+        throw new Error(`Wallet "${walletId}" not found. Please make sure the wallet is installed and try again.`);
     }
   }
 
@@ -208,24 +386,67 @@ export class Web3WalletService {
     }
 
     try {
+      // Try to switch network - this should work even if wallet is on Solana
+      // It will prompt user to switch to Ethereum network
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: `0x${chainId.toString(16)}` }]
       });
+      console.log(`✅ Successfully switched to chain ${chainId}`);
     } catch (error: any) {
-      if (error.code === 4902) {
+      // Error code 4902 means chain not added to wallet
+      if (error.code === 4902 || error.message?.includes('not added')) {
+        console.log(`⚠️ Chain ${chainId} not added, attempting to add it...`);
         // Chain not added, try to add it
         await this.addNetwork(chainId);
+        // After adding, try switching again
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: `0x${chainId.toString(16)}` }]
+        });
+        console.log(`✅ Successfully added and switched to chain ${chainId}`);
+      } else if (error.code === 4001) {
+        // User rejected the request
+        throw new Error('User rejected the network switch request');
       } else {
-        throw new Error(`Failed to switch network: ${error.message}`);
+        // Check if it's a Solana-related error
+        if (error.message?.includes('Invalid RPC URL') || 
+            error.message?.includes('solana') ||
+            error.code === -32603) {
+          // If wallet is on Solana, try to add network instead
+          console.log('⚠️ Wallet appears to be on Solana, attempting to add Ethereum network...');
+          try {
+            await this.addNetwork(chainId);
+            console.log(`✅ Successfully added Status Network to wallet`);
+          } catch (addError: any) {
+            throw new Error(
+              `Failed to switch from Solana to Ethereum. ` +
+              `Please manually switch to Ethereum network in your wallet settings, then add Status Network. ` +
+              `Chain ID: ${chainId}`
+            );
+          }
+        } else {
+          throw new Error(`Failed to switch network: ${error.message || error.code}`);
+        }
       }
     }
   }
+  
+  async switchNetworkSafe(chainId: number): Promise<void> {
+    if (!window.ethereum) {
+      throw new Error('No wallet provider found');
+    }
+    return this.switchNetwork(chainId);
+  }
 
   /**
-   * Add a new network
+   * Add a new network (public method for wallet store)
    */
-  private async addNetwork(chainId: number): Promise<void> {
+  async addNetwork(chainId: number): Promise<void> {
+    if (!window.ethereum) {
+      throw new Error('No wallet provider found');
+    }
+    
     // Check if network is supported
     if (!isSupportedChain(chainId)) {
       throw new Error(`Unsupported network: ${chainId}. Please add it to the network configuration.`);
@@ -272,7 +493,7 @@ export class Web3WalletService {
   /**
    * Send a crafting transaction
    */
-  async sendCraftingTransaction(craftingTx: CraftingTransaction): Promise<string> {
+  async sendCraftingTransaction(_craftingTx: CraftingTransaction): Promise<string> {
     if (!this.signer) {
       throw new Error('Wallet not connected');
     }
@@ -335,14 +556,16 @@ export class Web3WalletService {
   isConnected(): boolean {
     return this.signer !== null;
   }
-}
 
-// Global window type extensions
-declare global {
-  interface Window {
-    ethereum?: any;
-    coinbaseWalletExtension?: any;
+  /**
+   * Re-detect wallets (useful when wallets are installed after page load)
+   */
+  refreshWalletDetection(): void {
+    this.detectWallets();
   }
 }
+
+// Window types are declared elsewhere, so we don't redeclare here
+// Using 'any' type casting where needed for flexibility with different wallet providers
 
 export default Web3WalletService;

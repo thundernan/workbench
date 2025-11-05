@@ -11,7 +11,7 @@ export interface NetworkConfig {
   };
 }
 
-// Network configurations
+// Network configurations - Only Status Network
 export const NETWORKS: Record<string, NetworkConfig> = {
   // Primary network - Status Network Sepolia
   status: {
@@ -19,62 +19,6 @@ export const NETWORKS: Record<string, NetworkConfig> = {
     name: 'Status Sepolia',
     rpcUrl: 'https://public.sepolia.rpc.status.network',
     blockExplorer: 'https://sepolia.explorer.status.network',
-    nativeCurrency: {
-      name: 'Ether',
-      symbol: 'ETH',
-      decimals: 18
-    }
-  },
-  // Alternative networks
-  ethereum: {
-    chainId: 1,
-    name: 'Ethereum Mainnet',
-    rpcUrl: 'https://mainnet.infura.io/v3/YOUR_PROJECT_ID',
-    blockExplorer: 'https://etherscan.io',
-    nativeCurrency: {
-      name: 'Ether',
-      symbol: 'ETH',
-      decimals: 18
-    }
-  },
-  polygon: {
-    chainId: 137,
-    name: 'Polygon',
-    rpcUrl: 'https://polygon-rpc.com',
-    blockExplorer: 'https://polygonscan.com',
-    nativeCurrency: {
-      name: 'MATIC',
-      symbol: 'MATIC',
-      decimals: 18
-    }
-  },
-  bsc: {
-    chainId: 56,
-    name: 'BSC',
-    rpcUrl: 'https://bsc-dataseed.binance.org',
-    blockExplorer: 'https://bscscan.com',
-    nativeCurrency: {
-      name: 'BNB',
-      symbol: 'BNB',
-      decimals: 18
-    }
-  },
-  arbitrum: {
-    chainId: 42161,
-    name: 'Arbitrum',
-    rpcUrl: 'https://arb1.arbitrum.io/rpc',
-    blockExplorer: 'https://arbiscan.io',
-    nativeCurrency: {
-      name: 'Ether',
-      symbol: 'ETH',
-      decimals: 18
-    }
-  },
-  optimism: {
-    chainId: 10,
-    name: 'Optimism',
-    rpcUrl: 'https://mainnet.optimism.io',
-    blockExplorer: 'https://optimistic.etherscan.io',
     nativeCurrency: {
       name: 'Ether',
       symbol: 'ETH',

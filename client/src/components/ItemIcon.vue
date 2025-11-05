@@ -8,8 +8,16 @@
     ]"
     @click="handleClick"
   >
-    <div class="w-full h-full rounded-lg border-2 flex items-center justify-center text-2xl bg-slate-800 border-slate-600">
-      {{ item?.icon || '❓' }}
+    <div class="w-full h-full rounded-lg border-2 flex items-center justify-center bg-slate-800 border-slate-600 overflow-hidden relative">
+      <!-- Display image if available, otherwise use icon -->
+      <img
+        v-if="item?.metadata?.image"
+        :src="item.metadata.image"
+        :alt="item.name"
+        class="w-full h-full object-contain p-1"
+        @error="handleImageError"
+      />
+      <span v-else class="text-2xl">{{ item?.icon || '❓' }}</span>
     </div>
     
     <!-- Quantity badge -->
@@ -113,6 +121,20 @@ const rarityTextClasses = computed(() => {
 const handleClick = () => {
   if (!props.disabled) {
     emit('click', props.item || null);
+  }
+};
+
+// Handle image loading errors - fallback to icon
+const handleImageError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  img.style.display = 'none';
+  const parent = img.parentElement;
+  if (parent && props.item) {
+    // Show fallback icon
+    const fallback = document.createElement('span');
+    fallback.className = 'text-2xl';
+    fallback.textContent = props.item.icon || '❓';
+    parent.appendChild(fallback);
   }
 };
 </script>
