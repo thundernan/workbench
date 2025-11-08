@@ -42,34 +42,33 @@
           <div v-else-if="filteredResources.length > 0" class="space-y-3">
             <div 
               v-for="resource in filteredResources" 
-              :key="resource.id"
+              :key="resource.tokenId"
               :draggable="true"
-              :data-resource-id="resource.id"
+              :data-resource-id="resource.tokenId"
               @dragstart="onResourceDragStart($event, resource)"
               @dragend="onDragEnd"
-              @mousedown="onResourceMouseDown($event, resource)"
               class="flex items-center gap-3 p-2 border border-slate-600 rounded bg-slate-700 hover:border-emerald-400 transition-colors cursor-move"
               :class="{ 
-                'opacity-50': isDragging && draggedItem?.id === resource.id,
-                'border-emerald-400 shadow-lg shadow-emerald-500/50': isPainting && paintingItem?.id === resource.id
+                'opacity-50': isDragging && draggedItem?.tokenId === resource.tokenId,
+                'border-emerald-400 shadow-lg shadow-emerald-500/50': paintingItem?.tokenId === resource.tokenId
               }"
-              @click="selectResource(resource)"
+              @click="togglePaintingResource(resource)"
             >
               <!-- Display image if available, otherwise use icon -->
               <div class="flex-shrink-0 w-10 h-10 flex items-center justify-center select-none">
                 <img 
                   v-if="resource.metadata?.image" 
                   :src="resource.metadata.image" 
-                  :alt="resource.name"
+                  :alt="resource.metadata.name"
                   class="w-full h-full object-contain rounded"
                   @error="handleImageError($event)"
                 />
-                <span v-else class="text-2xl">{{ resource.icon }}</span>
+                <span v-else class="text-2xl">{{ resource.metadata.image }}</span>
               </div>
               <div class="flex-1 text-xs min-w-0">
-                <div class="text-white truncate">{{ resource.name }}</div>
-                <div class="text-slate-400 truncate">{{ resource.category }}</div>
-                <div v-if="resource.description" class="text-slate-500 text-xs truncate">{{ resource.description }}</div>
+                <div class="text-white truncate">{{ resource.metadata.name }}</div>
+                <div class="text-slate-400 truncate">{{ resource.metadata.category }}</div>
+                <div v-if="resource.metadata.description" class="text-slate-500 text-xs truncate">{{ resource.metadata.description }}</div>
               </div>
               <div class="text-right">
                 <div class="text-emerald-400 font-bold whitespace-nowrap">
@@ -105,11 +104,11 @@
               <img
                 v-if="paintingItem?.metadata?.image"
                 :src="paintingItem.metadata.image"
-                :alt="paintingItem.name"
+                :alt="paintingItem.metadata.name"
                 class="w-full h-full object-contain"
                 @error="handlePaintingImageError($event)"
               />
-              <span v-else class="text-white text-base">{{ paintingItem?.icon }}</span>
+              <span v-else class="text-white text-base">{{ '📦' }}</span>
             </div>
           </div>
         </div>
@@ -140,7 +139,7 @@
                    </div>
                  </div>
                </div>
-               <div class="grid grid-cols-3 gap-3">
+              <div class="grid grid-cols-3 gap-3" ref="craftingGridRef">
                  <div
                      v-for="(cell, index) in craftingGrid"
                      :key="index"
@@ -154,18 +153,18 @@
                      @mouseenter="onCellMouseEnter(index)"
                      class="w-28 h-28 border-2 rounded-lg flex items-center justify-center transition-all duration-200 relative overflow-hidden"
                      :class="getCellClass(cell, index)"
-                     :style="{ cursor: isPainting ? 'crosshair' : (cell ? 'move' : 'pointer') }"
+                     :style="{ cursor: paintingItem ? 'crosshair' : (cell ? 'move' : 'pointer') }"
                  >
                    <!-- Display image if available, otherwise use icon -->
                    <template v-if="cell">
                      <img
                        v-if="cell.metadata?.image"
                        :src="cell.metadata.image"
-                       :alt="cell.name"
+                       :alt="cell.metadata.name"
                        class="w-full h-full object-contain p-2 select-none"
                        @error="handleCellImageError($event)"
                      />
-                     <span v-else class="select-none text-5xl">{{ cell.icon }}</span>
+                     <span v-else class="select-none text-5xl">{{ cell.metadata.image }}</span>
                    </template>
                    <span v-else class="text-slate-600 text-sm">[ ]</span>
                  </div>
@@ -180,32 +179,32 @@
                  <!-- Display image if available, otherwise use icon -->
                  <template v-if="matchedRecipe">
                    <img
-                     v-if="matchedRecipe.result.metadata?.image"
-                     :src="matchedRecipe.result.metadata.image"
-                     :alt="matchedRecipe.result.name"
+                     v-if="matchedRecipe.outputIngredient?.metadata.image"
+                     :src="matchedRecipe.outputIngredient?.metadata.image"
+                     :alt="matchedRecipe.outputIngredient?.metadata.name"
                      class="w-full h-full object-contain p-3 select-none"
                      @error="handleResultImageError($event)"
                    />
-                   <span v-else class="select-none text-6xl">{{ matchedRecipe.result.icon }}</span>
+                   <span v-else class="select-none text-6xl">{{ '📦' }}</span>
                  </template>
                  <span v-else class="text-slate-600 text-4xl">?</span>
                </div>
                <div class="text-center w-full px-2">
-                 <div v-if="matchedRecipe" class="text-white text-sm font-semibold truncate">{{ matchedRecipe.result.name }}</div>
+                 <div v-if="matchedRecipe" class="text-white text-sm font-semibold truncate">{{ matchedRecipe.outputIngredient?.metadata.name }}</div>
                  <div v-else class="text-slate-500 text-sm">No match</div>
-                 <div v-if="matchedRecipe" class="text-slate-400 text-xs mt-1 line-clamp-2 leading-relaxed">{{ matchedRecipe.result.description }}</div>
+                 <div v-if="matchedRecipe" class="text-slate-400 text-xs mt-1 line-clamp-2 leading-relaxed">{{ matchedRecipe.outputIngredient?.metadata.description }}</div>
                </div>
              </div>
            </div>
  
            <!-- Craft Button -->
            <button 
-             @click="craftItem"
-             :disabled="!canCraft"
+            @click="craftItem"
+            :disabled="!canCraft"
              class="px-8 py-3 rounded-lg text-sm transition-all duration-200 font-semibold"
-             :class="canCraft ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:scale-105 shadow-lg shadow-emerald-500/50' : 'bg-slate-700 text-slate-500 cursor-not-allowed'"
+            :class="canCraft ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:scale-105 shadow-lg shadow-emerald-500/50' : 'bg-slate-700 text-slate-500 cursor-not-allowed'"
            >
-             {{ canCraft ? '⚡ Craft Item' : '✗ No match' }}
+            {{ isCraftingTx ? '⏳ Crafting...' : canCraft ? '⚡ Craft Item' : '✗ No match' }}
            </button>
          </div>
       </div>
@@ -227,22 +226,51 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
 import ToastNotification from '@/components/ToastNotification.vue';
 import WelcomeChestModal from '@/components/WelcomeChestModal.vue';
 import RecipeBook from '@/components/RecipeBook.vue';
 import { useInventoryStore } from '@/stores/inventory';
-import { useRecipesStore } from '@/stores/recipes';
+import { IIngredient, useRecipesStore } from '@/stores/recipes';
 import { useToastStore } from '@/stores/toast';
 import { useWalletStore } from '@/stores/wallet';
-import { CONTRACTS } from '@/config/wallet';
-import type { Item, Recipe, BlockchainRecipe } from '@/types';
+import type { Recipe, BlockchainRecipe } from '@/types';
 
 const inventoryStore = useInventoryStore();
 const recipesStore = useRecipesStore();
 const toastStore = useToastStore();
 const walletStore = useWalletStore();
+
+const isPaintingDrag = ref(false);
+const isCraftingTx = ref(false);
+
+const parseTokenId = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return undefined;
+    }
+
+    const numeric = Number(trimmed);
+    if (!Number.isNaN(numeric)) {
+      return numeric;
+    }
+
+    if (trimmed.startsWith('token_')) {
+      const legacy = Number(trimmed.slice(6));
+      if (!Number.isNaN(legacy)) {
+        return legacy;
+      }
+    }
+  }
+
+  return undefined;
+};
 
 // Initialize data
 recipesStore.initializeRecipes();
@@ -270,18 +298,20 @@ onMounted(async () => {
 const inventorySearch = ref('');
 
 // Crafting grid state
-const craftingGrid = ref<(Item | null)[]>(new Array(9).fill(null));
+const craftingGrid = ref<(IIngredient | null)[]>(new Array(9).fill(null));
 // Drag and drop state
 const isDragging = ref(false);
-const draggedItem = ref<Item | null>(null);
+const draggedItem = ref<IIngredient | null>(null);
 const draggedFromCellIndex = ref<number | null>(null);
 const dragOverIndex = ref<number | null>(null);
 const isOverTrash = ref(false);
 
 // Painting mode state
 const isPainting = ref(false);
-const paintingItem = ref<Item | null>(null);
+const paintingItem = ref<IIngredient | null>(null);
 const paintedCells = ref<Set<number>>(new Set());
+const craftingGridRef = ref<HTMLElement | null>(null);
+const ignoreNextOutsideClick = ref(false);
 
 // Notifications
 const notifications = ref([
@@ -301,394 +331,185 @@ const filteredResources = computed(() => {
   
   const query = inventorySearch.value.toLowerCase();
   return resources.filter(item =>
-    item.name.toLowerCase().includes(query) ||
-    item.category.toLowerCase().includes(query) ||
-    item.description.toLowerCase().includes(query)
-  );
-});
-
-const filteredInventoryItems = computed(() => {
-  if (!inventorySearch.value) {
-    return inventoryStore.items;
-  }
-  
-  const query = inventorySearch.value.toLowerCase();
-  return inventoryStore.items.filter(invItem =>
-    invItem.item.name.toLowerCase().includes(query) ||
-    invItem.item.category.toLowerCase().includes(query) ||
-    invItem.item.description.toLowerCase().includes(query)
+    item.metadata.name.toLowerCase().includes(query) ||
+    item.metadata.category.toLowerCase().includes(query) ||
+    item.metadata.description.toLowerCase().includes(query)
   );
 });
 
 const matchedRecipe = computed(() => {
   try {
-    // First try to match legacy recipes
-    console.log('🔍 matchedRecipe computed - craftingGrid:', craftingGrid.value);
     const grid2D = [
       [craftingGrid.value[0], craftingGrid.value[1], craftingGrid.value[2]],
       [craftingGrid.value[3], craftingGrid.value[4], craftingGrid.value[5]],
       [craftingGrid.value[6], craftingGrid.value[7], craftingGrid.value[8]]
     ];
-    console.log('🔍 matchedRecipe computed - grid2D:', grid2D);
-    console.log('🔍 matchedRecipe computed - recipesStore:', recipesStore);
-    console.log('🔍 matchedRecipe computed - matchRecipe function:', recipesStore.matchRecipe);
-    console.log('🔍 matchedRecipe computed - recipes.value:', recipesStore.allRecipes);
-    console.log({recipes: recipesStore.recipes})
-    
-    if (typeof recipesStore.matchRecipe !== 'function') {
-      console.error('❌ matchRecipe is not a function!', recipesStore.matchRecipe);
-      return null;
-    }
-    
+
     const legacyMatch = recipesStore.matchRecipe(grid2D);
-    console.log(recipesStore)
-    console.log('🔍 matchedRecipe computed - legacyMatch result:', legacyMatch);
     if (legacyMatch) {
       return legacyMatch;
     }
 
-    // Try to match blockchain recipes
-    // Convert grid to positions map for blockchain recipe matching
-    const positions = new Map<number, { tokenContract: string; tokenId: number }>();
-    
-    // Use CONTRACTS from imported config
-    const defaultContract = CONTRACTS.workbench;
-    
-    // Build positions map from crafting grid
-    for (let i = 0; i < craftingGrid.value.length; i++) {
-      const item = craftingGrid.value[i];
-      if (!item) continue;
-      
-      let tokenContract: string | undefined;
-      let tokenId: number | undefined;
-      
-      // Check if item has tokenContract and tokenId (from userBalance)
-      const itemTokenContract = (item as any).tokenContract;
-      const itemTokenId = (item as any).tokenId;
-      
-      if (itemTokenContract && itemTokenId !== undefined && itemTokenId !== null) {
-        // Ensure tokenContract is a string
-        tokenContract = typeof itemTokenContract === 'string' ? itemTokenContract : String(itemTokenContract);
-        // Ensure tokenId is a number
-        tokenId = typeof itemTokenId === 'number' ? itemTokenId : Number(itemTokenId);
-        
-        // Validate the values
-        if (!tokenContract || isNaN(tokenId as number)) {
-          continue;
-        }
-      } else if (item.id && item.id.startsWith('token_')) {
-        // Fallback: parse from id and use default contract
-        const tokenIdStr = item.id.replace('token_', '');
-        const parsedTokenId = parseInt(tokenIdStr, 10);
-        if (!isNaN(parsedTokenId)) {
-          tokenId = parsedTokenId;
-          // Try to find the item in userBalance to get the actual tokenContract
-          const balanceItem = inventoryStore.userBalance.find(r => r.id === item.id);
-          const balanceTokenContract = balanceItem && (balanceItem as any).tokenContract;
-          tokenContract = balanceTokenContract && typeof balanceTokenContract === 'string'
-            ? balanceTokenContract
-            : defaultContract;
-        }
-      }
-      
-      // Only add to positions if we have valid tokenContract and tokenId
-      if (tokenContract && typeof tokenContract === 'string' && tokenContract.length > 0 &&
-          tokenId !== undefined && !isNaN(tokenId as number)) {
-        positions.set(i, {
-          tokenContract: tokenContract,
-          tokenId: tokenId as number
-        });
-      }
-    }
-    
-    // Only try to match if we have positions and recipes are loaded
-    if (positions.size > 0 && recipesStore.allBlockchainRecipes.length > 0) {
-      try {
-        const blockchainMatch = recipesStore.matchBlockchainRecipe(positions);
-        if (blockchainMatch) {
-      // Convert blockchain recipe to a format compatible with the UI
-      // Create a result Item from outputIngredient
-      let resultItem: Item | null = null;
-      if (blockchainMatch.outputIngredient?.metadata) {
-        const metadata = blockchainMatch.outputIngredient.metadata;
-        resultItem = {
-          id: `token_${blockchainMatch.outputIngredient.tokenId}`,
-          name: metadata.name || `Token ${blockchainMatch.outputIngredient.tokenId}`,
-          description: metadata.description || blockchainMatch.description || '',
-          icon: metadata.category === 'weapon' ? '⚔️' : metadata.category === 'tool' ? '⛏️' : metadata.category === 'armor' ? '🛡️' : '📦',
-          metadata: {
-            name: metadata.name || `Token ${blockchainMatch.outputIngredient.tokenId}`,
-            image: metadata.image || '',
-            price: 0
-          },
-          rarity: 'common' as any,
-          category: (metadata.category as any) || 'material'
-        };
-      } else {
-        // Fallback if no outputIngredient metadata
-        resultItem = {
-          id: `token_${blockchainMatch.resultTokenId}`,
-          name: blockchainMatch.name,
-          description: blockchainMatch.description || '',
-          icon: blockchainMatch.category === 'weapon' ? '⚔️' : blockchainMatch.category === 'tool' ? '⛏️' : blockchainMatch.category === 'armor' ? '🛡️' : '📦',
-          metadata: {
-            name: blockchainMatch.name,
-            image: '',
-            price: 0
-          },
-          rarity: 'common' as any,
-          category: (blockchainMatch.category as any) || 'material'
-        };
-      }
-      
-      // Return a Recipe-like object for compatibility
-      return {
-        id: blockchainMatch.blockchainRecipeId,
-        name: blockchainMatch.name,
-        description: blockchainMatch.description || '',
-        result: resultItem!,
-        ingredients: blockchainMatch.ingredients.map(ing => ({
-          item: {
-            id: `token_${ing.tokenId}`,
-            name: ing.metadata?.name || `Token ${ing.tokenId}`,
-            description: ing.metadata?.description || '',
-            icon: ing.metadata?.category === 'weapon' ? '⚔️' : ing.metadata?.category === 'tool' ? '⛏️' : '📦',
-            metadata: {
-              name: ing.metadata?.name || `Token ${ing.tokenId}`,
-              image: ing.metadata?.image || '',
-              price: 0
-            },
-            rarity: 'common' as any,
-            category: (ing.metadata?.category as any) || 'material'
-          },
-          quantity: ing.amount
-        })),
-        // Build grid from recipe pattern for display - align with recipe positions
-        grid: (() => {
-          const recipeGrid2D: (Item | null)[][] = [
-            [null, null, null],
-            [null, null, null],
-            [null, null, null]
-          ];
-          
-          // Map recipe ingredients to their positions in the 2D grid
-          blockchainMatch.ingredients.forEach(ingredient => {
-            if (ingredient.position >= 0 && ingredient.position < 9) {
-              const row = Math.floor(ingredient.position / 3);
-              const col = ingredient.position % 3;
-              
-              // Find the item from userBalance that matches this ingredient
-              const matchingItem = inventoryStore.userBalance.find(item => {
-                const itemTokenId = (item as any).tokenId || parseInt(item.id.replace('token_', ''), 10);
-                const itemContract = (item as any).tokenContract || CONTRACTS.workbench;
-                return itemTokenId === ingredient.tokenId && 
-                       itemContract.toLowerCase() === ingredient.tokenContract.toLowerCase();
-              });
-              
-              // Use matching item from balance, or create a placeholder item
-              if (matchingItem) {
-                recipeGrid2D[row][col] = matchingItem;
-              } else {
-                // Create a placeholder item from ingredient metadata
-                recipeGrid2D[row][col] = {
-                  id: `token_${ingredient.tokenId}`,
-                  name: ingredient.metadata?.name || `Token ${ingredient.tokenId}`,
-                  description: ingredient.metadata?.description || '',
-                  icon: ingredient.metadata?.category === 'weapon' ? '⚔️' : ingredient.metadata?.category === 'tool' ? '⛏️' : '📦',
-                  metadata: {
-                    name: ingredient.metadata?.name || `Token ${ingredient.tokenId}`,
-                    image: ingredient.metadata?.image || '',
-                    price: 0
-                  },
-                  rarity: 'common' as any,
-                  category: (ingredient.metadata?.category as any) || 'material'
-                };
-              }
-            }
-          });
-          
-          return recipeGrid2D;
-        })()
-      } as any;
-        }
-      } catch (matchError) {
-        // Silently fail if matching fails - might be due to invalid data
-        console.warn('Error matching blockchain recipe:', matchError);
-      }
-    }
-    
     return null;
   } catch (error) {
-    // Catch any errors in computed property to prevent breaking the UI
     console.warn('Error in matchedRecipe computed property:', error);
     return null;
   }
 });
 
 const canCraft = computed(() => {
-  return matchedRecipe.value !== null;
+  if (isCraftingTx.value) {
+    return false;
+  }
+
+  if (!matchedRecipe.value) {
+    return false;
+  }
+
+  const blockchainRecipe = recipesStore.getBlockchainRecipe(String(matchedRecipe.value.id)) ||
+    recipesStore.getBlockchainRecipeById(String(matchedRecipe.value.id));
+
+  if (blockchainRecipe) {
+    const userInventory = inventoryStore.userBalance
+      .map(item => {
+        const tokenId = parseTokenId((item as any).tokenId ?? item.tokenId);
+        const tokenContract = (item as any).tokenContract;
+        const balance = (item as any).balance ?? '0';
+
+        if (tokenId === undefined || typeof tokenContract !== 'string') {
+          return null;
+        }
+
+        return {
+          tokenId,
+          balance: String(balance),
+          tokenContract
+        };
+      })
+      .filter((entry): entry is { tokenId: number; balance: string; tokenContract: string } => entry !== null);
+
+    return recipesStore.canCraftRecipe(matchedRecipe.value, userInventory.map(item => ({...item, tokenId: String(item.tokenId)})));
+  }
+
+  return true;
 });
 
 // Painting Mode Methods
-const startPainting = (event: MouseEvent, item: Item) => {
-  if (!inventoryStore.hasItem(item.id, 1)) return;
-  
-  isPainting.value = true;
-  paintingItem.value = item;
-  paintedCells.value.clear();
-};
-
 const stopPainting = () => {
+  if (isPaintingDrag.value) {
+    isPaintingDrag.value = false;
+    paintedCells.value.clear();
+  }
   isPainting.value = false;
-  paintingItem.value = null;
-  paintedCells.value.clear();
 };
 
 // Helper to check if user has resource available
-const hasResourceAvailable = (item: Item, quantity: number = 1): boolean => {
-  // Check if item exists in user's balance
-  const resource = inventoryStore.userBalance.find(r => r.id === item.id);
+const hasResourceAvailable = (item: IIngredient, quantity: number = 1): boolean => {
+  const resource = inventoryStore.userBalance.find(r => r.tokenId === item.tokenId);
   if (!resource) return false;
-  
-  // Get current balance
+
   const balance = parseInt((resource as any).balance || '0', 10);
-  
-  // Count how many of this item are already in the grid
-  const usedInGrid = craftingGrid.value.filter(cell => cell?.id === item.id).length;
-  
-  // Check if we have enough available (balance - already used in grid >= quantity needed)
+  const usedInGrid = craftingGrid.value.filter(cell => cell?.tokenId === item.tokenId).length;
+
   return balance - usedInGrid >= quantity;
 };
 
 // Helper to get available quantity of a resource
-const getAvailableQuantity = (item: Item): number => {
-  const resource = inventoryStore.userBalance.find(r => r.id === item.id);
+const getAvailableQuantity = (item: IIngredient): number => {
+  const resource = inventoryStore.userBalance.find(r => r.tokenId === item.tokenId);
   if (!resource) return 0;
-  
+
   const balance = parseInt((resource as any).balance || '0', 10);
-  const usedInGrid = craftingGrid.value.filter(cell => cell?.id === item.id).length;
-  
+  const usedInGrid = craftingGrid.value.filter(cell => cell?.tokenId === item.tokenId).length;
+
   return Math.max(0, balance - usedInGrid);
 };
 
-const paintCell = (index: number) => {
-  if (!isPainting.value || !paintingItem.value) return;
-  if (paintedCells.value.has(index)) return; // Already painted this cell
+const togglePaintingResource = (item: IIngredient) => {
+  if (isDragging.value) {
+    return;
+  }
 
-  // Check if user has the resource available
-  if (!hasResourceAvailable(paintingItem.value, 1)) {
+  ignoreNextOutsideClick.value = true;
+  setTimeout(() => {
+    ignoreNextOutsideClick.value = false;
+  }, 0);
+
+  if (paintingItem.value?.tokenId === item.tokenId) {
+    if (isPainting.value) {
+      isPainting.value = false;
+    }
+    isPaintingDrag.value = false;
+    paintedCells.value.clear();
+    paintingItem.value = null;
+    return;
+  }
+
+  if (!hasResourceAvailable(item, 1)) {
     toastStore.showToast({
       type: 'warning',
-      message: `Not enough ${paintingItem.value.name} available`
+      message: `Not enough ${item.metadata.name} available. You have ${getAvailableQuantity(item)} available.`
     });
     return;
   }
 
-  // If cell is occupied, the old item will be freed (it's already counted in balance)
-  // No need to do anything - the item is just replaced
+  paintingItem.value = item;
+  isPainting.value = false;
+  isPaintingDrag.value = false;
+  paintedCells.value.clear();
+};
 
-  // Place new item in cell (only if user has it available)
+const paintCell = (index: number, force = false) => {
+  if (!paintingItem.value) return;
+  if (!isPainting.value && !force) return;
+  if (!force && !isPaintingDrag.value) return;
+  if (paintedCells.value.has(index)) return;
+
+  if (!hasResourceAvailable(paintingItem.value, 1)) {
+    toastStore.showToast({
+      type: 'warning',
+      message: `Not enough ${paintingItem.value.metadata.name} available`
+    });
+    return;
+  }
+
   craftingGrid.value[index] = paintingItem.value;
   paintedCells.value.add(index);
 };
 
+
 // Resource drag handlers (from catalog)
-const onResourceDragStart = (event: DragEvent, item: Item) => {
+const onResourceDragStart = (event: DragEvent, item: IIngredient) => {
   isDragging.value = true;
   draggedItem.value = item;
   draggedFromCellIndex.value = null; // From resources catalog
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'copy'; // Copy from resources
-    event.dataTransfer.setData('text/plain', item.id);
-  }
-};
-
-const onResourceMouseDown = (event: MouseEvent, item: Item) => {
-  // Only start painting on left click AND if not dragging
-  if (event.button === 0 && !isDragging.value) {
-    // Don't prevent default here - let drag start first
-    // We'll start painting after a small delay if user is still holding
-    setTimeout(() => {
-      // Check if user is still holding mouse down and not dragging
-      if (!isDragging.value && event.buttons === 1) {
-        startPaintingResource(event, item);
-      }
-    }, 150); // Small delay to allow drag to start
-  }
-};
-
-const selectResource = (item: Item) => {
-  // Check if user has the resource available
-  if (!hasResourceAvailable(item, 1)) {
-    toastStore.showToast({
-      type: 'warning',
-      message: `Not enough ${item.name} available. You have ${getAvailableQuantity(item)} available.`
-    });
-    return;
-  }
-
-  const emptyIndex = craftingGrid.value.findIndex(slot => slot === null);
-  if (emptyIndex !== -1) {
-    craftingGrid.value[emptyIndex] = item;
-  } else {
-    toastStore.showToast({
-      type: 'info',
-      message: 'Crafting grid is full'
-    });
-  }
-};
-
-const startPaintingResource = (event: MouseEvent, item: Item) => {
-  // Check if user has the resource available before starting painting
-  if (!hasResourceAvailable(item, 1)) {
-    toastStore.showToast({
-      type: 'warning',
-      message: `Not enough ${item.name} available. You have ${getAvailableQuantity(item)} available.`
-    });
-    return;
-  }
-  
-  isPainting.value = true;
-  paintingItem.value = item;
-  paintedCells.value.clear();
-};
-
-const onInventoryItemMouseDown = (event: MouseEvent, item: Item) => {
-  // Only start painting on left click AND if not dragging
-  if (event.button === 0 && !isDragging.value) {
-    // Don't prevent default here - let drag start first
-    // We'll start painting after a small delay if user is still holding
-    setTimeout(() => {
-      // Check if user is still holding mouse down and not dragging
-      if (!isDragging.value && event.buttons === 1) {
-        startPainting(event, item);
-      }
-    }, 150); // Small delay to allow drag to start
+    event.dataTransfer.setData('text/plain', item.tokenId);
   }
 };
 
 const onCellMouseEnter = (index: number) => {
-  if (isPainting.value) {
-    paintCell(index);
-  }
+  paintCell(index);
 };
 
 const onCellMouseDown = (event: MouseEvent, index: number) => {
-  if (isPainting.value) {
-    event.preventDefault();
-    paintCell(index);
-  }
-};
+  if (event.button !== 0) return;
+  if (!paintingItem.value) return;
 
-// Drag and Drop Methods
-const onDragStart = (event: DragEvent, item: Item) => {
-  isDragging.value = true;
-  draggedItem.value = item;
-  draggedFromCellIndex.value = null; // From inventory
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', item.id);
+  if (!hasResourceAvailable(paintingItem.value, 1)) {
+    toastStore.showToast({
+      type: 'warning',
+      message: `Not enough ${paintingItem.value.metadata.name} available. You have ${getAvailableQuantity(paintingItem.value)} available.`
+    });
+    return;
   }
+
+  event.preventDefault();
+  isPainting.value = true;
+  isPaintingDrag.value = true;
+  paintedCells.value.clear();
+  paintCell(index, true);
 };
 
 const onCellDragStart = (event: DragEvent, index: number) => {
@@ -697,7 +518,7 @@ const onCellDragStart = (event: DragEvent, index: number) => {
   draggedFromCellIndex.value = index; // From cell
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', craftingGrid.value[index]?.id || '');
+    event.dataTransfer.setData('text/plain', craftingGrid.value[index]?.tokenId || '');
   }
 };
 
@@ -752,7 +573,7 @@ const onDrop = (event: DragEvent, index: number) => {
     if (!hasResourceAvailable(draggedItem.value, 1)) {
       toastStore.showToast({
         type: 'warning',
-        message: `Not enough ${draggedItem.value.name} available. You have ${getAvailableQuantity(draggedItem.value)} available.`
+        message: `Not enough ${draggedItem.value.metadata.name} available. You have ${getAvailableQuantity(draggedItem.value)} available.`
       });
       isDragging.value = false;
       draggedItem.value = null;
@@ -772,7 +593,35 @@ const onDrop = (event: DragEvent, index: number) => {
   draggedFromCellIndex.value = null;
 };
 
-const getCellClass = (cell: Item | null, index: number) => {
+const exitCraftMode = () => {
+  stopPainting();
+  isPaintingDrag.value = false;
+  paintedCells.value.clear();
+  paintingItem.value = null;
+};
+
+const handleDocumentClick = (event: MouseEvent) => {
+  if (ignoreNextOutsideClick.value) {
+    return;
+  }
+
+  if (!paintingItem.value) {
+    return;
+  }
+
+  const target = event.target as Node | null;
+  if (!target) {
+    return;
+  }
+
+  if (craftingGridRef.value && craftingGridRef.value.contains(target)) {
+    return;
+  }
+
+  exitCraftMode();
+};
+
+const getCellClass = (cell: IIngredient | null, index: number) => {
   const classes = [];
   
   // Base classes
@@ -827,7 +676,7 @@ const onTrashDrop = (event: DragEvent) => {
       
       toastStore.showToast({
         type: 'info',
-        message: `Deleted ${item.name}`
+        message: `Deleted ${item.metadata.name}`
       });
     }
   }
@@ -837,47 +686,94 @@ const onTrashDrop = (event: DragEvent) => {
   draggedFromCellIndex.value = null;
 };
 
-// Methods
-const selectInventoryItem = (item: Item) => {
-  const emptyIndex = craftingGrid.value.findIndex(slot => slot === null);
-  if (emptyIndex !== -1 && inventoryStore.hasItem(item.id, 1)) {
-    craftingGrid.value[emptyIndex] = item;
-    inventoryStore.removeItem(item.id, 1);
-  }
-};
-
 const clearCraftingGrid = () => {
   craftingGrid.value.forEach(item => {
     if (item) {
-      inventoryStore.addItem(item, 1);
+      inventoryStore.addItem(item as any, 1);
     }
   });
   craftingGrid.value = new Array(9).fill(null);
 };
 
-const craftItem = () => {
-  if (!matchedRecipe.value) return;
+const craftItem = async () => {
+  // if (!matchedRecipe.value || isCraftingTx.value) {
+  //   return;
+  // }
 
-  // Clear grid
-  craftingGrid.value = new Array(9).fill(null);
+  // const blockchainRecipe = recipesStore.getBlockchainRecipe(String(matchedRecipe.value.id)) ||
+  //   recipesStore.getBlockchainRecipeById(String(matchedRecipe.value.id));
 
-  // Add result to inventory
-  inventoryStore.addItem(matchedRecipe.value.result, 1);
+  // const canCraftOnChain = !!matchedRecipe && walletStore.connected && walletStore.signer;
 
-  // Show notification
-  toastStore.showToast({
-    type: 'success',
-    message: `Crafted ${matchedRecipe.value.result.name}!`
-  });
+  // if (canCraftOnChain) {
+  //   try {
+  //     isCraftingTx.value = true;
+  //     toastStore.showToast({
+  //       type: 'info',
+  //       message: 'Submitting craft transaction...'
+  //     });
 
-  // Add to notification bar
-  notifications.value.unshift({
-    type: 'success',
-    message: `"Crafted ${matchedRecipe.value.result.name} x1"`
-  });
-  if (notifications.value.length > 5) {
-    notifications.value.pop();
-  }
+  //     const tx = await craftingService.craft(matchedRecipe.value, walletStore.signer!);
+  //     const txHash = tx.hash;
+  //     const explorerUrl = getTransactionUrl(walletStore.chainId, txHash);
+  //     const shortHash = `${txHash.slice(0, 8)}...${txHash.slice(-4)}`;
+
+  //     toastStore.showToast({
+  //       type: 'info',
+  //       message: explorerUrl ? `Transaction sent: ${shortHash} (${explorerUrl})` : `Transaction sent: ${shortHash}`
+  //     });
+
+  //     await tx.wait();
+
+  //     toastStore.showToast({
+  //       type: 'success',
+  //       message: `Crafted ${matchedRecipe.value.result.name}!`
+  //     });
+
+  //     notifications.value.unshift({
+  //       type: 'success',
+  //       message: `"Crafted ${matchedRecipe.value.result.name} x1"`
+  //     });
+  //     if (notifications.value.length > 5) {
+  //       notifications.value.pop();
+  //     }
+
+  //     craftingGrid.value = new Array(9).fill(null);
+
+  //     if (walletStore.address) {
+  //       try {
+  //         await inventoryStore.loadUserBalance(walletStore.address, true);
+  //       } catch (loadError) {
+  //         console.warn('Failed to refresh balance after crafting:', loadError);
+  //       }
+  //     }
+  //   } catch (error: any) {
+  //     toastStore.showToast({
+  //       type: 'error',
+  //       message: error?.message || 'Crafting failed.'
+  //     });
+  //   } finally {
+  //     isCraftingTx.value = false;
+  //   }
+
+  //   return;
+  // }
+
+  // craftingGrid.value = new Array(9).fill(null);
+  // inventoryStore.addItem(matchedRecipe.value?.outputIngredient as any, 1);
+
+  // toastStore.showToast({
+  //   type: 'success',
+  //   message: `Crafted ${matchedRecipe.value?.outputIngredient?.metadata.name}!`
+  // });
+
+  // notifications.value.unshift({
+  //   type: 'success',
+  //   message: `"Crafted ${matchedRecipe.value?.outputIngredient?.metadata.name} x1"`
+  // });
+  // if (notifications.value.length > 5) {
+  //   notifications.value.pop();
+  // }
 };
 
 // Handle image loading errors - fallback to icon
@@ -894,9 +790,9 @@ const handleImageError = (event: Event) => {
       // Get icon from resource data attribute or use default
       const resourceId = (img.closest('[draggable="true"]') as HTMLElement)?.dataset?.resourceId;
       if (resourceId) {
-        const resource = filteredResources.value.find(r => r.id === resourceId);
+        const resource = filteredResources.value.find(r => r.tokenId === resourceId);
         if (resource) {
-          fallback.textContent = resource.icon;
+          fallback.textContent = resource.metadata.image;
         }
       }
       if (!fallback.textContent) {
@@ -919,7 +815,7 @@ const handleCellImageError = (event: Event) => {
       // Try to find the cell item to get icon
       const cellIndex = Array.from(parent.parentElement?.children || []).indexOf(parent);
       if (cellIndex !== -1 && craftingGrid.value[cellIndex]) {
-        fallback.textContent = craftingGrid.value[cellIndex]?.icon || '📦';
+        fallback.textContent = craftingGrid.value[cellIndex]?.metadata.image || '📦';
       } else {
         fallback.textContent = '📦';
       }
@@ -937,7 +833,7 @@ const handleResultImageError = (event: Event) => {
     if (!parent.querySelector('.fallback-icon')) {
       const fallback = document.createElement('span');
       fallback.className = 'text-6xl fallback-icon select-none';
-      fallback.textContent = matchedRecipe.value.result.icon || '📦';
+      fallback.textContent = matchedRecipe.value?.outputIngredient?.metadata.image || '📦';
       parent.appendChild(fallback);
     }
   }
@@ -952,7 +848,7 @@ const handlePaintingImageError = (event: Event) => {
     if (!parent.querySelector('.fallback-icon')) {
       const fallback = document.createElement('span');
       fallback.className = 'text-white text-base fallback-icon';
-      fallback.textContent = paintingItem.value.icon || '📦';
+      fallback.textContent = paintingItem.value?.metadata.image || '📦';
       parent.appendChild(fallback);
     }
   }
@@ -974,14 +870,18 @@ const autofillBlockchainRecipe = async (recipe: BlockchainRecipe) => {
   
   // Get user's balance to find matching items
   const userBalance = inventoryStore.userBalance;
-  const { CONTRACTS } = await import('@/config/wallet');
-  
   // Fill grid according to recipe pattern positions (0-8)
   for (const ingredient of recipe.ingredients) {
     // Find matching item in user's balance
     const balanceItem = userBalance.find(item => {
-      const itemTokenId = (item as any).tokenId || parseInt(item.id.replace('token_', ''), 10);
-      const itemContract = (item as any).tokenContract || CONTRACTS.workbench;
+      const itemTokenId = parseTokenId((item as any).tokenId ?? item.tokenId);
+      const itemContract = (item as any).tokenContract;
+      if (!itemContract || typeof itemContract !== 'string') {
+        return false;
+      }
+      if (!ingredient.tokenContract || typeof ingredient.tokenContract !== 'string') {
+        return false;
+      }
       
       return itemTokenId === ingredient.tokenId && 
              itemContract.toLowerCase() === ingredient.tokenContract.toLowerCase() &&
@@ -990,7 +890,7 @@ const autofillBlockchainRecipe = async (recipe: BlockchainRecipe) => {
     
     if (balanceItem && ingredient.position >= 0 && ingredient.position < 9) {
       // Place item at the recipe's specified position
-      craftingGrid.value[ingredient.position] = balanceItem;
+      craftingGrid.value[ingredient.position] = balanceItem as any;
     }
   }
 
@@ -1008,7 +908,7 @@ const autofillRecipe = (recipe: Recipe) => {
     for (let j = 0; j < 3; j++) {
       const item = recipe.grid[i][j];
       if (item && inventoryStore.hasItem(item.id, 1)) {
-        craftingGrid.value[i * 3 + j] = item;
+        craftingGrid.value[i * 3 + j] = item as any;
         inventoryStore.removeItem(item.id, 1);
       }
     }
@@ -1020,10 +920,19 @@ const autofillRecipe = (recipe: Recipe) => {
   });
 };
 
-// Global mouse up handler to stop painting
-if (typeof window !== 'undefined') {
-  window.addEventListener('mouseup', stopPainting);
-}
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('mouseup', stopPainting);
+    window.addEventListener('click', handleDocumentClick);
+  }
+});
+
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('mouseup', stopPainting);
+    window.removeEventListener('click', handleDocumentClick);
+  }
+});
 
 </script>
 

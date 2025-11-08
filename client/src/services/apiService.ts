@@ -2,6 +2,8 @@
  * API Service for communicating with the backend server
  */
 
+import { IIngredient, IRecipe } from "@/stores/recipes";
+
 // Base server URL (without /api suffix)
 // Development: proxy handles /api routing
 // Production: set to your deployed server URL
@@ -150,12 +152,13 @@ async function fetchAPI<T>(
 export interface Recipe {
   _id: string;
   id?: string;
-  blockchainRecipeId: string;
-  resultTokenContract: string;
-  resultTokenId: number;
-  resultAmount: number;
+  blockchainRecipeId?: number | null;
+  outputTokenId: number;
+  outputAmount: number;
+  requiresExactPattern: boolean;
+  active: boolean;
   ingredients: Array<{
-    tokenContract: string;
+    tokenContract?: string | null;
     tokenId: number;
     amount: number;
     position: number;
@@ -167,6 +170,7 @@ export interface Recipe {
     } | null;
   }>;
   outputIngredient?: {
+    tokenContract?: string | null;
     tokenId: number;
     amount: number;
     metadata?: {
@@ -281,7 +285,7 @@ export const apiService = {
   /**
    * Get all recipes
    */
-  async getRecipes(params?: { page?: number; limit?: number; category?: string }): Promise<Recipe[]> {
+  async getRecipes(params?: { page?: number; limit?: number; category?: string }): Promise<IRecipe[]> {
     // Build query string
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', params.page.toString());
@@ -291,7 +295,7 @@ export const apiService = {
     const queryString = queryParams.toString();
     const endpoint = queryString ? `/recipes?${queryString}` : '/recipes';
     
-    const response = await fetchAPI<ApiResponse<PaginationResult<Recipe>>>(endpoint);
+    const response = await fetchAPI<ApiResponse<PaginationResult<IRecipe>>>(endpoint);
     
     // Extract recipes from paginated response
     return response.data?.data || [];
@@ -300,7 +304,7 @@ export const apiService = {
   /**
    * Get all ingredients
    */
-  async getIngredients(params?: { page?: number; limit?: number }): Promise<Ingredient[]> {
+  async getIngredients(params?: { page?: number; limit?: number }): Promise<IIngredient[]> {
     // Build query string
     const queryParams = new URLSearchParams();
     if (params?.page) queryParams.append('page', params.page.toString());
@@ -309,7 +313,7 @@ export const apiService = {
     const queryString = queryParams.toString();
     const endpoint = queryString ? `/ingredients?${queryString}` : '/ingredients';
     
-    const response = await fetchAPI<ApiResponse<PaginationResult<Ingredient>>>(endpoint);
+    const response = await fetchAPI<ApiResponse<PaginationResult<IIngredient>>>(endpoint);
     
     // Extract ingredients from paginated response
     return response.data?.data || [];
@@ -319,10 +323,10 @@ export const apiService = {
    * Get all recipes (all pages)
    * Uses a single request with a high limit instead of two requests
    */
-  async getAllRecipes(): Promise<Recipe[]> {
+  async getAllRecipes(): Promise<IRecipe[]> {
     // API limit is 100, so we'll fetch with the maximum allowed limit
     // If there are more recipes, we'll need to implement pagination
-    const response = await fetchAPI<ApiResponse<PaginationResult<Recipe>>>(`/recipes?limit=100`);
+    const response = await fetchAPI<ApiResponse<PaginationResult<IRecipe>>>(`/recipes?limit=100`);
     return response.data?.data || [];
   },
 
@@ -383,7 +387,7 @@ export const apiService = {
    */
   async getUserInventory(address: string, includeZero: boolean = false): Promise<{
     address: string;
-    inventory: InventoryItem[];
+    inventory: IIngredient[];
     totalItems: number;
     allTokensChecked: number;
     contractAddress: string;
@@ -400,7 +404,7 @@ export const apiService = {
     
     const response = await fetchAPI<ApiResponse<{
       address: string;
-      inventory: InventoryItem[];
+      inventory: IIngredient[];
       totalItems: number;
       allTokensChecked: number;
       contractAddress: string;

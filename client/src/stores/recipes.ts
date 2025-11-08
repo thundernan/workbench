@@ -1,192 +1,91 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { Recipe, Item, BlockchainRecipe, BlockchainRecipeIngredient } from '@/types';
+import type { BlockchainRecipe } from '@/types';
 import apiService from '@/services/apiService';
-import { CONTRACTS } from '@/config/wallet';
+
+export type IIngredient = {
+  _id: string;
+  tokenContract: string;
+  tokenId: string;
+  metadata: {
+    name: string;
+    image: string;
+    description: string;
+    category: string;
+    price: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type IRecipeIngredient = IIngredient & {
+  position: number;
+  amount: number;
+}
+
+ export type IRecipe = {
+  _id: string;
+  id: string;
+  blockchainRecipeId: number;
+  outputTokenId: number;
+  outputAmount: number;
+  requiresExactPattern: boolean;
+  active: boolean;
+  name: string;
+  ingredients: IRecipeIngredient[];
+  outputIngredient: IIngredient;
+  grid: IRecipeIngredient[][];
+}
+
+
 
 export const useRecipesStore = defineStore('recipes', () => {
-  const recipes = ref<Recipe[]>([]);
+  const recipes = ref<IRecipe[]>([]);
   const blockchainRecipes = ref<BlockchainRecipe[]>([]);
   const isLoading = ref(false);
   const error = ref<string | null>(null);
 
-  // Helper to create Item with metadata
-  const createItem = (id: string, name: string, description: string, icon: string, rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary', category: 'material' | 'tool' | 'weapon' | 'armor' | 'consumable', metadata?: { name?: string; image?: string; description?: string; price?: number }): Item => {
-    return {
-      id,
-      name,
-      description,
-      icon,
-      metadata: {
-        name: metadata?.name || name,
-        image: metadata?.image || '',
-        price: metadata?.price || 0
-      },
-      rarity,
-      category
-    };
-  };
-
-  // Convert BlockchainRecipeIngredient to Item
-  const convertBlockchainIngredientToItem = (ingredient: BlockchainRecipeIngredient): Item => {
-    const metadata = ingredient.metadata || {};
-    const tokenId = ingredient.tokenId;
-    const tokenContract = ingredient.tokenContract;
-    
-    // Validate tokenContract
-    if (!tokenContract || typeof tokenContract !== 'string') {
-      console.error('Invalid tokenContract in ingredient:', ingredient);
-      throw new Error(`Invalid tokenContract for tokenId ${tokenId}`);
-    }
-    
-    // Get icon from metadata or use default based on category
-    // Note: metadata.icon might not exist in the type, but could be in the actual data
-    const metadataAny = metadata as any;
-    let icon = metadataAny?.icon || '📦';
-    if (!metadataAny?.icon) {
-      const categoryIcons: Record<string, string> = {
-        material: '🪵',
-        tool: '⛏️',
-        weapon: '⚔️',
-        armor: '🛡️',
-        consumable: '🧪',
-        rare: '💎',
-        common: '📦'
-      };
-      icon = categoryIcons[metadata.category as string] || '📦';
-    }
-
-    const fullMetadata = {
-      name: metadata.name || `Token ${tokenId}`,
-      image: metadata.image || '',
-      description: metadata.description || 'An ingredient from the blockchain',
-      price: metadataAny?.price || 0
-    };
-
-    return {
-      id: `token_${tokenId}_${tokenContract.toLowerCase().slice(0, 8)}`,
-      name: metadata.name || `Token ${tokenId}`,
-      description: metadata.description || 'An ingredient from the blockchain',
-      icon: icon,
-      metadata: fullMetadata,
-      rarity: (metadataAny?.rarity || 'common') as 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary',
-      category: (metadata.category || 'material') as 'material' | 'tool' | 'weapon' | 'armor' | 'consumable',
-      // Store tokenContract and tokenId for blockchain recipe matching
-      tokenContract: tokenContract,
-      tokenId: tokenId
-    } as Item & { tokenContract: string; tokenId: number };
-  };
-
-  // Convert BlockchainRecipe to Recipe format
-  const convertBlockchainRecipeToRecipe = (blockchainRecipe: BlockchainRecipe): Recipe => {
-    // Validate required fields
-    if (!blockchainRecipe.resultTokenContract || typeof blockchainRecipe.resultTokenContract !== 'string') {
-      console.error('Invalid resultTokenContract in recipe:', blockchainRecipe);
-      throw new Error(`Invalid resultTokenContract for recipe ${blockchainRecipe.blockchainRecipeId || blockchainRecipe._id}`);
-    }
-    
-    if (typeof blockchainRecipe.resultTokenId !== 'number') {
-      console.error('Invalid resultTokenId in recipe:', blockchainRecipe);
-      throw new Error(`Invalid resultTokenId for recipe ${blockchainRecipe.blockchainRecipeId || blockchainRecipe._id}`);
-    }
-    
-    // Convert result to Item
-    const resultMetadata = blockchainRecipe.outputIngredient?.metadata || {};
-    const resultMetadataAny = resultMetadata as any;
-    const resultItem = createItem(
-      `token_${blockchainRecipe.resultTokenId}_${blockchainRecipe.resultTokenContract.toLowerCase().slice(0, 8)}`,
-      blockchainRecipe.name || resultMetadata.name || `Token ${blockchainRecipe.resultTokenId}`,
-      blockchainRecipe.description || resultMetadata.description || 'Crafted item',
-      resultMetadataAny?.icon || '📦',
-      (resultMetadataAny?.rarity || 'common') as 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary',
-      (resultMetadata.category || blockchainRecipe.category || 'material') as 'material' | 'tool' | 'weapon' | 'armor' | 'consumable',
-      {
-        name: blockchainRecipe.name || resultMetadata.name || `Token ${blockchainRecipe.resultTokenId}`,
-        image: resultMetadata.image || '',
-        description: blockchainRecipe.description || resultMetadata.description || 'Crafted item',
-        price: resultMetadataAny?.price || 0
-      }
-    );
-
-    // Convert ingredients to Item format
-    const ingredients = blockchainRecipe.ingredients.map(ing => ({
-      item: convertBlockchainIngredientToItem(ing),
-      quantity: ing.amount
-    }));
-
-    // Build 3x3 grid from ingredient positions (0-8 for 3x3 grid)
-    const grid: (Item | null)[][] = [
-      [null, null, null],
-      [null, null, null],
-      [null, null, null]
-    ];
-
-    // Fill grid based on ingredient positions
-    for (const ingredient of blockchainRecipe.ingredients) {
-      const position = ingredient.position;
-      if (position >= 0 && position < 9) {
-        const row = Math.floor(position / 3);
-        const col = position % 3;
-        const item = convertBlockchainIngredientToItem(ingredient);
-        // Place the item at the position (may have multiple of the same item at different positions)
-        grid[row][col] = item;
-      }
-    }
-
-    return {
-      id: blockchainRecipe.blockchainRecipeId || blockchainRecipe._id || blockchainRecipe.id || `recipe_${blockchainRecipe.resultTokenId}`,
-      name: blockchainRecipe.name || `Recipe ${blockchainRecipe.resultTokenId}`,
-      description: blockchainRecipe.description || 'A crafting recipe',
-      result: resultItem,
-      ingredients: ingredients,
-      grid: grid
-    };
-  };
-
   // Sample recipes data
-  const initializeRecipes = () => {
-    recipes.value = [];
+  const initializeRecipes = async () => {
+    if (recipes.value.length > 0 || isLoadingRecipes) {
+      return;
+    }
+
+    try {
+      await fetchBlockchainRecipes();
+    } catch (error) {
+      console.error('Failed to initialize recipes:', error);
+    }
   };
 
   // Find recipe by ID
-  const getRecipe = (id: string): Recipe | undefined => {
+  const getRecipe = (id: string): IRecipe | undefined => {
     return recipes.value.find(recipe => recipe.id === id);
   };
   
 
   // Match a 3x3 grid to a recipe
-  const matchRecipe = (grid: (Item | null)[][]): Recipe | null => {
-    console.log('🔍 matchRecipe called with grid:', grid);
-    console.log('🔍 matchRecipe - recipes.value:', recipes.value);
-    console.log('🔍 matchRecipe - recipes.value.length:', recipes.value.length);
-    
+  const matchRecipe = (grid: (IIngredient | null)[][]): IRecipe | null => {
     if (!recipes.value || recipes.value.length === 0) {
-      console.log('⚠️ matchRecipe - No recipes available');
       return null;
     }
-    
     for (const recipe of recipes.value) {
-      console.log('🔍 matchRecipe - Checking recipe:', recipe.id, recipe.name);
       if (gridMatchesRecipe(grid, recipe.grid)) {
-        console.log('✅ matchRecipe - Found match:', recipe.name);
         return recipe;
       }
     }
-    
-    console.log('❌ matchRecipe - No match found');
     return null;
   };
 
   // Helper function to check if grid matches recipe
-  const gridMatchesRecipe = (grid: (Item | null)[][], recipeGrid: (Item | null)[][]): boolean => {
+  const gridMatchesRecipe = (grid: (IIngredient | null)[][], recipeGrid: (IIngredient | null)[][]): boolean => {
     for (let i = 0; i < 3; i++) {
       for (let j = 0; j < 3; j++) {
         const gridItem = grid[i][j];
         const recipeItem = recipeGrid[i][j];
-        
         if (gridItem === null && recipeItem === null) continue;
         if (gridItem === null || recipeItem === null) return false;
-        if (gridItem.id !== recipeItem.id) return false;
+        if (gridItem.tokenId !== recipeItem.tokenId) return false;
       }
     }
     return true;
@@ -201,14 +100,12 @@ export const useRecipesStore = defineStore('recipes', () => {
   const fetchBlockchainRecipes = async (force = false): Promise<void> => {
     // Prevent duplicate concurrent requests
     if (isLoadingRecipes && !force) {
-      console.log('📚 Recipes: Already loading, skipping duplicate request');
       return;
     }
 
     // Debounce rapid requests
     const now = Date.now();
     if (!force && now - lastRecipeLoadTime < RECIPE_LOAD_DEBOUNCE_MS) {
-      console.log('📚 Recipes: Request debounced, too soon after last request');
       return;
     }
 
@@ -219,52 +116,16 @@ export const useRecipesStore = defineStore('recipes', () => {
 
     try {
       // Fetch all recipes (handles pagination automatically)
-      const fetchedRecipes = await apiService.getAllRecipes();
-      
-      // Transform API recipes to BlockchainRecipe format
-      // Note: API may not include tokenContract in ingredients, so we add it if missing
-      blockchainRecipes.value = fetchedRecipes.map(recipe => ({
-        _id: recipe._id,
-        id: recipe._id,
-        blockchainRecipeId: recipe.blockchainRecipeId,
-        resultTokenContract: recipe.resultTokenContract,
-        resultTokenId: recipe.resultTokenId,
-        resultAmount: recipe.resultAmount,
-        // Add tokenContract to ingredients if missing (use workbench contract as default)
-        ingredients: recipe.ingredients.map((ing: any) => ({
-          ...ing,
-          tokenContract: ing.tokenContract || recipe.resultTokenContract || CONTRACTS.workbench
-        })),
-        outputIngredient: recipe.outputIngredient, // Include the outputIngredient field
-        name: recipe.name,
-        description: recipe.description,
-        category: recipe.category,
-        difficulty: recipe.difficulty,
-        craftingTime: recipe.craftingTime,
-        createdAt: recipe.createdAt,
-        updatedAt: recipe.updatedAt,
-      }));
-
-      console.log('📦 Fetched recipes from API:', fetchedRecipes);
-      console.log('📦 Blockchain recipes after mapping:', blockchainRecipes.value);
-
-      // Convert blockchain recipes to legacy Recipe format and populate recipes array
-      // Filter out invalid recipes and log errors
-      recipes.value = blockchainRecipes.value
-        .map(blockchainRecipe => {
-          try {
-            return convertBlockchainRecipeToRecipe(blockchainRecipe);
-          } catch (error: any) {
-            console.error(`Failed to convert recipe ${blockchainRecipe.blockchainRecipeId || blockchainRecipe._id}:`, error);
-            return null;
-          }
-        })
-        .filter((recipe): recipe is Recipe => recipe !== null);
-      
-      console.log('📦 Converted legacy recipes:', recipes.value);
-
-      console.log(`Loaded ${blockchainRecipes.value.length} recipes from server`);
-      console.log(`Converted ${recipes.value.length} recipes to legacy format`);
+      const fetchedRecipes: IRecipe[] = await apiService.getAllRecipes();
+      recipes.value = fetchedRecipes.map((recipe) => ({
+            ...recipe,
+            grid: [
+              [recipe.ingredients[0], recipe.ingredients[1], recipe.ingredients[2]],
+              [recipe.ingredients[3], recipe.ingredients[4], recipe.ingredients[5]],
+              [recipe.ingredients[6], recipe.ingredients[7], recipe.ingredients[8]]
+            ]
+        }))
+        .filter((recipe) => recipe.active);
     } catch (err: any) {
       error.value = err.message || 'Failed to fetch recipes';
       console.error('Error fetching recipes:', err);
@@ -283,9 +144,14 @@ export const useRecipesStore = defineStore('recipes', () => {
     }
   };
 
-  // Get recipe by blockchain ID
-  const getBlockchainRecipe = (blockchainRecipeId: string): BlockchainRecipe | undefined => {
-    return blockchainRecipes.value.find(r => r.blockchainRecipeId === blockchainRecipeId);
+  // Get recipe by ID
+  const getBlockchainRecipe = (recipeId: string): IRecipe | undefined => {
+    return recipes.value.find(r => {
+      if (r.blockchainRecipeId !== null && r.blockchainRecipeId !== undefined) {
+        return String(r.blockchainRecipeId) === recipeId;
+      }
+      return false;
+    });
   };
 
   // Get recipe by MongoDB ID
@@ -337,16 +203,17 @@ export const useRecipesStore = defineStore('recipes', () => {
       if (!gridItem.tokenContract || typeof gridItem.tokenContract !== 'string') {
         return false;
       }
-      
-      if (!ingredient.tokenContract || typeof ingredient.tokenContract !== 'string') {
-        return false;
-      }
-      
+
       // Validate tokenId exists and is a number
       if (typeof gridItem.tokenId !== 'number' || typeof ingredient.tokenId !== 'number') {
         return false;
       }
       
+      // Ingredient must include a tokenContract to compare
+      if (!ingredient.tokenContract || typeof ingredient.tokenContract !== 'string') {
+        return false;
+      }
+
       // Check if tokenContract and tokenId match (case-insensitive for contract)
       const contractsMatch = gridItem.tokenContract.toLowerCase() === ingredient.tokenContract.toLowerCase();
       const tokenIdsMatch = gridItem.tokenId === ingredient.tokenId;
@@ -370,14 +237,6 @@ export const useRecipesStore = defineStore('recipes', () => {
   // Get all recipes
   const allRecipes = computed(() => recipes.value);
 
-  // Get all blockchain recipes
-  const allBlockchainRecipes = computed(() => blockchainRecipes.value);
-
-  // Get recipes by category
-  const recipesByCategory = (category: string) => {
-    return blockchainRecipes.value.filter(r => r.category === category);
-  };
-
   /**
    * Check if user can craft a specific recipe based on their inventory
    * @param recipe - The recipe to check
@@ -385,8 +244,8 @@ export const useRecipesStore = defineStore('recipes', () => {
    * @returns Boolean indicating if all ingredients are available
    */
   const canCraftRecipe = (
-    recipe: BlockchainRecipe,
-    userInventory: Array<{ tokenId: number; balance: string; tokenContract: string }>
+    recipe: IRecipe,
+    userInventory: Array<{ tokenId: string; balance: string; tokenContract: string }>
   ): boolean => {
     // Validate recipe has ingredients
     if (!recipe || !recipe.ingredients || recipe.ingredients.length === 0) {
@@ -396,7 +255,7 @@ export const useRecipesStore = defineStore('recipes', () => {
     // Check each ingredient required by the recipe
     for (const ingredient of recipe.ingredients) {
       // Validate ingredient structure
-      if (!ingredient || typeof ingredient.tokenId !== 'number' || !ingredient.tokenContract || typeof ingredient.tokenContract !== 'string') {
+      if (!ingredient || typeof ingredient.tokenId !== 'number') {
         console.warn('Invalid ingredient in recipe:', ingredient);
         return false;
       }
@@ -404,6 +263,9 @@ export const useRecipesStore = defineStore('recipes', () => {
       // Find matching token in user inventory
       const inventoryItem = userInventory.find(item => {
         if (!item || !item.tokenContract || typeof item.tokenContract !== 'string') {
+          return false;
+        }
+        if (!ingredient.tokenContract || typeof ingredient.tokenContract !== 'string') {
           return false;
         }
         return item.tokenId === ingredient.tokenId && 
@@ -442,13 +304,16 @@ export const useRecipesStore = defineStore('recipes', () => {
     
     for (const ingredient of matchedRecipe.ingredients) {
       // Validate ingredient structure
-      if (!ingredient || typeof ingredient.tokenId !== 'number' || !ingredient.tokenContract || typeof ingredient.tokenContract !== 'string') {
+      if (!ingredient || typeof ingredient.tokenId !== 'number') {
         console.warn('Invalid ingredient in recipe:', ingredient);
         continue;
       }
 
       const inventoryItem = userInventory.find(item => {
         if (!item || !item.tokenContract || typeof item.tokenContract !== 'string') {
+          return false;
+        }
+        if (!ingredient.tokenContract || typeof ingredient.tokenContract !== 'string') {
           return false;
         }
         return item.tokenId === ingredient.tokenId && 
@@ -490,8 +355,6 @@ export const useRecipesStore = defineStore('recipes', () => {
     getBlockchainRecipe,
     getBlockchainRecipeById,
     matchBlockchainRecipe,
-    allBlockchainRecipes,
-    recipesByCategory,
     canCraftRecipe,
     checkCraftingPossibility,
   };

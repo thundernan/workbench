@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { WalletProvider, TransactionRequest, CraftingTransaction } from '@/types';
 import Web3WalletService from '@/services/walletService';
-import { DEFAULT_CHAIN_ID, isSupportedChain } from '@/config/wallet';
+import { DEFAULT_CHAIN_ID } from '@/config/wallet';
 
 export const useWalletStore = defineStore('wallet', () => {
   const address = ref<string | null>(null);
@@ -48,7 +48,6 @@ export const useWalletStore = defineStore('wallet', () => {
           try {
             await walletService.switchNetwork(DEFAULT_CHAIN_ID);
             chainId.value = DEFAULT_CHAIN_ID;
-            console.log(`✅ Successfully switched from Solana to Status Network`);
             return;
           } catch (switchError: any) {
             // If switch fails, try to add the network
@@ -72,8 +71,6 @@ export const useWalletStore = defineStore('wallet', () => {
         throw chainError;
       }
       
-      console.log(`🔍 Current chain ID: ${currentChainId}, Required: ${DEFAULT_CHAIN_ID}`);
-      
       // Check if we're on the correct network
       if (currentChainId !== DEFAULT_CHAIN_ID) {
         console.log(`⚠️ Wallet is on chain ${currentChainId}, switching to Status Network (${DEFAULT_CHAIN_ID})...`);
@@ -81,7 +78,6 @@ export const useWalletStore = defineStore('wallet', () => {
         try {
           await walletService.switchNetwork(DEFAULT_CHAIN_ID);
           chainId.value = DEFAULT_CHAIN_ID;
-          console.log(`✅ Successfully switched to Status Network`);
         } catch (switchError: any) {
           console.error('Failed to switch network:', switchError);
           // If switch fails, try to add the network
@@ -89,7 +85,6 @@ export const useWalletStore = defineStore('wallet', () => {
             try {
               await walletService.addNetwork(DEFAULT_CHAIN_ID);
               chainId.value = DEFAULT_CHAIN_ID;
-              console.log(`✅ Successfully added and switched to Status Network`);
             } catch (addError: any) {
               console.error('Failed to add network:', addError);
               throw new Error(`Please manually switch to Status Network in your wallet. Chain ID: ${DEFAULT_CHAIN_ID}`);
@@ -100,7 +95,6 @@ export const useWalletStore = defineStore('wallet', () => {
         }
       } else {
         chainId.value = currentChainId;
-        console.log(`✅ Wallet is already on Status Network`);
       }
     } catch (err: any) {
       console.error('Failed to ensure correct network:', err);

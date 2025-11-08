@@ -166,6 +166,7 @@ export const getRecipes = asyncHandler(async (req: Request, res: Response) => {
             tokenId: ingredient.tokenId,
             amount: ingredient.amount,
             position: ingredient.position,
+            tokenContract: ingredientDoc?.tokenContract || null,
             metadata: (ingredientDoc?.ingredientData as any)?.metadata || null
           };
         })
@@ -177,6 +178,7 @@ export const getRecipes = asyncHandler(async (req: Request, res: Response) => {
         .lean();
       
       const outputIngredient = outputIngredientDoc ? {
+        tokenContract: outputIngredientDoc.tokenContract,
         tokenId: recipe.outputTokenId,
         amount: recipe.outputAmount,
         metadata: (outputIngredientDoc.ingredientData as any)?.metadata || null
@@ -229,6 +231,7 @@ export const getRecipe = asyncHandler(async (req: Request, res: Response) => {
         tokenId: ingredient.tokenId,
         amount: ingredient.amount,
         position: ingredient.position,
+        tokenContract: ingredientDoc?.tokenContract || null,
         metadata: (ingredientDoc?.ingredientData as any)?.metadata || null
       };
     })
@@ -240,6 +243,7 @@ export const getRecipe = asyncHandler(async (req: Request, res: Response) => {
     .lean();
   
   const outputIngredient = outputIngredientDoc ? {
+    tokenContract: outputIngredientDoc.tokenContract,
     tokenId: recipe.outputTokenId,
     amount: recipe.outputAmount,
     metadata: (outputIngredientDoc.ingredientData as any)?.metadata || null

@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import type { BlockchainRecipe, BlockchainToken } from '@/types';
+import { IRecipe } from '@/stores/recipes';
 
 /**
  * ABI for the Workbench Crafting Contract
@@ -101,67 +102,6 @@ export class CraftingContractService {
   }
 
   /**
-   * Check if user has enough tokens to craft a recipe
-   */
-  async checkIngredients(
-    userAddress: string,
-    recipe: BlockchainRecipe,
-    provider: ethers.Provider
-  ): Promise<{
-    canCraft: boolean;
-    missingIngredients: Array<{
-      tokenContract: string;
-      tokenId: number;
-      required: number;
-      available: number;
-    }>;
-  }> {
-    const missingIngredients: Array<{
-      tokenContract: string;
-      tokenId: number;
-      required: number;
-      available: number;
-    }> = [];
-
-    try {
-      // Check each ingredient
-      for (const ingredient of recipe.ingredients) {
-        const tokenContractInstance = new ethers.Contract(
-          ingredient.tokenContract,
-          CRAFTING_CONTRACT_ABI,
-          provider
-        );
-
-        // Get user's balance
-        const balance = await tokenContractInstance.balanceOf(
-          userAddress,
-          ingredient.tokenId
-        );
-
-        const available = Number(balance);
-        const required = ingredient.amount;
-
-        if (available < required) {
-          missingIngredients.push({
-            tokenContract: ingredient.tokenContract,
-            tokenId: ingredient.tokenId,
-            required,
-            available,
-          });
-        }
-      }
-
-      return {
-        canCraft: missingIngredients.length === 0,
-        missingIngredients,
-      };
-    } catch (error: any) {
-      console.error('Error checking ingredients:', error);
-      throw new Error(`Failed to check ingredients: ${error.message}`);
-    }
-  }
-
-  /**
    * Get user's token balance
    */
   async getTokenBalance(
@@ -189,7 +129,7 @@ export class CraftingContractService {
    * Execute crafting transaction
    */
   async craft(
-    recipe: BlockchainRecipe,
+    recipe: IRecipe,
     signer: ethers.Signer
   ): Promise<ethers.ContractTransactionResponse> {
     try {
@@ -199,13 +139,22 @@ export class CraftingContractService {
         signer
       );
 
+      if (recipe.blockchainRecipeId === null || recipe.blockchainRecipeId === undefined) {
+        throw new Error('Recipe is missing blockchainRecipeId');
+      }
+
       // Prepare ingredients for the contract call
-      const ingredients = recipe.ingredients.map(ing => ({
-        tokenContract: ing.tokenContract,
-        tokenId: ing.tokenId,
-        amount: ing.amount,
-        position: ing.position,
-      }));
+      const ingredients = recipe.ingredients.map(ing => {
+        if (!ing.tokenContract || typeof ing.tokenContract !== 'string') {
+          throw new Error(`Ingredient tokenContract missing for tokenId ${ing.tokenId}`);
+        }
+        return {
+          tokenContract: ing.tokenContract,
+          tokenId: ing.tokenId,
+          amount: ing.amount,
+          position: ing.position,
+        };
+      });
 
       // Get crafting fee (if applicable)
       let craftingFee = BigInt(0);
@@ -257,12 +206,21 @@ export class CraftingContractService {
         signer
       );
 
-      const ingredients = recipe.ingredients.map(ing => ({
-        tokenContract: ing.tokenContract,
-        tokenId: ing.tokenId,
-        amount: ing.amount,
-        position: ing.position,
-      }));
+      if (recipe.blockchainRecipeId === null || recipe.blockchainRecipeId === undefined) {
+        throw new Error('Recipe is missing blockchainRecipeId');
+      }
+
+      const ingredients = recipe.ingredients.map(ing => {
+        if (!ing.tokenContract || typeof ing.tokenContract !== 'string') {
+          throw new Error(`Ingredient tokenContract missing for tokenId ${ing.tokenId}`);
+        }
+        return {
+          tokenContract: ing.tokenContract,
+          tokenId: ing.tokenId,
+          amount: ing.amount,
+          position: ing.position,
+        };
+      });
 
       let craftingFee = BigInt(0);
       try {
