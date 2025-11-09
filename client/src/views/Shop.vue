@@ -197,6 +197,7 @@ import { ethers } from 'ethers';
 import AppHeader from '@/components/AppHeader.vue';
 import WalletConnectButton from '@/components/WalletConnectButton.vue';
 import { getTransactionUrl } from '@/config/wallet';
+import { IIngredient } from '@/stores/recipes';
 
 // Extend Window interface for ethereum (if not already defined)
 declare global {
@@ -224,11 +225,11 @@ const mobileTabs = [
 const activeMobileTab = ref('all');
 
 // State
-const ingredients = ref<Ingredient[]>([]);
+const ingredients = ref<IIngredient[]>([]);
 const isLoading = ref(false);
 const error = ref<string | null>(null);
 const isBuying = ref(false);
-const userBalances = ref<Map<number, string>>(new Map());
+const userBalances = ref<Map<string, string>>(new Map());
 
 // Computed filtered ingredients based on active tab
 const filteredIngredients = computed(() => {
@@ -271,7 +272,7 @@ const loadIngredients = async (force = false) => {
     // The getIngredients call will fail if server is down anyway
     
     console.log('🛒 Shop: Calling API service...');
-    const fetchedIngredients = await apiService.getIngredients({ limit: 100 });
+    const fetchedIngredients = await apiService.getIngredients({ limit: 50 });
     
     if (Array.isArray(fetchedIngredients)) {
       ingredients.value = fetchedIngredients;
@@ -296,7 +297,7 @@ const loadIngredients = async (force = false) => {
 };
 
 // Get price in ETH
-const getPriceInEth = (ingredient: Ingredient): string => {
+const getPriceInEth = (ingredient: IIngredient): string => {
   const priceWei = ingredient.metadata.price;
   if (!priceWei || priceWei === '0') {
     return '0';
@@ -309,7 +310,7 @@ const getPriceInEth = (ingredient: Ingredient): string => {
 };
 
 // Get ingredient icon fallback
-const getIngredientIcon = (ingredient: Ingredient): string => {
+const getIngredientIcon = (ingredient: IIngredient): string => {
   const category = ingredient.metadata.category?.toLowerCase();
   
   switch (category) {
@@ -337,7 +338,7 @@ const handleImageError = (event: Event) => {
 };
 
 // Buy/Mint ingredient
-const buyIngredient = async (ingredient: Ingredient) => {
+const buyIngredient = async (ingredient: IIngredient) => {
   console.log('🚀 buyIngredient function called with:', ingredient);
   
   if (!walletStore.connected) {
@@ -746,7 +747,7 @@ const loadUserBalances = async (force = false) => {
     const balances = await contract.balanceOfBatch(addresses, tokenIds);
     
     // Update balances map
-    const newBalances = new Map<number, string>();
+    const newBalances = new Map<string, string>();
     ingredients.value.forEach((ingredient, index) => {
       newBalances.set(ingredient.tokenId, balances[index].toString());
     });
@@ -766,7 +767,7 @@ const loadUserBalances = async (force = false) => {
 };
 
 // Get user balance for a specific ingredient
-const getUserBalance = (ingredient: Ingredient): string => {
+const getUserBalance = (ingredient: IIngredient): string => {
   return userBalances.value.get(ingredient.tokenId) || '0';
 };
 

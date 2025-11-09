@@ -34,7 +34,7 @@ export type IRecipeIngredient = IIngredient & {
   name: string;
   ingredients: IRecipeIngredient[];
   outputIngredient: IIngredient;
-  grid: IRecipeIngredient[][];
+  grid: (IRecipeIngredient | null)[][];
 }
 
 
@@ -117,15 +117,18 @@ export const useRecipesStore = defineStore('recipes', () => {
     try {
       // Fetch all recipes (handles pagination automatically)
       const fetchedRecipes: IRecipe[] = await apiService.getAllRecipes();
-      recipes.value = fetchedRecipes.map((recipe) => ({
-            ...recipe,
-            grid: [
-              [recipe.ingredients[0], recipe.ingredients[1], recipe.ingredients[2]],
-              [recipe.ingredients[3], recipe.ingredients[4], recipe.ingredients[5]],
-              [recipe.ingredients[6], recipe.ingredients[7], recipe.ingredients[8]]
-            ]
-        }))
-        .filter((recipe) => recipe.active);
+      recipes.value = fetchedRecipes.map((recipe) => {
+        const gridArray: (IRecipeIngredient | null)[] = [null, null, null, null, null, null, null, null, null];
+        recipe.ingredients.forEach((recipeIngredient) => {
+          gridArray[recipeIngredient.position] = recipeIngredient;
+        });
+        const grid: (IRecipeIngredient | null)[][] = [
+          [gridArray[0], gridArray[1], gridArray[2]],
+          [gridArray[3], gridArray[4], gridArray[5]],
+          [gridArray[6], gridArray[7], gridArray[8]]
+        ];
+        return ({ ...recipe, grid});
+      }).filter((recipe) => recipe.active);
     } catch (err: any) {
       error.value = err.message || 'Failed to fetch recipes';
       console.error('Error fetching recipes:', err);

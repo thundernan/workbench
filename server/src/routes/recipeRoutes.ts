@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { createRecipe, getRecipes, getRecipe, updateRecipe, deleteRecipe } from '../controllers/recipeController';
+import { createRecipe, getRecipes, getRecipe, updateRecipe, deleteRecipe, getBlockchainRecipe } from '../controllers/recipeController';
 import { validateQuery } from '../middleware/validation';
 
 const router = Router();
@@ -81,6 +81,32 @@ router.post('/', createRecipe);
  *         description: Recipes retrieved successfully
  */
 router.get('/', validateQuery, getRecipes);
+
+/**
+ * @swagger
+ * /api/recipes/blockchain/{recipeId}:
+ *   get:
+ *     summary: Get recipe from blockchain by recipe ID
+ *     tags: [Recipes]
+ *     parameters:
+ *       - in: path
+ *         name: recipeId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *         description: Blockchain recipe ID
+ *     responses:
+ *       200:
+ *         description: Blockchain recipe retrieved successfully
+ *       400:
+ *         description: Invalid recipe ID
+ *       404:
+ *         description: Recipe not found on blockchain
+ *       503:
+ *         description: Blockchain connection not initialized
+ */
+router.get('/blockchain/:recipeId', getBlockchainRecipe);
 
 /**
  * @swagger

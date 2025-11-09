@@ -24,15 +24,14 @@ const initWorkbenchService = (): WorkbenchInstanceService | null => {
 
 // Create a new recipe
 export const createRecipe = asyncHandler(async (req: Request, res: Response) => {
-  const { 
-    ingredients, 
-    outputTokenId, 
-    outputAmount, 
-    requiresExactPattern, 
-    name 
+  const {
+    ingredients,
+    outputTokenId,
+    outputAmount,
+    requiresExactPattern,
+    name
   } = req.body;
 
-  // Validate required fields
   if (!ingredients || !Array.isArray(ingredients) || ingredients.length === 0) {
     res.status(400).json({
       success: false,
@@ -57,26 +56,14 @@ export const createRecipe = asyncHandler(async (req: Request, res: Response) => 
     return;
   }
 
-  // 1. Create recipe in database first (without blockchainRecipeId to avoid constraint issues)
-  const recipe = await Recipe.create({
-    outputTokenId: outputTokenId,
-    outputAmount: outputAmount || 1,
-    requiresExactPattern: requiresExactPattern !== undefined ? requiresExactPattern : true,
-    active: true,
-    name: name.trim(),
-    ingredients: ingredients.map((ing: any) => ({
-      tokenId: ing.tokenId,
-      amount: ing.amount || 1,
-      position: ing.position || 0
-    }))
-  });
+  const normalizedIngredients = ingredients.map((ing: any) => ({
+    tokenId: ing.tokenId,
+    amount: ing.amount || 1,
+    position: ing.position || 0
+  }));
 
-  // 2. Create recipe on blockchain (required)
   const workbenchService = initWorkbenchService();
   if (!workbenchService) {
-    // Clean up created data if workbench service unavailable
-    await Recipe.findByIdAndDelete(recipe._id);
-    
     res.status(503).json({
       success: false,
       message: 'WorkbenchInstance service unavailable. Recipe creation requires blockchain integration.',
@@ -86,47 +73,69 @@ export const createRecipe = asyncHandler(async (req: Request, res: Response) => 
   }
 
   try {
-    // Create recipe on blockchain
     const createResult = await workbenchService.createRecipe(
-      ingredients.map((ing: any) => ({
-        tokenId: ing.tokenId,
-        amount: ing.amount || 1,
-        position: ing.position || 0
-      })),
+      normalizedIngredients,
       outputTokenId,
       outputAmount || 1,
       requiresExactPattern !== undefined ? requiresExactPattern : true,
       name.trim()
     );
 
-    // Update recipe with blockchain recipe ID
-    if (createResult.recipeId) {
-      await Recipe.findByIdAndUpdate(recipe._id, {
-        blockchainRecipeId: createResult.recipeId
-      });
+    const blockchainRecipeId = (() => {
+      if (typeof createResult === 'number') {
+        return createResult;
+      }
+      if (typeof createResult === 'bigint') {
+        return Number(createResult);
+      }
+      if (createResult && typeof createResult === 'object') {
+        const rawId = (createResult as any)?.recipeId;
+        if (typeof rawId === 'number') {
+          return rawId;
+        }
+        if (typeof rawId === 'bigint') {
+          return Number(rawId);
+        }
+        if (rawId && typeof rawId.toString === 'function') {
+          const parsed = Number(rawId.toString());
+          return Number.isFinite(parsed) ? parsed : null;
+        }
+      }
+      return null;
+    })();
+
+    const createTransactionHash =
+      createResult && typeof createResult === 'object' && 'hash' in createResult
+        ? String((createResult as any).hash)
+        : null;
+
+    let blockchainRecipe = null;
+    if (blockchainRecipeId !== null) {
+      try {
+        blockchainRecipe = await workbenchService.getRecipeById(blockchainRecipeId);
+      } catch (fetchError) {
+        console.warn(`⚠️ Failed to fetch recipe ${blockchainRecipeId} immediately after creation:`, fetchError);
+      }
     }
 
     res.status(201).json({
       success: true,
-      message: 'Recipe created successfully with blockchain integration.',
+      message: 'Recipe creation transaction submitted to blockchain. Listener will synchronize data shortly.',
       data: {
-        recipeId: recipe._id,
-        blockchainRecipeId: createResult.recipeId,
-        outputTokenId: recipe.outputTokenId,
-        outputAmount: recipe.outputAmount,
-        requiresExactPattern: recipe.requiresExactPattern,
-        active: recipe.active,
-        name: recipe.name,
-        ingredients: recipe.ingredients,
-        createTransaction: createResult.hash,
-        createdAt: recipe.createdAt
+        blockchainRecipeId,
+        transactionHash: createTransactionHash,
+        submittedAt: new Date().toISOString(),
+        recipe: blockchainRecipe || {
+          outputTokenId,
+          outputAmount: outputAmount || 1,
+          requiresExactPattern: requiresExactPattern !== undefined ? requiresExactPattern : true,
+          active: true,
+          name: name.trim(),
+          ingredients: normalizedIngredients
+        }
       }
     });
-
   } catch (createError) {
-    // Clean up created data if blockchain operation fails
-    await Recipe.findByIdAndDelete(recipe._id);
-    
     console.error('Failed to create recipe on blockchain:', createError);
     res.status(500).json({
       success: false,
@@ -203,6 +212,95 @@ export const getRecipes = asyncHandler(async (req: Request, res: Response) => {
       totalPages: Math.ceil(total / Number(limit))
     }
   });
+});
+
+// Get recipe directly from blockchain by recipe ID
+export const getBlockchainRecipe = asyncHandler(async (req: Request, res: Response) => {
+  const { recipeId } = req.params;
+
+  if (recipeId === undefined) {
+    res.status(400).json({
+      success: false,
+      message: 'Recipe ID is required'
+    });
+    return;
+  }
+
+  const parsedRecipeId = Number(recipeId);
+  if (!Number.isInteger(parsedRecipeId) || parsedRecipeId < 0) {
+    res.status(400).json({
+      success: false,
+      message: 'Recipe ID must be a non-negative integer'
+    });
+    return;
+  }
+
+  const workbenchService = initWorkbenchService();
+  if (!workbenchService) {
+    res.status(503).json({
+      success: false,
+      message: 'WorkbenchInstance service unavailable. Blockchain connection not initialized.'
+    });
+    return;
+  }
+
+  try {
+    const blockchainRecipe = await workbenchService.getRecipeById(parsedRecipeId);
+
+    if (!blockchainRecipe) {
+      res.status(404).json({
+        success: false,
+        message: 'Recipe not found on blockchain'
+      });
+      return;
+    }
+
+    const ingredientsWithMetadata = await Promise.all(
+      blockchainRecipe.ingredients.map(async (ingredient) => {
+        const ingredientDoc = await Ingredient.findOne({ tokenId: ingredient.tokenId })
+          .populate('ingredientData')
+          .lean();
+
+        return {
+          tokenId: ingredient.tokenId,
+          amount: ingredient.amount,
+          position: ingredient.position,
+          tokenContract: ingredientDoc?.tokenContract || null,
+          metadata: (ingredientDoc?.ingredientData as any)?.metadata || null
+        };
+      })
+    );
+
+    const outputIngredientDoc = await Ingredient.findOne({ tokenId: blockchainRecipe.outputTokenId })
+      .populate('ingredientData')
+      .lean();
+
+    const outputIngredient = outputIngredientDoc
+      ? {
+          tokenContract: outputIngredientDoc.tokenContract,
+          tokenId: blockchainRecipe.outputTokenId,
+          amount: blockchainRecipe.outputAmount,
+          metadata: (outputIngredientDoc.ingredientData as any)?.metadata || null
+        }
+      : null;
+
+    res.status(200).json({
+      success: true,
+      message: 'Blockchain recipe retrieved successfully',
+      data: {
+        ...blockchainRecipe,
+        ingredients: ingredientsWithMetadata,
+        outputIngredient
+      }
+    });
+  } catch (error) {
+    console.error(`Failed to fetch blockchain recipe ${parsedRecipeId}:`, error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve recipe from blockchain',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
 });
 
 // Get recipe by ID

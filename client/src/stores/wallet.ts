@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, markRaw } from 'vue';
 import type { WalletProvider, TransactionRequest, CraftingTransaction } from '@/types';
 import Web3WalletService from '@/services/walletService';
 import { DEFAULT_CHAIN_ID } from '@/config/wallet';
@@ -113,8 +113,8 @@ export const useWalletStore = defineStore('wallet', () => {
       // Update store state
       address.value = connectedAddress;
       connected.value = true;
-      provider.value = walletService.getProvider();
-      signer.value = walletService.getSigner();
+      provider.value = markRaw(walletService.getProvider());
+      signer.value = markRaw(walletService.getSigner());
       
       // Get chain ID and ensure we're on the correct network
       try {
@@ -237,8 +237,8 @@ export const useWalletStore = defineStore('wallet', () => {
         
         address.value = connectedAddress;
         connected.value = true;
-        provider.value = walletService.getProvider();
-        signer.value = walletService.getSigner();
+        provider.value = markRaw(walletService.getProvider());
+        signer.value = markRaw(walletService.getSigner());
         
         // Ensure we're on the correct network
         try {

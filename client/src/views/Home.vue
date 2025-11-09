@@ -232,10 +232,12 @@ import ToastNotification from '@/components/ToastNotification.vue';
 import WelcomeChestModal from '@/components/WelcomeChestModal.vue';
 import RecipeBook from '@/components/RecipeBook.vue';
 import { useInventoryStore } from '@/stores/inventory';
-import { IIngredient, useRecipesStore } from '@/stores/recipes';
+import { IIngredient, IRecipe, useRecipesStore } from '@/stores/recipes';
 import { useToastStore } from '@/stores/toast';
 import { useWalletStore } from '@/stores/wallet';
-import type { Recipe, BlockchainRecipe } from '@/types';
+import type { Recipe } from '@/types';
+import craftingService from '@/services/craftingContractService';
+import { getTransactionUrl } from '@/config/wallet';
 
 const inventoryStore = useInventoryStore();
 const recipesStore = useRecipesStore();
@@ -696,84 +698,73 @@ const clearCraftingGrid = () => {
 };
 
 const craftItem = async () => {
-  // if (!matchedRecipe.value || isCraftingTx.value) {
-  //   return;
-  // }
+  if (!matchedRecipe.value || isCraftingTx.value) {
+    return;
+  }
 
-  // const blockchainRecipe = recipesStore.getBlockchainRecipe(String(matchedRecipe.value.id)) ||
-  //   recipesStore.getBlockchainRecipeById(String(matchedRecipe.value.id));
+  const canCraftOnChain = !!matchedRecipe && walletStore.connected && walletStore.signer;
 
-  // const canCraftOnChain = !!matchedRecipe && walletStore.connected && walletStore.signer;
+  if (canCraftOnChain) {
+    try {
+      isCraftingTx.value = true;
+      toastStore.showToast({
+        type: 'info',
+        message: 'Submitting craft transaction...'
+      });
 
-  // if (canCraftOnChain) {
-  //   try {
-  //     isCraftingTx.value = true;
-  //     toastStore.showToast({
-  //       type: 'info',
-  //       message: 'Submitting craft transaction...'
-  //     });
+      const result = await craftingService.craft(matchedRecipe.value, walletStore.signer!);
+      console.log('Craft result:', result);
+      const txHash = result.transaction.hash;
+      const explorerUrl = getTransactionUrl(walletStore.chainId, txHash);
+      const shortHash = `${txHash.slice(0, 8)}...${txHash.slice(-4)}`;
 
-  //     const tx = await craftingService.craft(matchedRecipe.value, walletStore.signer!);
-  //     const txHash = tx.hash;
-  //     const explorerUrl = getTransactionUrl(walletStore.chainId, txHash);
-  //     const shortHash = `${txHash.slice(0, 8)}...${txHash.slice(-4)}`;
+      toastStore.showToast({
+        type: 'info',
+        message: explorerUrl ? `Transaction sent: ${shortHash} (${explorerUrl})` : `Transaction sent: ${shortHash}`
+      });
 
-  //     toastStore.showToast({
-  //       type: 'info',
-  //       message: explorerUrl ? `Transaction sent: ${shortHash} (${explorerUrl})` : `Transaction sent: ${shortHash}`
-  //     });
+      if (result.events.length > 0) {
+        const craftedEvent = result.events[0];
+        console.log('Craft result event:', craftedEvent);
+        toastStore.showToast({
+          type: 'success',
+          message: `Crafted ${matchedRecipe.value.name} × ${craftedEvent?.args?.amount ? craftedEvent.args.amount.toString() : matchedRecipe.value.outputAmount}`
+        });
+      } else {
+        toastStore.showToast({
+          type: 'success',
+          message: `Crafted ${matchedRecipe.value.name}!`
+        });
+      }
 
-  //     await tx.wait();
+      notifications.value.unshift({
+        type: 'success',
+        message: `"Crafted ${matchedRecipe.value.name} x1"`
+      });
+      if (notifications.value.length > 5) {
+        notifications.value.pop();
+      }
 
-  //     toastStore.showToast({
-  //       type: 'success',
-  //       message: `Crafted ${matchedRecipe.value.result.name}!`
-  //     });
+      craftingGrid.value = new Array(9).fill(null);
 
-  //     notifications.value.unshift({
-  //       type: 'success',
-  //       message: `"Crafted ${matchedRecipe.value.result.name} x1"`
-  //     });
-  //     if (notifications.value.length > 5) {
-  //       notifications.value.pop();
-  //     }
+      if (walletStore.address) {
+        try {
+          await inventoryStore.loadUserBalance(walletStore.address, true);
+        } catch (loadError) {
+          console.warn('Failed to refresh balance after crafting:', loadError);
+        }
+      }
+    } catch (error: any) {
+      toastStore.showToast({
+        type: 'error',
+        message: error?.message || 'Crafting failed.'
+      });
+    } finally {
+      isCraftingTx.value = false;
+    }
 
-  //     craftingGrid.value = new Array(9).fill(null);
-
-  //     if (walletStore.address) {
-  //       try {
-  //         await inventoryStore.loadUserBalance(walletStore.address, true);
-  //       } catch (loadError) {
-  //         console.warn('Failed to refresh balance after crafting:', loadError);
-  //       }
-  //     }
-  //   } catch (error: any) {
-  //     toastStore.showToast({
-  //       type: 'error',
-  //       message: error?.message || 'Crafting failed.'
-  //     });
-  //   } finally {
-  //     isCraftingTx.value = false;
-  //   }
-
-  //   return;
-  // }
-
-  // craftingGrid.value = new Array(9).fill(null);
-  // inventoryStore.addItem(matchedRecipe.value?.outputIngredient as any, 1);
-
-  // toastStore.showToast({
-  //   type: 'success',
-  //   message: `Crafted ${matchedRecipe.value?.outputIngredient?.metadata.name}!`
-  // });
-
-  // notifications.value.unshift({
-  //   type: 'success',
-  //   message: `"Crafted ${matchedRecipe.value?.outputIngredient?.metadata.name} x1"`
-  // });
-  // if (notifications.value.length > 5) {
-  //   notifications.value.pop();
-  // }
+    return;
+  }
 };
 
 // Handle image loading errors - fallback to icon
@@ -854,7 +845,7 @@ const handlePaintingImageError = (event: Event) => {
   }
 };
 
-const handleAutofillRecipe = async (recipe: Recipe | BlockchainRecipe) => {
+const handleAutofillRecipe = async (recipe: IRecipe) => {
   // Handle blockchain recipes
   if ('blockchainRecipeId' in recipe) {
     await autofillBlockchainRecipe(recipe);
@@ -865,7 +856,7 @@ const handleAutofillRecipe = async (recipe: Recipe | BlockchainRecipe) => {
   autofillRecipe(recipe as Recipe);
 };
 
-const autofillBlockchainRecipe = async (recipe: BlockchainRecipe) => {
+const autofillBlockchainRecipe = async (recipe: IRecipe) => {
   clearCraftingGrid();
   
   // Get user's balance to find matching items
@@ -874,7 +865,6 @@ const autofillBlockchainRecipe = async (recipe: BlockchainRecipe) => {
   for (const ingredient of recipe.ingredients) {
     // Find matching item in user's balance
     const balanceItem = userBalance.find(item => {
-      const itemTokenId = parseTokenId((item as any).tokenId ?? item.tokenId);
       const itemContract = (item as any).tokenContract;
       if (!itemContract || typeof itemContract !== 'string') {
         return false;
@@ -883,7 +873,7 @@ const autofillBlockchainRecipe = async (recipe: BlockchainRecipe) => {
         return false;
       }
       
-      return itemTokenId === ingredient.tokenId && 
+      return item.tokenId === ingredient.tokenId && 
              itemContract.toLowerCase() === ingredient.tokenContract.toLowerCase() &&
              parseInt((item as any).balance || '0', 10) >= ingredient.amount;
     });

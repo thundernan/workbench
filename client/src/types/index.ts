@@ -127,14 +127,21 @@ export interface CraftingTransaction {
 }
 
 // Trading types
-export interface TradeOffer {
-  id: string;
+export type MarketplaceListingType = 'ETH_SALE' | 'ITEM_SWAP';
+
+export interface MarketplaceListing {
+  listingId: number;
   seller: string;
-  item: Item;
-  quantity: number;
-  price: number;
-  currency: string;
-  timestamp: number;
+  tokenContract: string;
+  tokenId: number;
+  amount: number;
+  listingType: MarketplaceListingType;
+  priceInWei: bigint;
+  swapTokenContract: string | null;
+  swapTokenId: number | null;
+  swapAmount: number | null;
+  active: boolean;
+  createdAt?: number;
 }
 
 // UI types

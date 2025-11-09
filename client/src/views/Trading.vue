@@ -50,67 +50,115 @@
                 <option value="price">Price: Low to High</option>
                 <option value="price-desc">Price: High to Low</option>
               </select>
-              <button
-                @click="refreshOffers"
-                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-colors font-semibold"
-              >
-                🔄 Refresh
-              </button>
+          <button
+            @click="refreshOffers"
+            :disabled="isRefreshing || isLoadingOffers"
+            class="px-4 py-2 rounded-lg font-semibold transition-colors"
+            :class="isRefreshing || isLoadingOffers
+              ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
+              : 'bg-emerald-600 hover:bg-emerald-700 text-white'"
+          >
+            <span v-if="isRefreshing || isLoadingOffers">⏳ Refreshing...</span>
+            <span v-else>🔄 Refresh</span>
+          </button>
             </div>
           </div>
 
-          <!-- Offers Grid -->
-          <div v-if="filteredOffers.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <!-- Loading state -->
+      <div v-if="isLoadingOffers" class="bg-slate-800 border-2 border-slate-700 rounded-lg p-12 text-center text-slate-400">
+        Loading offers from marketplace...
+      </div>
+
+      <!-- Offers Grid -->
+      <div v-else-if="filteredOffers.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div
-              v-for="offer in filteredOffers"
-              :key="offer.id"
+          v-for="offer in filteredOffers"
+          :key="offer.listing.listingId"
               class="bg-slate-800 border-2 border-slate-700 rounded-lg p-5 hover:border-emerald-400 transition-all duration-200"
             >
               <!-- Seller Info -->
               <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-700">
                 <div class="text-slate-400 text-xs">
-                  Seller: <span class="text-emerald-400">{{ formatAddress(offer.seller) }}</span>
+              Seller: <span class="text-emerald-400">{{ formatAddress(offer.listing.seller) }}</span>
                 </div>
-                <div class="text-slate-500 text-xs">{{ formatTime(offer.timestamp) }}</div>
+            <div class="text-slate-500 text-xs">{{ formatTime(offer.createdAt) }}</div>
               </div>
 
               <!-- Offer Details -->
               <div class="mb-4">
                 <div class="text-slate-400 text-xs mb-2">Offering:</div>
                 <div class="flex items-center gap-3 bg-slate-700 rounded-lg p-3">
-                  <div class="text-4xl">{{ offer.offeringItem.icon }}</div>
+              <div class="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center overflow-hidden">
+                <img
+                  v-if="offer.offering.image"
+                  :src="offer.offering.image"
+                  :alt="offer.offering.name"
+                  class="w-full h-full object-cover"
+                />
+                <span v-else class="text-2xl text-white">{{ getIngredientInitial(offer.offering) }}</span>
+              </div>
                   <div class="flex-1">
-                    <div class="text-white font-semibold">{{ offer.offeringItem.name }}</div>
-                    <div class="text-slate-400 text-xs">Quantity: {{ offer.offeringQuantity }}</div>
+                <div class="text-white font-semibold">{{ offer.offering.name }}</div>
+                <div class="text-slate-400 text-xs">Category: {{ getCategoryLabel(offer.offering) }}</div>
+                <div class="text-slate-400 text-xs">Amount: {{ offer.listing.amount }}</div>
                   </div>
                 </div>
               </div>
 
               <!-- Arrow -->
-              <div class="text-center text-emerald-400 text-xl mb-4">⇅</div>
+          <div class="text-center text-emerald-400 text-xl mb-4">
+            <span v-if="offer.listing.listingType === 'ITEM_SWAP'">⇅</span>
+            <span v-else>💰</span>
+          </div>
 
               <!-- Requesting -->
-              <div class="mb-4">
-                <div class="text-slate-400 text-xs mb-2">Requesting:</div>
-                <div class="flex items-center gap-3 bg-slate-700 rounded-lg p-3">
-                  <div class="text-4xl">{{ offer.requestingItem.icon }}</div>
-                  <div class="flex-1">
-                    <div class="text-white font-semibold">{{ offer.requestingItem.name }}</div>
-                    <div class="text-slate-400 text-xs">Quantity: {{ offer.requestingQuantity }}</div>
-                  </div>
-                </div>
+          <div class="mb-4">
+            <div class="text-slate-400 text-xs mb-2">
+              {{ offer.listing.listingType === 'ITEM_SWAP' ? 'Requesting:' : 'Price (ETH):' }}
+            </div>
+            <div
+              v-if="offer.listing.listingType === 'ITEM_SWAP' && offer.requesting"
+              class="flex items-center gap-3 bg-slate-700 rounded-lg p-3"
+            >
+              <div class="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center overflow-hidden">
+                <img
+                  v-if="offer.requesting.image"
+                  :src="offer.requesting.image"
+                  :alt="offer.requesting.name"
+                  class="w-full h-full object-cover"
+                />
+                <span v-else class="text-2xl text-white">{{ getIngredientInitial(offer.requesting) }}</span>
               </div>
+              <div class="flex-1">
+                <div class="text-white font-semibold">{{ offer.requesting.name }}</div>
+                <div class="text-slate-400 text-xs">Category: {{ getCategoryLabel(offer.requesting) }}</div>
+                <div class="text-slate-400 text-xs">Amount: {{ offer.listing.swapAmount }}</div>
+              </div>
+            </div>
+            <div
+              v-else
+              class="bg-slate-700 rounded-lg p-3 text-white font-semibold text-center"
+            >
+              {{ formatWei(offer.listing.priceInWei) }} ETH
+            </div>
+          </div>
 
               <!-- Trade Button -->
               <button
-                @click="acceptTrade(offer)"
-                :disabled="!canAcceptTrade(offer)"
+            @click="acceptTrade(offer)"
+            :disabled="processingListingId === offer.listing.listingId || !canAcceptOffer(offer)"
                 class="w-full py-2.5 rounded-lg font-semibold transition-all duration-200"
-                :class="canAcceptTrade(offer)
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-105 shadow-lg shadow-emerald-500/30'
+            :class="canAcceptOffer(offer)
+              ? 'bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-105 shadow-lg shadow-emerald-500/30 disabled:opacity-70'
                   : 'bg-slate-700 text-slate-500 cursor-not-allowed'"
               >
-                {{ canAcceptTrade(offer) ? '✓ Accept Trade' : '✗ Insufficient Items' }}
+            <span v-if="processingListingId === offer.listing.listingId">⏳ Processing...</span>
+            <span v-else-if="offer.listing.listingType === 'ETH_SALE'">
+              {{ canAcceptOffer(offer) ? `Buy for ${formatWei(offer.listing.priceInWei)} ETH` : 'Unavailable' }}
+            </span>
+            <span v-else>
+              {{ canAcceptOffer(offer) ? '✓ Accept Trade' : '✗ Insufficient Items' }}
+            </span>
               </button>
             </div>
           </div>
@@ -137,16 +185,16 @@
                 <div>
                   <label class="block text-sm font-medium text-slate-300 mb-2">Select Item</label>
                   <select
-                    v-model="offerForm.offeringItemId"
+                  v-model="offerForm.offeringRef"
                     class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
                   >
                     <option value="">Choose an item...</option>
                     <option
-                      v-for="inventoryItem in inventoryStore.items"
-                      :key="inventoryItem.item.id"
-                      :value="inventoryItem.item.id"
+                    v-for="option in userInventoryOptions"
+                    :key="option.value"
+                    :value="option.value"
                     >
-                      {{ inventoryItem.item.icon }} {{ inventoryItem.item.name }} ({{ inventoryItem.quantity }})
+                    {{ option.label }} (Balance: {{ option.balance }})
                     </option>
                   </select>
                 </div>
@@ -154,25 +202,34 @@
                 <div>
                   <label class="block text-sm font-medium text-slate-300 mb-2">Quantity</label>
                   <input
-                    v-model.number="offerForm.offeringQuantity"
+                  v-model.number="offerForm.offeringQuantity"
                     type="number"
                     min="1"
                     :max="maxOfferingQuantity"
                     class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
                   />
-                  <div v-if="offerForm.offeringItemId" class="text-slate-400 text-xs mt-1">
+                <div v-if="selectedOfferingIngredient" class="text-slate-400 text-xs mt-1">
                     Available: {{ maxOfferingQuantity }}
                   </div>
                 </div>
 
                 <!-- Preview -->
-                <div v-if="selectedOfferingItem" class="bg-slate-700 rounded-lg p-4 border border-slate-600">
+              <div v-if="selectedOfferingIngredient" class="bg-slate-700 rounded-lg p-4 border border-slate-600">
                   <div class="text-slate-400 text-xs mb-2">Preview:</div>
                   <div class="flex items-center gap-3">
-                    <div class="text-5xl">{{ selectedOfferingItem.icon }}</div>
+                  <div class="w-16 h-16 bg-slate-600 rounded-lg flex items-center justify-center overflow-hidden">
+                    <img
+                      v-if="selectedOfferingIngredient.image"
+                      :src="selectedOfferingIngredient.image"
+                      :alt="selectedOfferingIngredient.name"
+                      class="w-full h-full object-cover"
+                    />
+                    <span v-else class="text-3xl text-white">{{ getIngredientInitial(selectedOfferingIngredient) }}</span>
+                  </div>
                     <div>
-                      <div class="text-white font-semibold">{{ selectedOfferingItem.name }}</div>
-                      <div class="text-slate-400 text-sm">× {{ offerForm.offeringQuantity }}</div>
+                    <div class="text-white font-semibold">{{ selectedOfferingIngredient.name }}</div>
+                    <div class="text-slate-400 text-sm">Token ID: {{ selectedOfferingIngredient.tokenId }}</div>
+                    <div class="text-slate-400 text-sm">× {{ offerForm.offeringQuantity }}</div>
                     </div>
                   </div>
                 </div>
@@ -187,38 +244,58 @@
                 <div>
                   <label class="block text-sm font-medium text-slate-300 mb-2">Select Item</label>
                   <select
-                    v-model="offerForm.requestingItemId"
+                  v-model="offerForm.requestingRef"
                     class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
-                  >
+                >
                     <option value="">Choose an item...</option>
                     <option
-                      v-for="item in allAvailableItems"
-                      :key="item.id"
-                      :value="item.id"
+                    v-for="option in ingredientOptions"
+                    :key="option.value"
+                    :value="option.value"
                     >
-                      {{ item.icon }} {{ item.name }}
+                    {{ option.label }}
                     </option>
                   </select>
                 </div>
 
-                <div>
-                  <label class="block text-sm font-medium text-slate-300 mb-2">Quantity</label>
-                  <input
-                    v-model.number="offerForm.requestingQuantity"
-                    type="number"
-                    min="1"
-                    class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
-                  />
-                </div>
+              <div v-if="offerForm.listingType === 'ITEM_SWAP'">
+                <label class="block text-sm font-medium text-slate-300 mb-2">Quantity</label>
+                <input
+                  v-model.number="offerForm.requestingQuantity"
+                  type="number"
+                  min="1"
+                  class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
+                />
+              </div>
+
+              <div v-else>
+                <label class="block text-sm font-medium text-slate-300 mb-2">Price (ETH)</label>
+                <input
+                  v-model="offerForm.priceInWei"
+                  type="number"
+                  min="0"
+                  step="0.0001"
+                  class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
+                />
+              </div>
 
                 <!-- Preview -->
-                <div v-if="selectedRequestingItem" class="bg-slate-700 rounded-lg p-4 border border-slate-600">
+              <div v-if="selectedRequestingIngredient && offerForm.listingType === 'ITEM_SWAP'" class="bg-slate-700 rounded-lg p-4 border border-slate-600">
                   <div class="text-slate-400 text-xs mb-2">Preview:</div>
                   <div class="flex items-center gap-3">
-                    <div class="text-5xl">{{ selectedRequestingItem.icon }}</div>
+                  <div class="w-16 h-16 bg-slate-600 rounded-lg flex items-center justify-center overflow-hidden">
+                    <img
+                      v-if="selectedRequestingIngredient.image"
+                      :src="selectedRequestingIngredient.image"
+                      :alt="selectedRequestingIngredient.name"
+                      class="w-full h-full object-cover"
+                    />
+                    <span v-else class="text-3xl text-white">{{ getIngredientInitial(selectedRequestingIngredient) }}</span>
+                  </div>
                     <div>
-                      <div class="text-white font-semibold">{{ selectedRequestingItem.name }}</div>
-                      <div class="text-slate-400 text-sm">× {{ offerForm.requestingQuantity }}</div>
+                    <div class="text-white font-semibold">{{ selectedRequestingIngredient.name }}</div>
+                    <div class="text-slate-400 text-sm">Token ID: {{ selectedRequestingIngredient.tokenId }}</div>
+                    <div class="text-slate-400 text-sm">× {{ offerForm.requestingQuantity }}</div>
                     </div>
                   </div>
                 </div>
@@ -229,13 +306,14 @@
             <div class="mt-8 flex gap-4">
               <button
                 @click="createOffer"
-                :disabled="!canCreateOffer"
+                :disabled="!canCreateOffer || isCreatingOffer"
                 class="flex-1 py-3 rounded-lg font-semibold transition-all duration-200"
-                :class="canCreateOffer
+                :class="canCreateOffer && !isCreatingOffer
                   ? 'bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-105 shadow-lg shadow-emerald-500/30'
                   : 'bg-slate-700 text-slate-500 cursor-not-allowed'"
               >
-                ✓ Create Offer
+                <span v-if="isCreatingOffer">⏳ Creating...</span>
+                <span v-else>✓ Create Offer</span>
               </button>
               <button
                 @click="resetForm"
@@ -260,7 +338,7 @@
             <div v-else class="space-y-4">
               <div
                 v-for="offer in myOffers"
-                :key="offer.id"
+                :key="offer.listing.listingId"
                 class="bg-slate-700 border border-slate-600 rounded-lg p-5"
               >
                 <div class="flex items-start justify-between gap-6">
@@ -268,38 +346,55 @@
                   <div class="flex-1 grid grid-cols-3 gap-4 items-center">
                     <!-- Offering -->
                     <div class="flex items-center gap-3">
-                      <div class="text-3xl">{{ offer.offeringItem.icon }}</div>
+                      <div class="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center overflow-hidden">
+                        <img v-if="offer.offering.image" :src="offer.offering.image" :alt="offer.offering.name" class="w-full h-full object-cover" />
+                        <span v-else class="text-2xl text-white">{{ getIngredientInitial(offer.offering) }}</span>
+                      </div>
                       <div>
-                        <div class="text-white font-medium">{{ offer.offeringItem.name }}</div>
-                        <div class="text-slate-400 text-xs">× {{ offer.offeringQuantity }}</div>
+                        <div class="text-white font-medium">{{ offer.offering.name }}</div>
+                        <div class="text-slate-400 text-xs">× {{ offer.listing.amount }}</div>
                       </div>
                     </div>
 
                     <!-- Arrow -->
-                    <div class="text-center text-emerald-400 text-2xl">→</div>
+                    <div class="text-center text-emerald-400 text-2xl">
+                      <span v-if="offer.listing.listingType === 'ITEM_SWAP'">→</span>
+                      <span v-else>💰</span>
+                    </div>
 
                     <!-- Requesting -->
                     <div class="flex items-center gap-3">
-                      <div class="text-3xl">{{ offer.requestingItem.icon }}</div>
-                      <div>
-                        <div class="text-white font-medium">{{ offer.requestingItem.name }}</div>
-                        <div class="text-slate-400 text-xs">× {{ offer.requestingQuantity }}</div>
-                      </div>
+                      <template v-if="offer.listing.listingType === 'ITEM_SWAP' && offer.requesting">
+                        <div class="w-12 h-12 bg-slate-600 rounded-lg flex items-center justify-center overflow-hidden">
+                          <img v-if="offer.requesting.image" :src="offer.requesting.image" :alt="offer.requesting.name" class="w-full h-full object-cover" />
+                          <span v-else class="text-2xl text-white">{{ getIngredientInitial(offer.requesting) }}</span>
+                        </div>
+                        <div>
+                          <div class="text-white font-medium">{{ offer.requesting.name }}</div>
+                          <div class="text-slate-400 text-xs">× {{ offer.listing.swapAmount }}</div>
+                        </div>
+                      </template>
+                      <template v-else>
+                        <div class="text-white font-medium">{{ formatWei(offer.listing.priceInWei) }} ETH</div>
+                      </template>
                     </div>
                   </div>
 
                   <!-- Cancel Button -->
                   <button
-                    @click="cancelOffer(offer.id)"
-                    class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors font-semibold"
+                    @click="cancelOffer(offer.listing.listingId)"
+                    :disabled="processingListingId === offer.listing.listingId"
+                    class="px-5 py-2 rounded-lg transition-colors font-semibold"
+                    :class="processingListingId === offer.listing.listingId ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 text-white'"
                   >
-                    ✗ Cancel
+                    <span v-if="processingListingId === offer.listing.listingId">⏳ Cancelling...</span>
+                    <span v-else>✗ Cancel</span>
                   </button>
                 </div>
 
                 <!-- Timestamp -->
                 <div class="text-slate-500 text-xs mt-3 pt-3 border-t border-slate-600">
-                  Created {{ formatTime(offer.timestamp) }}
+                  Created {{ formatTime(offer.createdAt) }}
                 </div>
               </div>
             </div>
@@ -311,210 +406,374 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
+import { ethers } from 'ethers';
+import AppHeader from '@/components/AppHeader.vue';
 import { useInventoryStore } from '@/stores/inventory';
 import { useWalletStore } from '@/stores/wallet';
 import { useToastStore } from '@/stores/toast';
-import AppHeader from '@/components/AppHeader.vue';
-import type { Item } from '@/types';
+import marketplaceContractService, { getMarketplaceContractAddress } from '@/services/marketplaceContractService';
+import type { MarketplaceListing, MarketplaceListingType } from '@/types';
+import type { IIngredient } from '@/stores/recipes';
+
+interface TokenRef {
+  tokenContract: string;
+  tokenId: number;
+}
+
+interface DisplayIngredient {
+  tokenContract: string;
+  tokenId: number;
+  name: string;
+  description?: string;
+  category?: string;
+  image?: string;
+}
+
+interface DisplayOffer {
+  listing: MarketplaceListing;
+  offering: DisplayIngredient;
+  requesting: DisplayIngredient | null;
+  createdAt: number;
+}
+
+const tabs = ['Market', 'Create Offer', 'My Offers'];
+const activeTab = ref(0);
 
 const inventoryStore = useInventoryStore();
 const walletStore = useWalletStore();
 const toastStore = useToastStore();
 
-// Trade Offer Interface
-interface TradeOffer {
-  id: string;
-  seller: string;
-  offeringItem: Item;
-  offeringQuantity: number;
-  requestingItem: Item;
-  requestingQuantity: number;
-  timestamp: number;
-}
-
-// Tab management
-const tabs = ['Market', 'Create Offer', 'My Offers'];
-const activeTab = ref(0);
-
-// Market filters
 const searchQuery = ref('');
 const selectedCategory = ref('');
-const sortBy = ref('newest');
+const sortBy = ref<'newest' | 'oldest' | 'price' | 'price-desc'>('newest');
 
-// Offers data
-const offers = ref<TradeOffer[]>([]);
-const myOffers = ref<TradeOffer[]>([]);
+const offers = ref<MarketplaceListing[]>([]);
+const isLoadingOffers = ref(false);
+const isRefreshing = ref(false);
+const isCreatingOffer = ref(false);
+const processingListingId = ref<number | null>(null);
 
-// Create offer form
 const offerForm = ref({
-  offeringItemId: '',
+  listingType: 'ITEM_SWAP' as MarketplaceListingType,
+  offeringRef: '',
   offeringQuantity: 1,
-  requestingItemId: '',
-  requestingQuantity: 1
+  requestingRef: '',
+  requestingQuantity: 1,
+  priceInWei: ''
 });
 
-// All available items (for requesting)
-const allAvailableItems = computed(() => {
-  return inventoryStore.allItems;
+const marketplaceAddress = getMarketplaceContractAddress();
+
+const encodeTokenRef = (tokenContract: string, tokenId: number): string =>
+  `${tokenContract.toLowerCase()}::${tokenId}`;
+
+const parseTokenRef = (value: string): TokenRef | null => {
+  if (!value) return null;
+  const [contract, tokenIdString] = value.split('::');
+  if (!contract || !tokenIdString) return null;
+  const tokenId = Number(tokenIdString);
+  if (Number.isNaN(tokenId)) return null;
+  return {
+    tokenContract: contract,
+    tokenId
+  };
+};
+
+const normalizeTokenId = (tokenId: string | number | bigint | undefined): number => {
+  if (tokenId === undefined || tokenId === null) {
+    return 0;
+  }
+
+  if (typeof tokenId === 'string') {
+    const asNumber = Number(tokenId);
+    return Number.isNaN(asNumber) ? 0 : asNumber;
+  }
+
+  if (typeof tokenId === 'bigint') {
+    return Number(tokenId);
+  }
+
+  return tokenId;
+};
+
+const findIngredientMetadata = (tokenContract: string, tokenId: number): IIngredient | null => {
+  const matchFromCatalog = inventoryStore.allItems.find((ingredient: IIngredient) => {
+    return (
+      ingredient.tokenContract?.toLowerCase() === tokenContract.toLowerCase() &&
+      normalizeTokenId(ingredient.tokenId) === tokenId
+    );
+  });
+
+  if (matchFromCatalog) {
+    return matchFromCatalog;
+  }
+
+  const matchFromInventory = inventoryStore.userBalance.find((ingredient: any) => {
+    return (
+      ingredient.tokenContract?.toLowerCase() === tokenContract.toLowerCase() &&
+      normalizeTokenId(ingredient.tokenId) === tokenId
+    );
+  });
+
+  return matchFromInventory || null;
+};
+
+const buildDisplayIngredient = (meta: IIngredient | null, tokenContract: string, tokenId: number): DisplayIngredient => {
+  const metadata = meta?.metadata || {};
+  return {
+    tokenContract,
+    tokenId,
+    name: metadata.name || `Token #${tokenId}`,
+    description: metadata.description,
+    category: metadata.category,
+    image: metadata.image
+  };
+};
+
+const getUserBalanceForToken = (tokenContract: string, tokenId: number): number => {
+  const balanceEntry = inventoryStore.userBalance.find((ingredient: any) => {
+    return (
+      ingredient.tokenContract?.toLowerCase() === tokenContract.toLowerCase() &&
+      normalizeTokenId(ingredient.tokenId) === tokenId
+    );
+  });
+
+  if (!balanceEntry) return 0;
+
+  const balanceValue = (balanceEntry as any).balance ?? 0;
+  if (typeof balanceValue === 'string') {
+    return Number(balanceValue);
+  }
+  if (typeof balanceValue === 'bigint') {
+    return Number(balanceValue);
+  }
+  return Number(balanceValue);
+};
+
+const displayOffers = computed<DisplayOffer[]>(() => {
+  return offers.value.map((listing) => {
+    const offeringMeta = findIngredientMetadata(listing.tokenContract, listing.tokenId);
+    const offering = buildDisplayIngredient(offeringMeta, listing.tokenContract, listing.tokenId);
+
+    let requesting: DisplayIngredient | null = null;
+    if (
+      listing.listingType === 'ITEM_SWAP' &&
+      listing.swapTokenContract &&
+      listing.swapTokenId !== null
+    ) {
+      const requestingMeta = findIngredientMetadata(listing.swapTokenContract, listing.swapTokenId);
+      requesting = buildDisplayIngredient(
+        requestingMeta,
+        listing.swapTokenContract,
+        listing.swapTokenId ?? 0
+      );
+    }
+
+    return {
+      listing,
+      offering,
+      requesting,
+      createdAt: listing.createdAt ?? Date.now()
+    };
+  });
 });
 
-// Computed properties for form
-const selectedOfferingItem = computed(() => {
-  if (!offerForm.value.offeringItemId) return null;
-  const invItem = inventoryStore.getItem(offerForm.value.offeringItemId);
-  return invItem ? invItem.item : null;
-});
+const filteredOffers = computed<DisplayOffer[]>(() => {
+  let filtered = displayOffers.value.filter((offer) => {
+    if (!offer.listing.active) return false;
+    return offer.listing.seller.toLowerCase() !== walletStore.address?.toLowerCase();
+  });
 
-const selectedRequestingItem = computed(() => {
-  if (!offerForm.value.requestingItemId) return null;
-  return allAvailableItems.value.find(item => item.id === offerForm.value.requestingItemId) || null;
-});
-
-const maxOfferingQuantity = computed(() => {
-  if (!offerForm.value.offeringItemId) return 0;
-  const item = inventoryStore.getItem(offerForm.value.offeringItemId);
-  return item ? item.quantity : 0;
-});
-
-const canCreateOffer = computed(() => {
-  return offerForm.value.offeringItemId && 
-         offerForm.value.requestingItemId &&
-         offerForm.value.offeringQuantity > 0 && 
-         offerForm.value.offeringQuantity <= maxOfferingQuantity.value &&
-         offerForm.value.requestingQuantity > 0;
-});
-
-// Filtered offers
-const filteredOffers = computed(() => {
-  let filtered = offers.value.filter(offer => offer.seller !== walletStore.address);
-
-  // Search filter
   if (searchQuery.value) {
     const query = searchQuery.value.toLowerCase();
-    filtered = filtered.filter(offer =>
-      offer.offeringItem.name.toLowerCase().includes(query) ||
-      offer.requestingItem.name.toLowerCase().includes(query)
-    );
+    filtered = filtered.filter((offer) => {
+      return (
+        offer.offering.name.toLowerCase().includes(query) ||
+        (offer.requesting?.name?.toLowerCase().includes(query) ?? false)
+      );
+    });
   }
 
-  // Category filter
   if (selectedCategory.value) {
-    filtered = filtered.filter(offer =>
-      offer.offeringItem.category === selectedCategory.value ||
-      offer.requestingItem.category === selectedCategory.value
-    );
+    filtered = filtered.filter((offer) => {
+      return (
+        offer.offering.category === selectedCategory.value ||
+        offer.requesting?.category === selectedCategory.value
+      );
+    });
   }
 
-  // Sort
   switch (sortBy.value) {
     case 'newest':
-      filtered.sort((a, b) => b.timestamp - a.timestamp);
+      filtered = [...filtered].sort((a, b) => b.createdAt - a.createdAt);
       break;
     case 'oldest':
-      filtered.sort((a, b) => a.timestamp - b.timestamp);
+      filtered = [...filtered].sort((a, b) => a.createdAt - b.createdAt);
       break;
     case 'price':
-      filtered.sort((a, b) => a.requestingQuantity - b.requestingQuantity);
+      filtered = [...filtered].sort((a, b) => {
+        const aValue = Number(a.listing.priceInWei ?? 0n);
+        const bValue = Number(b.listing.priceInWei ?? 0n);
+        return aValue - bValue;
+      });
       break;
     case 'price-desc':
-      filtered.sort((a, b) => b.requestingQuantity - a.requestingQuantity);
+      filtered = [...filtered].sort((a, b) => {
+        const aValue = Number(a.listing.priceInWei ?? 0n);
+        const bValue = Number(b.listing.priceInWei ?? 0n);
+        return bValue - aValue;
+      });
       break;
   }
 
   return filtered;
 });
 
-// Methods
-const initializeSampleOffers = () => {
-  const sampleOffers: TradeOffer[] = [
-    {
-      id: '1',
-      seller: '0x1234567890abcdef',
-      offeringItem: {
-        id: 'wooden_pickaxe',
-        name: 'Wooden Pickaxe',
-        description: 'Basic mining tool',
-        icon: '⛏️',
-        rarity: 'common',
-        category: 'tool'
-      },
-      offeringQuantity: 1,
-      requestingItem: {
-        id: 'stone',
-        name: 'Stone',
-        description: 'Hard material for tools',
-        icon: '🪨',
-        rarity: 'common',
-        category: 'material'
-      },
-      requestingQuantity: 5,
-      timestamp: Date.now() - 3600000
-    },
-    {
-      id: '2',
-      seller: '0xabcdef1234567890',
-      offeringItem: {
-        id: 'iron',
-        name: 'Iron',
-        description: 'Metal for advanced crafting',
-        icon: '⬛',
-        rarity: 'uncommon',
-        category: 'material'
-      },
-      offeringQuantity: 3,
-      requestingItem: {
-        id: 'wood',
-        name: 'Wood',
-        description: 'Basic crafting material',
-        icon: '🪵',
-        rarity: 'common',
-        category: 'material'
-      },
-      requestingQuantity: 10,
-      timestamp: Date.now() - 7200000
-    },
-    {
-      id: '3',
-      seller: '0x9876543210fedcba',
-      offeringItem: {
-        id: 'iron_sword',
-        name: 'Iron Sword',
-        description: 'A sharp iron sword',
-        icon: '⚔️',
-        rarity: 'rare',
-        category: 'weapon'
-      },
-      offeringQuantity: 1,
-      requestingItem: {
-        id: 'iron',
-        name: 'Iron',
-        description: 'Metal for advanced crafting',
-        icon: '⬛',
-        rarity: 'uncommon',
-        category: 'material'
-      },
-      requestingQuantity: 5,
-      timestamp: Date.now() - 1800000
-    }
-  ];
-
-  offers.value = sampleOffers;
-};
-
-const refreshOffers = () => {
-  toastStore.showToast({
-    type: 'info',
-    message: 'Market refreshed!'
+const myOffers = computed<DisplayOffer[]>(() => {
+  if (!walletStore.address) return [];
+  return displayOffers.value.filter((offer) => {
+    return offer.listing.seller.toLowerCase() === walletStore.address!.toLowerCase();
   });
+});
+
+const userInventoryOptions = computed(() => {
+  return inventoryStore.userBalance
+    .map((item: any) => ({
+      value: encodeTokenRef(item.tokenContract, normalizeTokenId(item.tokenId)),
+      label: item.metadata?.name || `Token #${normalizeTokenId(item.tokenId)}`,
+      balance: getUserBalanceForToken(item.tokenContract, normalizeTokenId(item.tokenId)),
+      metadata: item.metadata || {}
+    }))
+    .filter((option) => option.balance > 0);
+});
+
+const ingredientOptions = computed(() => {
+  return inventoryStore.allItems.map((item: IIngredient) => ({
+    value: encodeTokenRef(item.tokenContract, normalizeTokenId(item.tokenId)),
+    label: item.metadata?.name || `Token #${normalizeTokenId(item.tokenId)}`,
+    metadata: item.metadata || {}
+  }));
+});
+
+const selectedOfferingRef = computed(() => parseTokenRef(offerForm.value.offeringRef));
+const selectedRequestingRef = computed(() => parseTokenRef(offerForm.value.requestingRef));
+
+const selectedOfferingIngredient = computed<DisplayIngredient | null>(() => {
+  const ref = selectedOfferingRef.value;
+  if (!ref) return null;
+  const meta = findIngredientMetadata(ref.tokenContract, ref.tokenId);
+  return buildDisplayIngredient(meta, ref.tokenContract, ref.tokenId);
+});
+
+const selectedRequestingIngredient = computed<DisplayIngredient | null>(() => {
+    const ref = selectedRequestingRef.value;
+    if (!ref) return null;
+    const meta = findIngredientMetadata(ref.tokenContract, ref.tokenId);
+    return buildDisplayIngredient(meta, ref.tokenContract, ref.tokenId);
+});
+
+const maxOfferingQuantity = computed(() => {
+  const ref = selectedOfferingRef.value;
+  if (!ref) return 0;
+  return getUserBalanceForToken(ref.tokenContract, ref.tokenId);
+});
+
+const canCreateOffer = computed(() => {
+  if (offerForm.value.listingType === 'ITEM_SWAP') {
+    return (
+      !!selectedOfferingRef.value &&
+      !!selectedRequestingRef.value &&
+      offerForm.value.offeringQuantity > 0 &&
+      offerForm.value.offeringQuantity <= maxOfferingQuantity.value &&
+      offerForm.value.requestingQuantity > 0
+    );
+  }
+
+  if (offerForm.value.listingType === 'ETH_SALE') {
+    return (
+      !!selectedOfferingRef.value &&
+      offerForm.value.offeringQuantity > 0 &&
+      offerForm.value.offeringQuantity <= maxOfferingQuantity.value &&
+      !!offerForm.value.priceInWei &&
+      Number(offerForm.value.priceInWei) > 0
+    );
+  }
+
+  return false;
+});
+
+const canAcceptOffer = (offer: DisplayOffer): boolean => {
+  if (!walletStore.connected) return false;
+  if (offer.listing.seller.toLowerCase() === walletStore.address?.toLowerCase()) return false;
+
+  if (offer.listing.listingType === 'ETH_SALE') {
+    return true;
+  }
+
+  if (!offer.requesting || offer.listing.swapAmount === null) {
+    return false;
+  }
+
+  const balance = getUserBalanceForToken(
+    offer.requesting.tokenContract,
+    offer.requesting.tokenId
+  );
+
+  return balance >= (offer.listing.swapAmount ?? 0);
 };
 
-const canAcceptTrade = (offer: TradeOffer) => {
-  return inventoryStore.hasItem(offer.requestingItem.id, offer.requestingQuantity);
+const ensureDataLoaded = async () => {
+  if (inventoryStore.allItems.length === 0) {
+    try {
+      await inventoryStore.loadIngredientsFromAPI();
+    } catch (error: any) {
+      console.error('Failed to load ingredient catalog:', error);
+    }
+  }
+
+  if (walletStore.address) {
+    try {
+      await inventoryStore.loadUserBalance(walletStore.address, true);
+    } catch (error) {
+      console.error('Failed to load user balance:', error);
+    }
+  }
 };
 
-const acceptTrade = (offer: TradeOffer) => {
-  if (!walletStore.connected) {
+const loadOffers = async () => {
+  try {
+    isLoadingOffers.value = true;
+    const provider: ethers.Provider | undefined = walletStore.provider ?? undefined;
+    const listings = await marketplaceContractService.getActiveListings(provider);
+    offers.value = listings;
+  } catch (error: any) {
+    console.error('Failed to load marketplace listings:', error);
+    toastStore.showToast({
+      type: 'error',
+      message: error?.message || 'Failed to load marketplace listings'
+    });
+  } finally {
+    isLoadingOffers.value = false;
+  }
+};
+
+const refreshOffers = async () => {
+  try {
+    isRefreshing.value = true;
+    await ensureDataLoaded();
+    await loadOffers();
+    toastStore.showToast({
+      type: 'info',
+      message: 'Marketplace offers refreshed'
+    });
+  } finally {
+    isRefreshing.value = false;
+  }
+};
+
+const acceptTrade = async (offer: DisplayOffer) => {
+  if (!walletStore.connected || !walletStore.signer) {
     toastStore.showToast({
       type: 'warning',
       message: 'Please connect your wallet first'
@@ -522,34 +781,41 @@ const acceptTrade = (offer: TradeOffer) => {
     return;
   }
 
-  if (!canAcceptTrade(offer)) {
+  try {
+    processingListingId.value = offer.listing.listingId;
+
+    if (offer.listing.listingType === 'ITEM_SWAP') {
+      await marketplaceContractService.swapItem(offer.listing, walletStore.signer);
+      toastStore.showToast({
+        type: 'success',
+        message: `Swap completed successfully!`
+      });
+    } else {
+      await marketplaceContractService.buyItemWithETH(offer.listing, walletStore.signer);
+      toastStore.showToast({
+        type: 'success',
+        message: `Purchase completed successfully!`
+      });
+    }
+
+    await loadOffers();
+
+    if (walletStore.address) {
+      await inventoryStore.loadUserBalance(walletStore.address, true);
+    }
+  } catch (error: any) {
+    console.error('Error accepting trade:', error);
     toastStore.showToast({
       type: 'error',
-      message: `You don't have enough ${offer.requestingItem.name}`
+      message: error?.message || 'Failed to complete trade'
     });
-    return;
+  } finally {
+    processingListingId.value = null;
   }
-
-  // Remove requested items from inventory
-  inventoryStore.removeItem(offer.requestingItem.id, offer.requestingQuantity);
-  
-  // Add offered items to inventory
-  inventoryStore.addItem(offer.offeringItem, offer.offeringQuantity);
-  
-  // Remove offer from market
-  const index = offers.value.findIndex(o => o.id === offer.id);
-  if (index > -1) {
-    offers.value.splice(index, 1);
-  }
-
-  toastStore.showToast({
-    type: 'success',
-    message: `Trade completed! Received ${offer.offeringQuantity}× ${offer.offeringItem.name}`
-  });
 };
 
-const createOffer = () => {
-  if (!walletStore.connected) {
+const createOffer = async () => {
+  if (!walletStore.connected || !walletStore.signer) {
     toastStore.showToast({
       type: 'warning',
       message: 'Please connect your wallet first'
@@ -559,70 +825,115 @@ const createOffer = () => {
 
   if (!canCreateOffer.value) return;
 
-  const offeringItem = selectedOfferingItem.value;
-  const requestingItem = selectedRequestingItem.value;
-  
-  if (!offeringItem || !requestingItem) return;
+  const offeringRef = selectedOfferingRef.value;
+  if (!offeringRef) return;
 
-  const newOffer: TradeOffer = {
-    id: Math.random().toString(36).substr(2, 9),
-    seller: walletStore.address!,
-    offeringItem,
-    offeringQuantity: offerForm.value.offeringQuantity,
-    requestingItem,
-    requestingQuantity: offerForm.value.requestingQuantity,
-    timestamp: Date.now()
-  };
+  try {
+    isCreatingOffer.value = true;
 
-  // Remove items from inventory
-  inventoryStore.removeItem(offerForm.value.offeringItemId, offerForm.value.offeringQuantity);
+    if (offerForm.value.listingType === 'ITEM_SWAP') {
+      const requestingRef = selectedRequestingRef.value;
+      if (!requestingRef) return;
 
-  // Add to my offers
-  myOffers.value.push(newOffer);
+      const result = await marketplaceContractService.listItemForSwap(
+        {
+          tokenContract: offeringRef.tokenContract,
+          tokenId: offeringRef.tokenId,
+          amount: offerForm.value.offeringQuantity,
+          swapTokenContract: requestingRef.tokenContract,
+          swapTokenId: requestingRef.tokenId,
+          swapAmount: offerForm.value.requestingQuantity
+        },
+        walletStore.signer
+      );
 
-  // Add to market
-  offers.value.push(newOffer);
+      toastStore.showToast({
+        type: 'success',
+        message: result.listingId !== null
+          ? `Offer created! Listing ID: ${result.listingId}`
+          : 'Offer created on marketplace'
+      });
+    } else {
+      const priceInWei = BigInt(offerForm.value.priceInWei);
+      const result = await marketplaceContractService.listItemForETH(
+        {
+          tokenContract: offeringRef.tokenContract,
+          tokenId: offeringRef.tokenId,
+          amount: offerForm.value.offeringQuantity,
+          priceInWei
+        },
+        walletStore.signer
+      );
 
-  toastStore.showToast({
-    type: 'success',
-    message: 'Trade offer created successfully!'
-  });
+      toastStore.showToast({
+        type: 'success',
+        message: result.listingId !== null
+          ? `Listing created! ID: ${result.listingId}`
+          : 'Listing created on marketplace'
+      });
+    }
 
-  resetForm();
-  activeTab.value = 2; // Switch to "My Offers" tab
+    resetForm();
+    await loadOffers();
+
+    if (walletStore.address) {
+      await inventoryStore.loadUserBalance(walletStore.address, true);
+    }
+
+    activeTab.value = 2;
+  } catch (error: any) {
+    console.error('Error creating offer:', error);
+    toastStore.showToast({
+      type: 'error',
+      message: error?.message || 'Failed to create offer'
+    });
+  } finally {
+    isCreatingOffer.value = false;
+  }
 };
 
-const cancelOffer = (offerId: string) => {
-  const offer = myOffers.value.find(o => o.id === offerId);
-  if (!offer) return;
-
-  // Return items to inventory
-  inventoryStore.addItem(offer.offeringItem, offer.offeringQuantity);
-
-  // Remove from my offers
-  const myIndex = myOffers.value.findIndex(o => o.id === offerId);
-  if (myIndex > -1) {
-    myOffers.value.splice(myIndex, 1);
+const cancelOffer = async (listingId: number) => {
+  if (!walletStore.connected || !walletStore.signer) {
+    toastStore.showToast({
+      type: 'warning',
+      message: 'Please connect your wallet first'
+    });
+    return;
   }
 
-  // Remove from market
-  const marketIndex = offers.value.findIndex(o => o.id === offerId);
-  if (marketIndex > -1) {
-    offers.value.splice(marketIndex, 1);
-  }
+  try {
+    processingListingId.value = listingId;
+    await marketplaceContractService.cancelListing(listingId, walletStore.signer);
 
-  toastStore.showToast({
-    type: 'info',
-    message: 'Offer cancelled and items returned'
-  });
+    toastStore.showToast({
+      type: 'info',
+      message: 'Offer cancelled successfully'
+    });
+
+    await loadOffers();
+
+    if (walletStore.address) {
+      await inventoryStore.loadUserBalance(walletStore.address, true);
+    }
+  } catch (error: any) {
+    console.error('Error cancelling offer:', error);
+    toastStore.showToast({
+      type: 'error',
+      message: error?.message || 'Failed to cancel offer'
+    });
+  } finally {
+    processingListingId.value = null;
+  }
 };
 
 const resetForm = () => {
   offerForm.value = {
-    offeringItemId: '',
+    listingType: 'ITEM_SWAP',
+    offeringRef: '',
     offeringQuantity: 1,
-    requestingItemId: '',
-    requestingQuantity: 1
+    requestingRef: '',
+    requestingQuantity: 1,
+    priceInWei: ''
   };
 };
 
@@ -635,7 +946,7 @@ const formatTime = (timestamp: number) => {
   const diff = now - timestamp;
   const hours = Math.floor(diff / 3600000);
   const minutes = Math.floor((diff % 3600000) / 60000);
-  
+
   if (hours > 0) {
     return `${hours}h ago`;
   } else if (minutes > 0) {
@@ -645,9 +956,38 @@ const formatTime = (timestamp: number) => {
   }
 };
 
-onMounted(() => {
-  initializeSampleOffers();
+const formatWei = (value: bigint) => {
+  try {
+    return Number(ethers.formatEther(value)).toFixed(4);
+  } catch {
+    return '0';
+  }
+};
+
+const getIngredientInitial = (ingredient: DisplayIngredient | null) => {
+  return ingredient?.name?.charAt(0)?.toUpperCase() ?? '#';
+};
+
+const getCategoryLabel = (ingredient: DisplayIngredient | null) => {
+  return ingredient?.category || 'Unknown';
+};
+
+onMounted(async () => {
+  await ensureDataLoaded();
+  await loadOffers();
 });
+
+watch(
+  () => walletStore.address,
+  async (newAddress, previousAddress) => {
+    if (newAddress && newAddress !== previousAddress) {
+      await inventoryStore.loadUserBalance(newAddress, true);
+      await loadOffers();
+    } else if (!newAddress && previousAddress) {
+      await loadOffers();
+    }
+  }
+);
 </script>
 
 <style scoped>

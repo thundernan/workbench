@@ -1,6 +1,21 @@
 import { ethers } from 'ethers';
 import { blockchainConnection } from '../config/blockchain';
 
+export interface BlockchainRecipe {
+  recipeId: number;
+  outputTokenId: number;
+  outputAmount: number;
+  requiresExactPattern: boolean;
+  active: boolean;
+  name: string;
+  ingredientCount: number;
+  ingredients: Array<{
+    tokenId: number;
+    amount: number;
+    position: number;
+  }>;
+}
+
 export class WorkbenchInstanceService {
   private contract: ethers.Contract;
 
@@ -71,6 +86,7 @@ export class WorkbenchInstanceService {
       
       const receipt = await tx.wait();
       console.log(`✅ Recipe created! Block: ${receipt.blockNumber}`);
+      console.log({tx, receipt});
       
       // Extract recipe ID from transaction receipt
       const recipeCreatedEvent = receipt.logs.find((log: any) => {
@@ -98,6 +114,90 @@ export class WorkbenchInstanceService {
     } catch (error) {
       console.error(`Failed to create recipe "${name}":`, error);
       throw new Error(`Recipe creation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Retrieve a recipe from the blockchain by ID
+   * @param recipeId - Recipe identifier
+   * @returns Normalized recipe data or null if not found
+   */
+  async getRecipeById(recipeId: number): Promise<BlockchainRecipe | null> {
+    if (!Number.isInteger(recipeId) || recipeId < 0) {
+      throw new Error('Recipe ID must be a non-negative integer');
+    }
+
+    try {
+      const contract = this.contract as {
+        ['getRecipeCount']?: () => Promise<unknown>;
+        ['getRecipe']?: (recipeId: number) => Promise<unknown>;
+        ['getRecipeIngredients']?: (recipeId: number) => Promise<unknown>;
+      };
+
+      const getRecipeCountFn = contract['getRecipeCount'];
+      const getRecipeFn = contract['getRecipe'];
+      const getRecipeIngredientsFn = contract['getRecipeIngredients'];
+
+      if (typeof getRecipeCountFn !== 'function' || typeof getRecipeFn !== 'function' || typeof getRecipeIngredientsFn !== 'function') {
+        throw new Error('WorkbenchInstance contract is missing required view functions.');
+      }
+
+      const totalRecipesRaw = await getRecipeCountFn();
+      const totalRecipes =
+        typeof totalRecipesRaw === 'bigint'
+          ? totalRecipesRaw
+          : BigInt(
+              typeof totalRecipesRaw?.toString === 'function'
+                ? totalRecipesRaw.toString()
+                : 0
+            );
+
+      if (BigInt(recipeId) >= totalRecipes) {
+        return null;
+      }
+
+      const recipeData = await getRecipeFn(recipeId);
+      const ingredientsData = await getRecipeIngredientsFn(recipeId);
+
+      const recipeStruct = recipeData as unknown as {
+        outputTokenId: bigint;
+        outputAmount: bigint;
+        requiresExactPattern: boolean;
+        active: boolean;
+        name: string;
+        ingredientCount: bigint;
+      };
+
+      const normalizedIngredients = (ingredientsData as Array<{
+        tokenId: bigint;
+        amount: bigint;
+        position: number | bigint;
+      }>).map((ingredient) => ({
+        tokenId: Number(ingredient.tokenId),
+        amount: Number(ingredient.amount),
+        position:
+          typeof ingredient.position === 'bigint'
+            ? Number(ingredient.position)
+            : Number(ingredient.position)
+      }));
+
+      return {
+        recipeId,
+        outputTokenId: Number(recipeStruct.outputTokenId),
+        outputAmount: Number(recipeStruct.outputAmount),
+        requiresExactPattern: Boolean(recipeStruct.requiresExactPattern),
+        active: Boolean(recipeStruct.active),
+        name: recipeStruct.name,
+        ingredientCount: Number(recipeStruct.ingredientCount),
+        ingredients: normalizedIngredients
+      };
+    } catch (error) {
+      console.error(`Failed to fetch recipe ${recipeId} from blockchain:`, error);
+      throw new Error(
+        `Failed to fetch recipe from blockchain: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`
+      );
     }
   }
 
