@@ -221,7 +221,6 @@
     </div>
 
     <ToastNotification />
-    <WelcomeChestModal />
   </div>
 </template>
 
@@ -229,7 +228,6 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
 import ToastNotification from '@/components/ToastNotification.vue';
-import WelcomeChestModal from '@/components/WelcomeChestModal.vue';
 import RecipeBook from '@/components/RecipeBook.vue';
 import { useInventoryStore } from '@/stores/inventory';
 import { IIngredient, IRecipe, useRecipesStore } from '@/stores/recipes';

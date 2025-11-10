@@ -145,8 +145,8 @@
         </div>
 
         <!-- Banner Content - Ingredients Grid -->
-        <div class="p-6">
-          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        <div class="p-5">
+          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
             <div
               v-for="ingredient in freeIngredients"
               :key="ingredient._id"
@@ -161,11 +161,11 @@
                   class="w-full h-full object-cover"
                   @error="handleImageError"
                 />
-                <div v-else class="text-5xl text-slate-500">
+                <div v-else class="text-4xl text-slate-500">
                   {{ getIngredientIcon(ingredient) }}
                 </div>
                 <!-- Free Badge -->
-                <div class="absolute top-2 right-2 bg-emerald-600 text-white px-2 py-1 rounded-md text-xs font-bold shadow-lg">
+                <div class="absolute top-2 right-2 bg-emerald-600 text-white px-2 py-0.5 rounded text-xs font-bold shadow-lg">
                   FREE
                 </div>
               </div>
@@ -173,7 +173,7 @@
               <!-- Content -->
               <div class="p-3 flex flex-col flex-grow">
                 <!-- Name -->
-                <h3 class="font-semibold text-base text-white truncate">
+                <h3 class="font-semibold text-sm text-white truncate">
                   {{ ingredient.metadata.name || `Token #${ingredient.tokenId}` }}
                 </h3>
 
@@ -182,25 +182,25 @@
                   {{ ingredient.metadata.category }}
                 </p>
 
-                <!-- Description -->
-                <div class="text-slate-500 text-xs mt-2 line-clamp-2 flex-grow">
+                <!-- Description - Hidden on small screens -->
+                <div class="text-slate-500 text-xs mt-1 line-clamp-1 flex-grow hidden md:block">
                   <p v-if="ingredient.metadata.description">
                     {{ ingredient.metadata.description }}
                   </p>
                 </div>
 
                 <!-- Balance Info -->
-                <div v-if="walletStore.connected" class="mt-3 pt-3 border-t border-slate-700/50">
+                <div v-if="walletStore.connected" class="mt-2 pt-2 border-t border-slate-700/50">
                   <div class="flex items-center justify-between text-xs">
-                    <span class="text-slate-400">Your Balance:</span>
+                    <span class="text-slate-400">Balance:</span>
                     <span class="text-emerald-400 font-bold">
                       {{ getUserBalance(ingredient) }}
                     </span>
                   </div>
                 </div>
-                <div v-else class="mt-3 pt-3 border-t border-slate-700/50">
+                <div v-else class="mt-2 pt-2 border-t border-slate-700/50">
                   <div class="text-xs text-center text-slate-500">
-                    Connect wallet to see balance
+                    Connect wallet
                   </div>
                 </div>
               </div>
