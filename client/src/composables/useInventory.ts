@@ -35,8 +35,6 @@ export function useInventory() {
       allTokensChecked.value = response.allTokensChecked;
       contractAddress.value = response.contractAddress;
       lastFetchedAddress.value = address;
-      
-      console.log(`✅ Inventory loaded: ${response.totalItems} items`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to fetch inventory';
       error.value = message;

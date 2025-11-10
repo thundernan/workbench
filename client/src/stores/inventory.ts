@@ -73,14 +73,12 @@ export const useInventoryStore = defineStore('inventory', () => {
   const loadUserBalance = async (address: string, force = false) => {
     // Prevent duplicate concurrent requests
     if (isLoadingBalanceInternal && !force) {
-      console.log('📡 Balance: Already loading, skipping duplicate request');
       return userBalance.value;
     }
 
     // Debounce rapid requests
     const now = Date.now();
     if (!force && now - lastBalanceLoadTime < BALANCE_LOAD_DEBOUNCE_MS) {
-      console.log('📡 Balance: Request debounced, too soon after last request');
       return userBalance.value;
     }
 
@@ -90,10 +88,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     lastBalanceLoadTime = now;
     
     try {
-      console.log(`📡 Loading balance for address: ${address}...`);
       const inventoryData = await apiService.getUserInventory(address, false);
-      
-      console.log(`✅ Loaded ${inventoryData.inventory.length} items from blockchain`);
       
       // Convert backend inventory items to frontend Items with balance
       userBalance.value = inventoryData.inventory;
@@ -107,7 +102,6 @@ export const useInventoryStore = defineStore('inventory', () => {
       // Don't throw if it's a rate limit error
       if (error instanceof Error && 
           (error.message.includes('Too many requests') || error.message.includes('rate limit'))) {
-        console.warn('Rate limit reached for balance, will retry later');
         return userBalance.value;
       }
       
@@ -124,10 +118,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     loadError.value = null;
     
     try {
-      console.log('📡 Loading ingredients from API...');
       const ingredients = await apiService.getIngredients({ limit: 10 });
-      
-      console.log(`✅ Loaded ${ingredients.length} ingredients from backend`);
       
       // Convert backend ingredients to frontend Items
       allItems.value = ingredients;
@@ -155,7 +146,6 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
 
     if (newAddress && newAddress !== oldAddress) {
-      console.log('👛 Wallet connected, will load user balance...');
       // Debounce the balance load when wallet connects
       walletWatchTimeout = setTimeout(async () => {
         try {
@@ -166,7 +156,6 @@ export const useInventoryStore = defineStore('inventory', () => {
         walletWatchTimeout = null;
       }, 2000); // Wait 2 seconds after wallet connection
     } else if (!newAddress) {
-      console.log('👛 Wallet disconnected, clearing balance...');
       userBalance.value = [];
       balanceError.value = null;
     }

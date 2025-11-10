@@ -24,23 +24,13 @@
         <div v-if="activeTab === 0" class="space-y-6">
           <!-- Search and Filters -->
           <div class="bg-slate-800 border-2 border-slate-700 rounded-lg p-4">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <input
                 v-model="searchQuery"
                 type="text"
                 placeholder="🔍 Search items..."
                 class="px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-emerald-400 transition-colors"
               />
-              <select
-                v-model="selectedCategory"
-                class="px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
-              >
-                <option value="">All Categories</option>
-                <option value="weapon">Weapons</option>
-                <option value="tool">Tools</option>
-                <option value="armor">Armor</option>
-                <option value="material">Materials</option>
-              </select>
               <select
                 v-model="sortBy"
                 class="px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
@@ -53,13 +43,20 @@
           <button
             @click="refreshOffers"
             :disabled="isRefreshing || isLoadingOffers"
-            class="px-4 py-2 rounded-lg font-semibold transition-colors"
+            class="px-4 py-2 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
             :class="isRefreshing || isLoadingOffers
               ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
               : 'bg-emerald-600 hover:bg-emerald-700 text-white'"
           >
-            <span v-if="isRefreshing || isLoadingOffers">⏳ Refreshing...</span>
-            <span v-else>🔄 Refresh</span>
+            <svg v-if="isRefreshing || isLoadingOffers" class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <svg v-else class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span v-if="isRefreshing || isLoadingOffers">Refreshing...</span>
+            <span v-else>Refresh</span>
           </button>
             </div>
           </div>
@@ -200,7 +197,12 @@
                 </div>
 
                 <div>
-                  <label class="block text-sm font-medium text-slate-300 mb-2">Quantity</label>
+                  <div class="flex items-center justify-between mb-2">
+                    <label class="text-sm font-medium text-slate-300">Quantity</label>
+                    <span v-if="selectedOfferingIngredient" class="text-slate-400 text-xs">
+                      Available: {{ maxOfferingQuantity }}
+                    </span>
+                  </div>
                   <input
                   v-model.number="offerForm.offeringQuantity"
                     type="number"
@@ -208,16 +210,13 @@
                     :max="maxOfferingQuantity"
                     class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-lg text-white focus:outline-none focus:border-emerald-400 transition-colors"
                   />
-                <div v-if="selectedOfferingIngredient" class="text-slate-400 text-xs mt-1">
-                    Available: {{ maxOfferingQuantity }}
-                  </div>
                 </div>
 
                 <!-- Preview -->
               <div v-if="selectedOfferingIngredient" class="bg-slate-700 rounded-lg p-4 border border-slate-600">
                   <div class="text-slate-400 text-xs mb-2">Preview:</div>
                   <div class="flex items-center gap-3">
-                  <div class="w-16 h-16 bg-slate-600 rounded-lg flex items-center justify-center overflow-hidden">
+                  <div class="w-16 h-16 bg-slate-600 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
                     <img
                       v-if="selectedOfferingIngredient.image"
                       :src="selectedOfferingIngredient.image"
@@ -226,7 +225,7 @@
                     />
                     <span v-else class="text-3xl text-white">{{ getIngredientInitial(selectedOfferingIngredient) }}</span>
                   </div>
-                    <div>
+                    <div class="flex flex-col justify-center">
                     <div class="text-white font-semibold">{{ selectedOfferingIngredient.name }}</div>
                     <div class="text-slate-400 text-sm">Token ID: {{ selectedOfferingIngredient.tokenId }}</div>
                     <div class="text-slate-400 text-sm">× {{ offerForm.offeringQuantity }}</div>
@@ -283,7 +282,7 @@
               <div v-if="selectedRequestingIngredient && offerForm.listingType === 'ITEM_SWAP'" class="bg-slate-700 rounded-lg p-4 border border-slate-600">
                   <div class="text-slate-400 text-xs mb-2">Preview:</div>
                   <div class="flex items-center gap-3">
-                  <div class="w-16 h-16 bg-slate-600 rounded-lg flex items-center justify-center overflow-hidden">
+                  <div class="w-16 h-16 bg-slate-600 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
                     <img
                       v-if="selectedRequestingIngredient.image"
                       :src="selectedRequestingIngredient.image"
@@ -292,7 +291,7 @@
                     />
                     <span v-else class="text-3xl text-white">{{ getIngredientInitial(selectedRequestingIngredient) }}</span>
                   </div>
-                    <div>
+                    <div class="flex flex-col justify-center">
                     <div class="text-white font-semibold">{{ selectedRequestingIngredient.name }}</div>
                     <div class="text-slate-400 text-sm">Token ID: {{ selectedRequestingIngredient.tokenId }}</div>
                     <div class="text-slate-400 text-sm">× {{ offerForm.requestingQuantity }}</div>
@@ -309,17 +308,17 @@
                 :disabled="!canCreateOffer || isCreatingOffer"
                 class="flex-1 py-3 rounded-lg font-semibold transition-all duration-200"
                 :class="canCreateOffer && !isCreatingOffer
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-105 shadow-lg shadow-emerald-500/30'
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white hover:scale-[1.02] shadow-lg shadow-emerald-500/30'
                   : 'bg-slate-700 text-slate-500 cursor-not-allowed'"
               >
-                <span v-if="isCreatingOffer">⏳ Creating...</span>
-                <span v-else>✓ Create Offer</span>
+                <span v-if="isCreatingOffer">Creating...</span>
+                <span v-else>Create Offer</span>
               </button>
               <button
                 @click="resetForm"
                 class="px-8 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors font-semibold"
               >
-                ✗ Reset
+                Reset
               </button>
             </div>
           </div>
@@ -412,7 +411,7 @@ import AppHeader from '@/components/AppHeader.vue';
 import { useInventoryStore } from '@/stores/inventory';
 import { useWalletStore } from '@/stores/wallet';
 import { useToastStore } from '@/stores/toast';
-import marketplaceContractService, { getMarketplaceContractAddress } from '@/services/marketplaceContractService';
+import marketplaceContractService from '@/services/marketplaceContractService';
 import type { MarketplaceListing, MarketplaceListingType } from '@/types';
 import type { IIngredient } from '@/stores/recipes';
 
@@ -445,7 +444,6 @@ const walletStore = useWalletStore();
 const toastStore = useToastStore();
 
 const searchQuery = ref('');
-const selectedCategory = ref('');
 const sortBy = ref<'newest' | 'oldest' | 'price' | 'price-desc'>('newest');
 
 const offers = ref<MarketplaceListing[]>([]);
@@ -462,8 +460,6 @@ const offerForm = ref({
   requestingQuantity: 1,
   priceInWei: ''
 });
-
-const marketplaceAddress = getMarketplaceContractAddress();
 
 const encodeTokenRef = (tokenContract: string, tokenId: number): string =>
   `${tokenContract.toLowerCase()}::${tokenId}`;
@@ -520,7 +516,7 @@ const findIngredientMetadata = (tokenContract: string, tokenId: number): IIngred
 };
 
 const buildDisplayIngredient = (meta: IIngredient | null, tokenContract: string, tokenId: number): DisplayIngredient => {
-  const metadata = meta?.metadata || {};
+  const metadata = (meta?.metadata || {}) as any;
   return {
     tokenContract,
     tokenId,
@@ -591,15 +587,6 @@ const filteredOffers = computed<DisplayOffer[]>(() => {
       return (
         offer.offering.name.toLowerCase().includes(query) ||
         (offer.requesting?.name?.toLowerCase().includes(query) ?? false)
-      );
-    });
-  }
-
-  if (selectedCategory.value) {
-    filtered = filtered.filter((offer) => {
-      return (
-        offer.offering.category === selectedCategory.value ||
-        offer.requesting?.category === selectedCategory.value
       );
     });
   }
@@ -847,11 +834,13 @@ const createOffer = async () => {
         walletStore.signer
       );
 
+      const successMsg = result.wasApprovalNeeded 
+        ? `Offer created! ${result.listingId !== null ? `Listing ID: ${result.listingId}` : ''} (Marketplace approved for future trades)`
+        : `Offer created! ${result.listingId !== null ? `Listing ID: ${result.listingId}` : ''}`;
+
       toastStore.showToast({
         type: 'success',
-        message: result.listingId !== null
-          ? `Offer created! Listing ID: ${result.listingId}`
-          : 'Offer created on marketplace'
+        message: successMsg
       });
     } else {
       const priceInWei = BigInt(offerForm.value.priceInWei);
@@ -865,11 +854,13 @@ const createOffer = async () => {
         walletStore.signer
       );
 
+      const successMsg = result.wasApprovalNeeded 
+        ? `Listing created! ${result.listingId !== null ? `ID: ${result.listingId}` : ''} (Marketplace approved for future trades)`
+        : `Listing created! ${result.listingId !== null ? `ID: ${result.listingId}` : ''}`;
+
       toastStore.showToast({
         type: 'success',
-        message: result.listingId !== null
-          ? `Listing created! ID: ${result.listingId}`
-          : 'Listing created on marketplace'
+        message: successMsg
       });
     }
 

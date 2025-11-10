@@ -385,10 +385,9 @@ onMounted(() => {
   if (recipesStore.allBlockchainRecipes.length === 0 && 
       !recipesStore.isLoading && 
       !recipesStore.error) {
-    console.log('📚 BlockchainRecipeBook: Loading recipes...');
     loadRecipes();
   } else if (recipesStore.allBlockchainRecipes.length > 0) {
-    console.log(`📚 BlockchainRecipeBook: Using ${recipesStore.allBlockchainRecipes.length} pre-loaded recipes`);
+    // Recipes already loaded
   }
 });
 </script>

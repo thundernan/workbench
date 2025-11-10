@@ -1,8 +1,28 @@
+/**
+ * Wallet Store - Status Network Only
+ * 
+ * This store manages wallet connections and only supports Status Network.
+ * Network switching has been removed - the app automatically ensures users
+ * are on Status Network when they connect their wallet.
+ * 
+ * Session persistence: Wallet sessions are stored for 10 minutes after connection.
+ */
 import { defineStore } from 'pinia';
 import { ref, computed, markRaw } from 'vue';
 import type { WalletProvider, TransactionRequest, CraftingTransaction } from '@/types';
 import Web3WalletService from '@/services/walletService';
 import { DEFAULT_CHAIN_ID } from '@/config/wallet';
+
+// Session storage constants
+const SESSION_STORAGE_KEY = 'wallet_session';
+const SESSION_DURATION_MS = 10 * 60 * 1000; // 10 minutes
+
+interface WalletSession {
+  walletId: string;
+  address: string;
+  chainId: number;
+  expiresAt: number;
+}
 
 export const useWalletStore = defineStore('wallet', () => {
   const address = ref<string | null>(null);
@@ -15,6 +35,50 @@ export const useWalletStore = defineStore('wallet', () => {
 
   // Initialize wallet service
   const walletService = new Web3WalletService();
+
+  // Session management functions
+  const saveSession = (walletId: string): void => {
+    try {
+      const session: WalletSession = {
+        walletId,
+        address: address.value || '',
+        chainId: chainId.value || DEFAULT_CHAIN_ID,
+        expiresAt: Date.now() + SESSION_DURATION_MS
+      };
+      localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    } catch (err) {
+      // Silent fail if localStorage is not available
+    }
+  };
+
+  const loadSession = (): WalletSession | null => {
+    try {
+      const sessionData = localStorage.getItem(SESSION_STORAGE_KEY);
+      if (!sessionData) return null;
+
+      const session: WalletSession = JSON.parse(sessionData);
+      
+      // Check if session has expired
+      if (Date.now() > session.expiresAt) {
+        clearSession();
+        return null;
+      }
+
+      return session;
+    } catch (err) {
+      // Clear invalid session data
+      clearSession();
+      return null;
+    }
+  };
+
+  const clearSession = (): void => {
+    try {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+    } catch (err) {
+      // Silent fail
+    }
+  };
 
   // Get available wallet providers
   const availableProviders = computed<WalletProvider[]>(() => {
@@ -36,14 +100,10 @@ export const useWalletStore = defineStore('wallet', () => {
         currentChainId = await walletService.getChainId();
       } catch (chainError: any) {
         // If getting chain ID fails, it might be Solana
-        console.warn('Failed to get chain ID, might be Solana network:', chainError);
-        
         // Try to check if it's Solana RPC error
         if (chainError.message?.includes('Invalid RPC URL') || 
             chainError.message?.includes('solana') ||
             chainError.code === -32603) {
-          console.log('⚠️ Detected Solana network, attempting to switch to Status Network...');
-          
           // Try to switch network directly
           try {
             await walletService.switchNetwork(DEFAULT_CHAIN_ID);
@@ -55,7 +115,6 @@ export const useWalletStore = defineStore('wallet', () => {
               try {
                 await walletService.addNetwork(DEFAULT_CHAIN_ID);
                 chainId.value = DEFAULT_CHAIN_ID;
-                console.log(`✅ Successfully added and switched to Status Network`);
                 return;
               } catch (addError: any) {
                 throw new Error(
@@ -73,8 +132,6 @@ export const useWalletStore = defineStore('wallet', () => {
       
       // Check if we're on the correct network
       if (currentChainId !== DEFAULT_CHAIN_ID) {
-        console.log(`⚠️ Wallet is on chain ${currentChainId}, switching to Status Network (${DEFAULT_CHAIN_ID})...`);
-        
         try {
           await walletService.switchNetwork(DEFAULT_CHAIN_ID);
           chainId.value = DEFAULT_CHAIN_ID;
@@ -113,18 +170,22 @@ export const useWalletStore = defineStore('wallet', () => {
       // Update store state
       address.value = connectedAddress;
       connected.value = true;
-      provider.value = markRaw(walletService.getProvider());
-      signer.value = markRaw(walletService.getSigner());
+      const providerInstance = walletService.getProvider();
+      const signerInstance = walletService.getSigner();
+      provider.value = providerInstance ? markRaw(providerInstance) : null;
+      signer.value = signerInstance ? markRaw(signerInstance) : null;
       
       // Get chain ID and ensure we're on the correct network
       try {
         await ensureCorrectNetwork();
       } catch (networkError: any) {
-        console.warn('Failed to ensure correct network:', networkError);
         // Don't throw - wallet is connected, just not on right network
         // The error will be shown to user
         error.value = networkError.message || 'Failed to switch to Status Network';
       }
+
+      // Save session for auto-reconnect on page reload
+      saveSession(walletId);
 
       return connectedAddress;
     } catch (err: any) {
@@ -147,22 +208,17 @@ export const useWalletStore = defineStore('wallet', () => {
       provider.value = null;
       signer.value = null;
       error.value = null;
+
+      // Clear saved session
+      clearSession();
     } catch (err: any) {
       error.value = err.message;
       throw err;
     }
   };
 
-  // Switch network
-  const switchNetwork = async (newChainId: number): Promise<void> => {
-    try {
-      await walletService.switchNetwork(newChainId);
-      chainId.value = newChainId;
-    } catch (err: any) {
-      error.value = err.message;
-      throw err;
-    }
-  };
+  // Note: Network switching has been removed. 
+  // The app only supports Status Network and automatically switches to it on connection.
 
   // Send transaction
   const sendTransaction = async (request: TransactionRequest): Promise<string> => {
@@ -229,32 +285,47 @@ export const useWalletStore = defineStore('wallet', () => {
     error.value = null;
   };
 
-  // Check if wallet is connected on app start
+  // Check if wallet is connected on app start or restore from session
   const checkConnection = async (): Promise<void> => {
     try {
+      // First, try to restore from saved session
+      const session = loadSession();
+      if (session) {
+        try {
+          // Attempt to reconnect using saved wallet ID
+          await connectWallet(session.walletId);
+          return;
+        } catch (err) {
+          // Session reconnection failed, clear it and continue
+          clearSession();
+        }
+      }
+
+      // If no session or reconnection failed, check if wallet is already connected
       if (walletService.isConnected()) {
         const connectedAddress = await walletService.getAddress();
         
         address.value = connectedAddress;
         connected.value = true;
-        provider.value = markRaw(walletService.getProvider());
-        signer.value = markRaw(walletService.getSigner());
+        const providerInstance = walletService.getProvider();
+        const signerInstance = walletService.getSigner();
+        provider.value = providerInstance ? markRaw(providerInstance) : null;
+        signer.value = signerInstance ? markRaw(signerInstance) : null;
         
         // Ensure we're on the correct network
         try {
           await ensureCorrectNetwork();
         } catch (networkError: any) {
-          console.warn('Failed to ensure correct network on check:', networkError);
           // Try to get chain ID anyway
           try {
             chainId.value = await walletService.getChainId();
           } catch (chainError) {
-            console.warn('Failed to get chain ID:', chainError);
+            // Silent fail
           }
         }
       }
     } catch (err) {
-      console.warn('Failed to check wallet connection:', err);
+      // Silent fail
     }
   };
 
@@ -275,7 +346,6 @@ export const useWalletStore = defineStore('wallet', () => {
     // Actions
     connectWallet,
     disconnectWallet,
-    switchNetwork,
     sendTransaction,
     sendCraftTx,
     waitForTransaction,

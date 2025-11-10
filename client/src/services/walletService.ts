@@ -1,3 +1,9 @@
+/**
+ * Web3 Wallet Service - Status Network Only
+ * 
+ * This service handles wallet connections and only supports Status Network.
+ * It automatically attempts to switch users to Status Network when they connect.
+ */
 import { ethers } from 'ethers';
 import type { WalletProvider, TransactionRequest, CraftingTransaction } from '@/types';
 import { getNetworkByChainId, networkToWalletConfig, isSupportedChain, DEFAULT_CHAIN_ID } from '@/config/wallet';
@@ -46,7 +52,6 @@ export class Web3WalletService {
     }
 
     const providerss = new ethers.BrowserProvider(window?.ethereum as any);
-    console.log({providerss});
     // Check known wallets first
     this.knownWalletProviders.forEach(provider => {
       let installed = false;
@@ -164,19 +169,15 @@ export class Web3WalletService {
         // Try to switch to Status Network immediately after connection
         // This will work even if wallet is on Solana
         await this.switchNetwork(DEFAULT_CHAIN_ID);
-        console.log('✅ Successfully switched Trust Wallet to Status Network');
       } catch (switchError: any) {
         // If switch fails, try to add the network
         if (switchError.message?.includes('4902') || switchError.code === 4902) {
           try {
             await this.addNetwork(DEFAULT_CHAIN_ID);
-            console.log('✅ Successfully added Status Network to Trust Wallet');
           } catch (addError) {
-            console.warn('Failed to add/switch network, will try again after connection:', addError);
             // Don't throw - wallet is connected, just not on right network
           }
         } else {
-          console.warn('Failed to switch network:', switchError);
           // Don't throw - wallet is connected, just not on right network
         }
       }
@@ -187,8 +188,6 @@ export class Web3WalletService {
       if (error.message?.includes('Invalid RPC URL') || 
           error.message?.includes('solana') ||
           error.code === -32603) {
-        console.log('⚠️ Trust Wallet is on Solana, attempting to switch to Status Network...');
-        
         // Try to switch network before retrying connection
         try {
           await this.switchNetwork(DEFAULT_CHAIN_ID);
@@ -253,7 +252,6 @@ export class Web3WalletService {
         if (chainIdError.message?.includes('Invalid RPC URL') || 
             chainIdError.message?.includes('solana') ||
             chainIdError.code === -32603) {
-          console.warn('⚠️ Detected Solana RPC, will attempt to switch after connection');
           // Continue with connection - we'll switch network after
         } else {
           throw new Error(`Provider validation failed: ${chainIdError.message}`);
@@ -278,7 +276,6 @@ export class Web3WalletService {
         this.signer = await browserProvider.getSigner();
       } catch (signerError: any) {
         // If signer fails due to Solana, we'll handle it in the wallet store
-        console.warn('Failed to get signer, might be Solana network:', signerError);
         throw signerError;
       }
 
@@ -352,7 +349,7 @@ export class Web3WalletService {
       this.provider = null;
       this.signer = null;
     } catch (error) {
-      console.warn('Error during disconnect:', error);
+      // Silent fail
     }
   }
 
@@ -392,11 +389,9 @@ export class Web3WalletService {
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: `0x${chainId.toString(16)}` }]
       });
-      console.log(`✅ Successfully switched to chain ${chainId}`);
     } catch (error: any) {
       // Error code 4902 means chain not added to wallet
       if (error.code === 4902 || error.message?.includes('not added')) {
-        console.log(`⚠️ Chain ${chainId} not added, attempting to add it...`);
         // Chain not added, try to add it
         await this.addNetwork(chainId);
         // After adding, try switching again
@@ -404,7 +399,6 @@ export class Web3WalletService {
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: `0x${chainId.toString(16)}` }]
         });
-        console.log(`✅ Successfully added and switched to chain ${chainId}`);
       } else if (error.code === 4001) {
         // User rejected the request
         throw new Error('User rejected the network switch request');
@@ -414,10 +408,8 @@ export class Web3WalletService {
             error.message?.includes('solana') ||
             error.code === -32603) {
           // If wallet is on Solana, try to add network instead
-          console.log('⚠️ Wallet appears to be on Solana, attempting to add Ethereum network...');
           try {
             await this.addNetwork(chainId);
-            console.log(`✅ Successfully added Status Network to wallet`);
           } catch (addError: any) {
             throw new Error(
               `Failed to switch from Solana to Ethereum. ` +

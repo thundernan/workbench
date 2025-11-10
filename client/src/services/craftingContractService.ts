@@ -311,7 +311,6 @@ export class CraftingContractService {
       const availableFunctions = contract.interface.fragments
         .filter(fragment => fragment.type === 'function')
         .map(fragment => fragment.format());
-      console.log('Workbench contract functions:', availableFunctions);
 
       if (recipe.outputTokenId === null || recipe.outputTokenId === undefined) {
         throw new Error('Recipe is missing outputTokenId');
@@ -348,7 +347,6 @@ export class CraftingContractService {
       let craftingFee = BigInt(0);
       try {
         craftingFee = await contract.getCraftingFee();
-        console.log('Crafting fee:', craftingFee);
       } catch {
         // No crafting fee or function doesn't exist
       }
@@ -361,21 +359,17 @@ export class CraftingContractService {
           tokenIds,
           amounts
         );
-        console.log('Is valid grid:', isValidGrid);
         if (!isValidGrid) {
           throw new Error('Crafting grid does not match the recipe pattern.');
         }
       }
 
       const hasIngredients = await contract.canCraft(recipeIdBigInt, signerAddress);
-      console.log('Has ingredients:', hasIngredients);
       if (!hasIngredients) {
         throw new Error('Missing required ingredients or approvals for this recipe.');
       }
 
       let tx: ethers.ContractTransactionResponse;
-      console.log(({tokenIds, amounts}))
-      console.log({requiresExactPattern: recipe.requiresExactPattern});
       if (recipe.requiresExactPattern) {
         tx = await contractAny['craftWithGrid'](
           recipeIdBigInt,
@@ -404,8 +398,6 @@ export class CraftingContractService {
           '';
 
         if (errorMessage.includes('already known') || errorMessage.includes('replacement transaction underpriced')) {
-          console.warn('Craft transaction wait() reported known transaction, attempting to fetch receipt manually.', waitError);
-
           if (provider && typeof provider.waitForTransaction === 'function') {
             receipt = await provider.waitForTransaction(tx.hash, 1);
           } else if (provider && typeof provider.getTransactionReceipt === 'function') {

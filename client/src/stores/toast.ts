@@ -1,65 +1,55 @@
 import { defineStore } from 'pinia';
-import { useToast as usePrimeToast } from 'primevue/usetoast';
+import { ref } from 'vue';
+
+export interface ToastMessage {
+  id: string;
+  type: 'success' | 'error' | 'info' | 'warning';
+  message: string;
+  duration: number;
+}
 
 export const useToastStore = defineStore('toast', () => {
-  let toast: ReturnType<typeof usePrimeToast> | null = null;
-
-  const initToast = () => {
-    if (!toast) {
-      try {
-        toast = usePrimeToast();
-      } catch (error) {
-        console.warn('PrimeVue Toast not available, using fallback:', error);
-        toast = null;
-      }
-    }
-  };
+  const toasts = ref<ToastMessage[]>([]);
+  let idCounter = 0;
 
   const showToast = (options: {
     type: 'success' | 'error' | 'info' | 'warning';
     message: string;
     duration?: number;
   }) => {
-    initToast();
-    
-    // Fallback to console if PrimeVue Toast is not available
-    if (!toast) {
-      console.log(`[${options.type.toUpperCase()}] ${options.message}`);
-      return;
-    }
-    
-    const severityMap = {
-      success: 'success',
-      error: 'error',
-      info: 'info',
-      warning: 'warn'
+    const id = `toast-${Date.now()}-${idCounter++}`;
+    const duration = options.duration || 5000;
+
+    const toast: ToastMessage = {
+      id,
+      type: options.type,
+      message: options.message,
+      duration
     };
 
-    try {
-      toast.add({
-        severity: severityMap[options.type] as any,
-        summary: options.type.charAt(0).toUpperCase() + options.type.slice(1),
-        detail: options.message,
-        life: options.duration || 5000
-      });
-    } catch (error) {
-      console.warn('Toast display failed, using console fallback:', error);
-      console.log(`[${options.type.toUpperCase()}] ${options.message}`);
+    toasts.value.push(toast);
+
+    // Auto-remove after duration
+    setTimeout(() => {
+      removeToast(id);
+    }, duration);
+  };
+
+  const removeToast = (id: string) => {
+    const index = toasts.value.findIndex(t => t.id === id);
+    if (index > -1) {
+      toasts.value.splice(index, 1);
     }
   };
 
   const clearAllToasts = () => {
-    if (toast) {
-      try {
-        toast.removeAllGroups();
-      } catch (error) {
-        console.warn('Clear toasts failed:', error);
-      }
-    }
+    toasts.value = [];
   };
 
   return {
+    toasts,
     showToast,
+    removeToast,
     clearAllToasts
   };
 });

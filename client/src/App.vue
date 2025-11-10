@@ -1,18 +1,24 @@
 <template>
   <div id="app" class="min-h-screen bg-slate-900">
-    <!-- Navigation -->
-    <nav class="bg-slate-800 border-b border-slate-700">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      </div>
-    </nav>
+    <!-- Show Welcome page if wallet is not connected -->
+    <Welcome v-if="!walletStore.connected" />
     
-    <!-- Main Content -->
-    <main>
-      <router-view />
-    </main>
+    <!-- Show main app if wallet is connected -->
+    <template v-else>
+      <!-- Navigation -->
+      <nav class="bg-slate-800 border-b border-slate-700">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        </div>
+      </nav>
+      
+      <!-- Main Content -->
+      <main>
+        <router-view />
+      </main>
+    </template>
     
-    <!-- PrimeVue Toast Component -->
-    <Toast />
+    <!-- Custom Toast Container -->
+    <ToastContainer />
   </div>
 </template>
 
@@ -20,7 +26,8 @@
 import { onMounted } from 'vue';
 import { useRecipesStore } from '@/stores/recipes';
 import { useWalletStore } from '@/stores/wallet';
-import Toast from 'primevue/toast';
+import ToastContainer from '@/components/ToastContainer.vue';
+import Welcome from '@/views/Welcome.vue';
 
 // Initialize stores
 const recipesStore = useRecipesStore();
@@ -28,28 +35,19 @@ const walletStore = useWalletStore();
 
 // Fetch recipes on app load
 onMounted(async () => {
-  console.log('🚀 App loaded - initializing...');
-  
   // Check for existing wallet connection
   try {
-    console.log('🔍 Checking wallet connection...');
     await walletStore.checkConnection();
-    if (walletStore.connected) {
-      console.log('✅ Wallet already connected:', walletStore.shortAddress);
-    }
   } catch (error) {
-    console.warn('⚠️ Wallet check failed:', error);
+    // Silent fail
   }
   
   // Fetch blockchain recipes from server (with delay to avoid rate limiting)
   // Longer delay to ensure Shop.vue loads first and avoid rate limiting
   setTimeout(async () => {
     try {
-      console.log('📚 Fetching recipes from server...');
       await recipesStore.fetchBlockchainRecipes();
-      console.log(`✅ Loaded ${recipesStore.allBlockchainRecipes.length} recipes`);
     } catch (error: any) {
-      console.error('❌ Failed to fetch recipes:', error.message);
       // Don't block app if recipes fail to load
       // User can retry via recipe book
     }

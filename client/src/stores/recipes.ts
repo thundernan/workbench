@@ -133,9 +133,8 @@ export const useRecipesStore = defineStore('recipes', () => {
       error.value = err.message || 'Failed to fetch recipes';
       console.error('Error fetching recipes:', err);
       
-      // Don't throw if it's a rate limit error - just log it
+      // Don't throw if it's a rate limit error
       if (err.message?.includes('Too many requests') || err.message?.includes('rate limit')) {
-        console.warn('Rate limit reached for recipes, will retry later');
         // Set error but don't throw so app can continue
         error.value = 'Rate limit reached. Please wait a moment.';
       } else {
@@ -259,7 +258,6 @@ export const useRecipesStore = defineStore('recipes', () => {
     for (const ingredient of recipe.ingredients) {
       // Validate ingredient structure
       if (!ingredient || typeof ingredient.tokenId !== 'number') {
-        console.warn('Invalid ingredient in recipe:', ingredient);
         return false;
       }
 
@@ -308,7 +306,6 @@ export const useRecipesStore = defineStore('recipes', () => {
     for (const ingredient of matchedRecipe.ingredients) {
       // Validate ingredient structure
       if (!ingredient || typeof ingredient.tokenId !== 'number') {
-        console.warn('Invalid ingredient in recipe:', ingredient);
         continue;
       }
 

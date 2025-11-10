@@ -44,7 +44,6 @@ async function fetchAPI<T>(
   // Check if there's already a pending request for this endpoint
   const pendingRequest = requestQueue.get(cacheKey);
   if (pendingRequest) {
-    console.log(`⏳ Waiting for pending request: ${cacheKey}`);
     return pendingRequest;
   }
   
@@ -53,7 +52,6 @@ async function fetchAPI<T>(
   const timeSinceLastGlobalRequest = now - lastGlobalRequestTime;
   if (timeSinceLastGlobalRequest < MIN_GLOBAL_REQUEST_INTERVAL) {
     const waitTime = MIN_GLOBAL_REQUEST_INTERVAL - timeSinceLastGlobalRequest;
-    console.log(`⏸️ Global rate limiting: waiting ${waitTime}ms before request`);
     await new Promise(resolve => setTimeout(resolve, waitTime));
   }
   
@@ -63,7 +61,6 @@ async function fetchAPI<T>(
     const timeSinceLastRequest = Date.now() - lastTime;
     if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
       const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
-      console.log(`⏸️ Endpoint rate limiting: waiting ${waitTime}ms before request to ${cacheKey}`);
       await new Promise(resolve => setTimeout(resolve, waitTime));
     }
   }
@@ -104,7 +101,6 @@ async function fetchAPI<T>(
         const retryAfter = response.headers.get('Retry-After');
         const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, 4 - retries) * 1000; // Exponential backoff
         
-        console.warn(`⏳ Rate limited (429). Retrying after ${waitTime}ms... (${retries} retries left)`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
         
         // Remove from queue and retry
@@ -122,7 +118,6 @@ async function fetchAPI<T>(
       if (error instanceof Error) {
         if ((error.message.includes('Too many requests') || error.message.includes('429')) && retries > 0) {
           const waitTime = Math.pow(2, 4 - retries) * 1000; // Exponential backoff
-          console.warn(`⏳ Rate limited. Retrying after ${waitTime}ms... (${retries} retries left)`);
           await new Promise(resolve => setTimeout(resolve, waitTime));
           
           // Remove from queue and retry

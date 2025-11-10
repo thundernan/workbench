@@ -85,12 +85,24 @@ export class MarketplaceContractService {
     owner: string,
     operator: string,
     signer: ethers.Signer
-  ): Promise<void> {
-    const erc1155 = new ethers.Contract(tokenContract, ERC1155_ABI, signer);
-    const approved = await erc1155.isApprovedForAll(owner, operator);
-    if (!approved) {
-      const approvalTx = await erc1155.setApprovalForAll(operator, true);
-      await approvalTx.wait();
+  ): Promise<{ isNewApproval: boolean }> {
+    try {
+      const erc1155 = new ethers.Contract(tokenContract, ERC1155_ABI, signer);
+      const approved = await erc1155.isApprovedForAll(owner, operator);
+      
+      if (!approved) {
+        const approvalTx = await erc1155.setApprovalForAll(operator, true);
+        await approvalTx.wait();
+        return { isNewApproval: true };
+      }
+      
+      return { isNewApproval: false };
+    } catch (error: any) {
+      console.error('Approval error:', error);
+      if (error.message?.includes('user rejected') || error.code === 4001 || error.code === 'ACTION_REJECTED') {
+        throw new Error('Transaction cancelled by user');
+      }
+      throw new Error(`Failed to approve marketplace access to your tokens. Please try again.`);
     }
   }
 
@@ -138,7 +150,7 @@ export class MarketplaceContractService {
         };
       }
     } catch (error) {
-      console.warn('Failed to attach timestamp for listing', listing.listingId, error);
+      // Silent fail
     }
 
     return {
@@ -174,159 +186,225 @@ export class MarketplaceContractService {
   async listItemForSwap(
     params: ListSwapParams,
     signer: ethers.Signer
-  ): Promise<{ listingId: number | null; transaction: ethers.ContractTransactionResponse; receipt: ethers.TransactionReceipt }> {
-    const ownerAddress = await signer.getAddress();
-    const provider = signer.provider ?? this.getReadProvider();
+  ): Promise<{ listingId: number | null; transaction: ethers.ContractTransactionResponse; receipt: ethers.TransactionReceipt; wasApprovalNeeded: boolean }> {
+    try {
+      const ownerAddress = await signer.getAddress();
+      const provider = signer.provider ?? this.getReadProvider();
 
-    await this.ensureContractDeployed(provider);
-    await this.ensureApproval(params.tokenContract, ownerAddress, this.contractAddress, signer);
+      await this.ensureContractDeployed(provider);
+      const approvalResult = await this.ensureApproval(params.tokenContract, ownerAddress, this.contractAddress, signer);
 
-    const contract = this.getContract(signer);
-    const tx = await contract.listItemForSwap(
-      params.tokenContract,
-      BigInt(params.tokenId),
-      BigInt(params.amount),
-      params.swapTokenContract,
-      BigInt(params.swapTokenId),
-      BigInt(params.swapAmount)
-    );
+      const contract = this.getContract(signer);
+      const tx = await contract.listItemForSwap(
+        params.tokenContract,
+        BigInt(params.tokenId),
+        BigInt(params.amount),
+        params.swapTokenContract,
+        BigInt(params.swapTokenId),
+        BigInt(params.swapAmount)
+      );
 
-    const receipt = await tx.wait();
-    let listingId: number | null = null;
+      const receipt = await tx.wait();
+      let listingId: number | null = null;
 
-    for (const log of receipt.logs) {
-      try {
-        const parsed = contract.interface.parseLog(log);
-        if (parsed?.name === 'ItemListedForSwap') {
-          listingId = Number(parsed.args?.listingId);
-          break;
+      for (const log of receipt.logs) {
+        try {
+          const parsed = contract.interface.parseLog(log);
+          if (parsed?.name === 'ItemListedForSwap') {
+            listingId = Number(parsed.args?.listingId);
+            break;
+          }
+        } catch {
+          // Ignore logs from other contracts
         }
-      } catch {
-        // Ignore logs from other contracts
       }
-    }
 
-    return {
-      listingId,
-      transaction: tx,
-      receipt
-    };
+      return {
+        listingId,
+        transaction: tx,
+        receipt,
+        wasApprovalNeeded: approvalResult.isNewApproval
+      };
+    } catch (error: any) {
+      console.error('listItemForSwap error:', error);
+      if (error.message?.includes('user rejected') || error.code === 4001 || error.code === 'ACTION_REJECTED') {
+        throw new Error('Transaction cancelled by user');
+      }
+      if (error.message?.includes('insufficient funds')) {
+        throw new Error('Insufficient funds for gas fees');
+      }
+      throw new Error(error.message || 'Failed to create swap offer. Please ensure you own the items and try again.');
+    }
   }
 
   async listItemForETH(
     params: ListEthParams,
     signer: ethers.Signer
-  ): Promise<{ listingId: number | null; transaction: ethers.ContractTransactionResponse; receipt: ethers.TransactionReceipt }> {
-    const ownerAddress = await signer.getAddress();
-    const provider = signer.provider ?? this.getReadProvider();
+  ): Promise<{ listingId: number | null; transaction: ethers.ContractTransactionResponse; receipt: ethers.TransactionReceipt; wasApprovalNeeded: boolean }> {
+    try {
+      const ownerAddress = await signer.getAddress();
+      const provider = signer.provider ?? this.getReadProvider();
 
-    await this.ensureContractDeployed(provider);
-    await this.ensureApproval(params.tokenContract, ownerAddress, this.contractAddress, signer);
+      await this.ensureContractDeployed(provider);
+      const approvalResult = await this.ensureApproval(params.tokenContract, ownerAddress, this.contractAddress, signer);
 
-    const contract = this.getContract(signer);
-    const tx = await contract.listItemForETH(
-      params.tokenContract,
-      BigInt(params.tokenId),
-      BigInt(params.amount),
-      params.priceInWei
-    );
+      const contract = this.getContract(signer);
+      const tx = await contract.listItemForETH(
+        params.tokenContract,
+        BigInt(params.tokenId),
+        BigInt(params.amount),
+        params.priceInWei
+      );
 
-    const receipt = await tx.wait();
-    let listingId: number | null = null;
+      const receipt = await tx.wait();
+      let listingId: number | null = null;
 
-    for (const log of receipt.logs) {
-      try {
-        const parsed = contract.interface.parseLog(log);
-        if (parsed?.name === 'ItemListedForETH') {
-          listingId = Number(parsed.args?.listingId);
-          break;
+      for (const log of receipt.logs) {
+        try {
+          const parsed = contract.interface.parseLog(log);
+          if (parsed?.name === 'ItemListedForETH') {
+            listingId = Number(parsed.args?.listingId);
+            break;
+          }
+        } catch {
+          // ignore
         }
-      } catch {
-        // ignore
       }
-    }
 
-    return {
-      listingId,
-      transaction: tx,
-      receipt
-    };
+      return {
+        listingId,
+        transaction: tx,
+        receipt,
+        wasApprovalNeeded: approvalResult.isNewApproval
+      };
+    } catch (error: any) {
+      console.error('listItemForETH error:', error);
+      if (error.message?.includes('user rejected') || error.code === 4001 || error.code === 'ACTION_REJECTED') {
+        throw new Error('Transaction cancelled by user');
+      }
+      if (error.message?.includes('insufficient funds')) {
+        throw new Error('Insufficient funds for gas fees');
+      }
+      throw new Error(error.message || 'Failed to create ETH listing. Please ensure you own the items and try again.');
+    }
   }
 
   async swapItem(
     listing: MarketplaceListing,
     signer: ethers.Signer
   ): Promise<ethers.TransactionReceipt> {
-    const provider = signer.provider ?? this.getReadProvider();
-    await this.ensureContractDeployed(provider);
+    try {
+      const provider = signer.provider ?? this.getReadProvider();
+      await this.ensureContractDeployed(provider);
 
-    if (listing.listingType !== 'ITEM_SWAP') {
-      throw new Error('Listing is not a swap listing');
+      if (listing.listingType !== 'ITEM_SWAP') {
+        throw new Error('This listing is not available for swapping');
+      }
+
+      if (!listing.swapTokenContract || listing.swapTokenId === null || listing.swapAmount === null) {
+        throw new Error('Swap listing is missing required information');
+      }
+
+      const buyerAddress = await signer.getAddress();
+      await this.ensureApproval(
+        listing.swapTokenContract,
+        buyerAddress,
+        this.contractAddress,
+        signer
+      );
+
+      const contract = this.getContract(signer);
+      const tx = await contract.swapItem(BigInt(listing.listingId));
+      const receipt = await tx.wait();
+
+      if (!receipt) {
+        throw new Error('Swap completed but receipt not received');
+      }
+
+      return receipt;
+    } catch (error: any) {
+      console.error('swapItem error:', error);
+      if (error.message?.includes('user rejected') || error.code === 4001 || error.code === 'ACTION_REJECTED') {
+        throw new Error('Transaction cancelled by user');
+      }
+      if (error.message?.includes('insufficient funds')) {
+        throw new Error('Insufficient funds for gas fees');
+      }
+      if (error.message?.includes('Listing is not active')) {
+        throw new Error('This offer is no longer available');
+      }
+      throw new Error(error.message || 'Failed to complete swap. Please ensure you have the required items and try again.');
     }
-
-    if (!listing.swapTokenContract || listing.swapTokenId === null || listing.swapAmount === null) {
-      throw new Error('Swap listing is missing required token information');
-    }
-
-    const buyerAddress = await signer.getAddress();
-    await this.ensureApproval(
-      listing.swapTokenContract,
-      buyerAddress,
-      this.contractAddress,
-      signer
-    );
-
-    const contract = this.getContract(signer);
-    const tx = await contract.swapItem(BigInt(listing.listingId));
-    const receipt = await tx.wait();
-
-    if (!receipt) {
-      throw new Error('Swap transaction confirmed but no receipt returned.');
-    }
-
-    return receipt;
   }
 
   async buyItemWithETH(
     listing: MarketplaceListing,
     signer: ethers.Signer
   ): Promise<ethers.TransactionReceipt> {
-    const provider = signer.provider ?? this.getReadProvider();
-    await this.ensureContractDeployed(provider);
+    try {
+      const provider = signer.provider ?? this.getReadProvider();
+      await this.ensureContractDeployed(provider);
 
-    if (listing.listingType !== 'ETH_SALE') {
-      throw new Error('Listing is not an ETH sale');
+      if (listing.listingType !== 'ETH_SALE') {
+        throw new Error('This listing is not available for ETH purchase');
+      }
+
+      const contract = this.getContract(signer);
+      const tx = await contract.buyItemWithETH(BigInt(listing.listingId), {
+        value: listing.priceInWei
+      });
+
+      const receipt = await tx.wait();
+      if (!receipt) {
+        throw new Error('Purchase completed but receipt not received');
+      }
+
+      return receipt;
+    } catch (error: any) {
+      console.error('buyItemWithETH error:', error);
+      if (error.message?.includes('user rejected') || error.code === 4001 || error.code === 'ACTION_REJECTED') {
+        throw new Error('Transaction cancelled by user');
+      }
+      if (error.message?.includes('insufficient funds')) {
+        throw new Error('Insufficient ETH to complete purchase (including gas fees)');
+      }
+      if (error.message?.includes('Listing is not active')) {
+        throw new Error('This listing is no longer available');
+      }
+      throw new Error(error.message || 'Failed to complete purchase. Please check your ETH balance and try again.');
     }
-
-    const contract = this.getContract(signer);
-    const tx = await contract.buyItemWithETH(BigInt(listing.listingId), {
-      value: listing.priceInWei
-    });
-
-    const receipt = await tx.wait();
-    if (!receipt) {
-      throw new Error('Purchase transaction confirmed but no receipt returned.');
-    }
-
-    return receipt;
   }
 
   async cancelListing(
     listingId: number,
     signer: ethers.Signer
   ): Promise<ethers.TransactionReceipt> {
-    const provider = signer.provider ?? this.getReadProvider();
-    await this.ensureContractDeployed(provider);
+    try {
+      const provider = signer.provider ?? this.getReadProvider();
+      await this.ensureContractDeployed(provider);
 
-    const contract = this.getContract(signer);
-    const tx = await contract.cancelListing(BigInt(listingId));
-    const receipt = await tx.wait();
+      const contract = this.getContract(signer);
+      const tx = await contract.cancelListing(BigInt(listingId));
+      const receipt = await tx.wait();
 
-    if (!receipt) {
-      throw new Error('Cancel listing transaction confirmed but no receipt returned.');
+      if (!receipt) {
+        throw new Error('Cancellation completed but receipt not received');
+      }
+
+      return receipt;
+    } catch (error: any) {
+      console.error('cancelListing error:', error);
+      if (error.message?.includes('user rejected') || error.code === 4001 || error.code === 'ACTION_REJECTED') {
+        throw new Error('Transaction cancelled by user');
+      }
+      if (error.message?.includes('insufficient funds')) {
+        throw new Error('Insufficient funds for gas fees');
+      }
+      if (error.message?.includes('Not the seller')) {
+        throw new Error('You are not the owner of this listing');
+      }
+      throw new Error(error.message || 'Failed to cancel listing. Please try again.');
     }
-
-    return receipt;
   }
 }
 

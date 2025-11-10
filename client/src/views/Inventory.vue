@@ -6,7 +6,7 @@
     <div class="flex-1 p-6 overflow-auto">
       <div class="max-w-7xl mx-auto">
         <!-- Stats Overview -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div class="bg-slate-800 border-2 border-slate-700 rounded-lg p-4">
             <div class="text-slate-400 text-xs mb-1">Total Items</div>
             <div class="text-2xl font-bold text-white">{{ inventoryStore.totalItems }}</div>
@@ -14,10 +14,6 @@
           <div class="bg-slate-800 border-2 border-slate-700 rounded-lg p-4">
             <div class="text-slate-400 text-xs mb-1">Unique Items</div>
             <div class="text-2xl font-bold text-emerald-400">{{ inventoryStore.uniqueItems }}</div>
-          </div>
-          <div class="bg-slate-800 border-2 border-slate-700 rounded-lg p-4">
-            <div class="text-slate-400 text-xs mb-1">Recipes Learned</div>
-            <div class="text-2xl font-bold text-blue-400">{{ recipesStore.allRecipes.length }}</div>
           </div>
           <div class="bg-slate-800 border-2 border-slate-700 rounded-lg p-4">
             <div class="text-slate-400 text-xs mb-1">Items Crafted</div>

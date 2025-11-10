@@ -1,3 +1,11 @@
+/**
+ * Wallet Configuration - Status Network Only
+ * 
+ * This application exclusively supports Status Network Sepolia testnet.
+ * Network switching functionality has been removed to simplify the user experience.
+ * Users will be automatically prompted to switch to Status Network when they connect.
+ */
+
 // Network configuration type
 export interface NetworkConfig {
   chainId: number;
@@ -11,9 +19,8 @@ export interface NetworkConfig {
   };
 }
 
-// Network configurations - Only Status Network
+// Network configuration - Status Network Sepolia (ONLY SUPPORTED NETWORK)
 export const NETWORKS: Record<string, NetworkConfig> = {
-  // Primary network - Status Network Sepolia
   status: {
     chainId: 1660990954,
     name: 'Status Sepolia',
@@ -27,7 +34,7 @@ export const NETWORKS: Record<string, NetworkConfig> = {
   }
 };
 
-// Primary network - Status Network (default)
+// Primary and only network - Status Network Sepolia
 export const PRIMARY_NETWORK = NETWORKS.status;
 export const DEFAULT_CHAIN_ID = PRIMARY_NETWORK.chainId;
 

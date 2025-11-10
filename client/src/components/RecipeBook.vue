@@ -304,7 +304,6 @@ onMounted(() => {
   if (recipesStore.recipes.length === 0 && 
       !recipesStore.isLoading && 
       !recipesStore.error) {
-    console.log('📚 RecipeBook: Loading recipes...');
     loadRecipes();
   }
 });

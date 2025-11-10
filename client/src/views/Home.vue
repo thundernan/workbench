@@ -290,7 +290,7 @@ onMounted(async () => {
           await inventoryStore.loadUserBalance(address);
         }
       } catch (error) {
-        console.error('Failed to load balance on mount:', error);
+        // Silent fail
       }
     }, 4000); // Delay 4 seconds to let other components load first
   }
@@ -354,7 +354,6 @@ const matchedRecipe = computed(() => {
 
     return null;
   } catch (error) {
-    console.warn('Error in matchedRecipe computed property:', error);
     return null;
   }
 });
@@ -713,7 +712,6 @@ const craftItem = async () => {
       });
 
       const result = await craftingService.craft(matchedRecipe.value, walletStore.signer!);
-      console.log('Craft result:', result);
       const txHash = result.transaction.hash;
       const explorerUrl = getTransactionUrl(walletStore.chainId, txHash);
       const shortHash = `${txHash.slice(0, 8)}...${txHash.slice(-4)}`;
@@ -725,7 +723,6 @@ const craftItem = async () => {
 
       if (result.events.length > 0) {
         const craftedEvent = result.events[0];
-        console.log('Craft result event:', craftedEvent);
         toastStore.showToast({
           type: 'success',
           message: `Crafted ${matchedRecipe.value.name} × ${craftedEvent?.args?.amount ? craftedEvent.args.amount.toString() : matchedRecipe.value.outputAmount}`
@@ -751,7 +748,7 @@ const craftItem = async () => {
         try {
           await inventoryStore.loadUserBalance(walletStore.address, true);
         } catch (loadError) {
-          console.warn('Failed to refresh balance after crafting:', loadError);
+          // Silent fail
         }
       }
     } catch (error: any) {
