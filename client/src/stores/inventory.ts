@@ -67,7 +67,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   // Track loading state to prevent duplicate requests
   let isLoadingBalanceInternal = false;
   let lastBalanceLoadTime = 0;
-  const BALANCE_LOAD_DEBOUNCE_MS = 3000; // 3 second debounce
+  const BALANCE_LOAD_DEBOUNCE_MS = 15000; // 15 second debounce
 
   // Load user's blockchain balance
   const loadUserBalance = async (address: string, force = false) => {
@@ -154,7 +154,7 @@ export const useInventoryStore = defineStore('inventory', () => {
           console.error('Failed to load balance on wallet connect:', error);
         }
         walletWatchTimeout = null;
-      }, 2000); // Wait 2 seconds after wallet connection
+      }, 5000); // Wait 5 seconds after wallet connection
     } else if (!newAddress) {
       userBalance.value = [];
       balanceError.value = null;

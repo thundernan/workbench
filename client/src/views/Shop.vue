@@ -424,7 +424,7 @@ const paidIngredients = computed(() => {
 // Track if we're currently loading to prevent duplicate requests
 let isLoadingIngredients = false;
 let lastLoadTime = 0;
-const LOAD_DEBOUNCE_MS = 1000; // Debounce requests by 1 second
+const LOAD_DEBOUNCE_MS = 3000; // Debounce requests by 3 seconds
 
 // Load ingredients from backend
 const loadIngredients = async (force = false) => {
@@ -793,7 +793,7 @@ const buyIngredient = async (ingredient: IIngredient) => {
 // Track balance loading to prevent duplicate requests
 let isLoadingBalances = false;
 let lastBalanceLoadTime = 0;
-const BALANCE_DEBOUNCE_MS = 2000; // Debounce balance requests by 2 seconds
+const BALANCE_DEBOUNCE_MS = 15000; // Debounce balance requests by 15 seconds
 
 // Load user balances for all ingredients
 const loadUserBalances = async (force = false) => {
@@ -884,16 +884,16 @@ onMounted(async () => {
   // Only load if we don't have ingredients already
   if (ingredients.value.length === 0) {
     // Add initial delay to avoid competing with App.vue's recipe fetch
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
     await loadIngredients();
   }
   
   // Load balances after ingredients are loaded (with longer delay to avoid rate limiting)
   if (walletStore.connected && ingredients.value.length > 0) {
-    // Longer delay to avoid immediate request after page load
+    // Longer delay to avoid immediate request after page load and ingredient fetch
     setTimeout(() => {
       loadUserBalances();
-    }, 2500);
+    }, 6000);
   }
 });
 
@@ -907,11 +907,11 @@ watch(() => walletStore.connected, async (connected) => {
   }
 
   if (connected && ingredients.value.length > 0) {
-    // Debounce the balance load when wallet connects
+    // Debounce the balance load when wallet connects (longer delay to avoid rate limiting)
     walletWatchTimeout = setTimeout(() => {
       loadUserBalances();
       walletWatchTimeout = null;
-    }, 1000); // Wait 1 second after wallet connection
+    }, 4000); // Wait 4 seconds after wallet connection
   } else {
     userBalances.value.clear();
   }
