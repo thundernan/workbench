@@ -12,11 +12,11 @@ const SERVER_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 // Global request queue and rate limiting
 const requestQueue = new Map<string, Promise<any>>();
 const lastRequestTime = new Map<string, number>();
-const MIN_REQUEST_INTERVAL = 3000; // Minimum 3 seconds between requests to same endpoint
+const MIN_REQUEST_INTERVAL = 2000; // Minimum 2 seconds between requests to same endpoint
 
 // Global rate limiter - tracks ALL API requests across all endpoints
 let lastGlobalRequestTime = 0;
-const MIN_GLOBAL_REQUEST_INTERVAL = 2000; // Minimum 2 seconds between ANY API requests (prevents burst requests)
+const MIN_GLOBAL_REQUEST_INTERVAL = 1500; // Minimum 1.5 seconds between ANY API requests (prevents burst requests)
 
 /**
  * Generic fetch wrapper with error handling and rate limiting
