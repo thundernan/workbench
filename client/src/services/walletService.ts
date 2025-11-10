@@ -51,7 +51,6 @@ export class Web3WalletService {
       return;
     }
 
-    const providerss = new ethers.BrowserProvider(window?.ethereum as any);
     // Check known wallets first
     this.knownWalletProviders.forEach(provider => {
       let installed = false;

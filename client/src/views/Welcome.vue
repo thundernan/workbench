@@ -63,18 +63,10 @@
         <!-- Connect Wallet Button -->
         <div class="mt-12 space-y-4">
           <button
-            @click="connectWallet"
-            :disabled="isConnecting"
-            class="px-12 py-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xl font-bold rounded-xl transition-all duration-200 shadow-lg shadow-emerald-500/30 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+            @click="openWalletModal"
+            class="px-12 py-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xl font-bold rounded-xl transition-all duration-200 shadow-lg shadow-emerald-500/30 hover:scale-105"
           >
-            <span v-if="isConnecting" class="flex items-center justify-center gap-3">
-              <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Connecting...
-            </span>
-            <span v-else>Connect Wallet to Start</span>
+            Connect Wallet to Start
           </button>
           
           <p class="text-slate-500 text-sm">
@@ -125,51 +117,213 @@
         </p>
       </div>
     </div>
+
+    <!-- Wallet Selection Modal -->
+    <Dialog 
+      v-model:visible="showWalletModal" 
+      modal
+      :style="{
+        width: '600px', 
+        maxWidth: '90vw',
+        backgroundColor: '#1e293b',
+        borderRadius: '12px',
+        border: '2px solid #334155',
+        padding: '20px 10px',
+        color: '#ffffff'
+      }"
+      :closable="true"
+      :draggable="false"
+      :showHeader="false"
+      class="wallet-modal"
+    >
+      <div class="wallet-selection">
+        <div class="modal-header-info">
+          <div class="flex items-center justify-between mb-4">
+            <p class="modal-subtitle mb-0">
+              Choose a wallet provider to connect
+            </p>
+            <button 
+              @click="showWalletModal = false" 
+              class="close-button"
+              aria-label="Close"
+            >
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
+          <p class="modal-description">
+            Connect with one of available wallet providers or create a new wallet.
+          </p>
+        </div>
+
+        <div class="wallet-grid">
+          <div
+            v-for="provider in walletStore.availableProviders"
+            :key="provider.id"
+            @click="provider.installed ? connectToWallet(provider.id) : null"
+            class="wallet-option"
+            :class="{ 
+              'opacity-50 cursor-not-allowed': !provider.installed,
+              'cursor-pointer': provider.installed
+            }"
+          >
+            <div class="wallet-icon">
+              <img 
+                :src="provider.icon" 
+                :alt="provider.name"
+                class="w-10 h-10 rounded-lg"
+                @error="handleImageError"
+              />
+            </div>
+            <div class="wallet-info">
+              <h3 class="wallet-name">{{ provider.name }}</h3>
+              <p class="wallet-status" :class="provider.installed ? 'text-emerald-400' : 'text-slate-400'">
+                <i :class="provider.installed ? 'pi pi-check-circle' : 'pi pi-times-circle'" class="mr-1"></i>
+                {{ provider.installed ? 'Ready to connect' : 'Not installed' }}
+              </p>
+            </div>
+            <div class="wallet-action">
+              <i 
+                v-if="provider.installed" 
+                class="pi pi-arrow-right"
+              ></i>
+              <a 
+                v-else
+                :href="getInstallLink(provider.id)"
+                target="_blank"
+                class="install-badge"
+                @click.stop
+              >
+                Install
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fallback if no wallets are available -->
+        <div v-if="walletStore.availableProviders.length === 0 || !hasInstalledWallets" class="no-wallets-message">
+          <div class="no-wallets-card">
+            <div class="warning-icon">⚠️</div>
+            <h3 class="text-white font-semibold text-lg mb-2">No Wallets Detected</h3>
+            <p class="text-slate-400 text-sm mb-4">
+              You need a Web3 wallet to play Workbench. Install one of these popular options:
+            </p>
+            <div class="install-options">
+              <a 
+                href="https://metamask.io/download/" 
+                target="_blank"
+                class="install-link"
+              >
+                <span class="install-link-icon">🦊</span>
+                <span class="install-link-text">
+                  <span class="font-semibold">MetaMask</span>
+                  <span class="text-xs text-slate-400">Most popular wallet</span>
+                </span>
+                <i class="pi pi-external-link text-sm"></i>
+              </a>
+              <a 
+                href="https://trustwallet.com/download" 
+                target="_blank"
+                class="install-link"
+              >
+                <span class="install-link-icon">🛡️</span>
+                <span class="install-link-text">
+                  <span class="font-semibold">Trust Wallet</span>
+                  <span class="text-xs text-slate-400">Mobile & Desktop</span>
+                </span>
+                <i class="pi pi-external-link text-sm"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- Error Display -->
+        <div v-if="error" class="error-message">
+          <div class="p-3 bg-red-900/50 border border-red-500 rounded-lg">
+            <div class="text-red-400 text-sm">{{ error }}</div>
+          </div>
+        </div>
+
+        <!-- Help Section -->
+        <div class="help-section">
+          <div class="help-card">
+            <div class="help-icon">
+              <i class="pi pi-question-circle"></i>
+            </div>
+            <div class="help-content">
+              <h4 class="help-title">New to Ethereum wallets?</h4>
+              <p class="help-description">
+                A wallet lets you connect to Workbench and manage your digital assets.
+              </p>
+              <a 
+                href="https://ethereum.org/en/wallets/" 
+                target="_blank" 
+                class="help-link"
+              >
+                Learn more about wallets
+                <i class="pi pi-arrow-right ml-1"></i>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+import Dialog from 'primevue/dialog';
 import { useWalletStore } from '@/stores/wallet';
 import { useToastStore } from '@/stores/toast';
 
 const walletStore = useWalletStore();
 const toastStore = useToastStore();
-const isConnecting = ref(false);
+const showWalletModal = ref(false);
+const error = ref('');
 
-const connectWallet = async () => {
-  isConnecting.value = true;
+// Check if any wallets are installed
+const hasInstalledWallets = computed(() => {
+  return walletStore.availableProviders.some(p => p.installed);
+});
+
+// Open wallet selection modal
+const openWalletModal = () => {
+  error.value = '';
+  showWalletModal.value = true;
+};
+
+// Connect to selected wallet
+const connectToWallet = async (walletId: string) => {
+  error.value = '';
   try {
-    // Get available providers
-    const providers = walletStore.availableProviders;
-    
-    if (providers.length === 0) {
-      throw new Error('No Web3 wallet detected. Please install MetaMask or another Web3 wallet.');
-    }
-    
-    // Find first installed provider
-    const installedProvider = providers.find(p => p.installed);
-    
-    if (!installedProvider) {
-      throw new Error('Please install a Web3 wallet like MetaMask to continue.');
-    }
-    
-    // Connect to the first available wallet
-    await walletStore.connectWallet(installedProvider.id);
+    await walletStore.connectWallet(walletId);
+    showWalletModal.value = false;
     
     toastStore.showToast({
       type: 'success',
       message: 'Wallet connected successfully! Welcome to Workbench.'
     });
-  } catch (error: any) {
-    console.error('Failed to connect wallet:', error);
-    toastStore.showToast({
-      type: 'error',
-      message: error.message || 'Failed to connect wallet. Please try again.'
-    });
-  } finally {
-    isConnecting.value = false;
+  } catch (err: any) {
+    console.error('Failed to connect wallet:', err);
+    error.value = err.message || 'Failed to connect wallet. Please try again.';
   }
+};
+
+// Get install link for wallet
+const getInstallLink = (walletId: string): string => {
+  const links: { [key: string]: string } = {
+    metamask: 'https://metamask.io/download/',
+    coinbase: 'https://www.coinbase.com/wallet/downloads',
+    trust: 'https://trustwallet.com/download',
+    walletconnect: 'https://walletconnect.com/'
+  };
+  return links[walletId] || 'https://ethereum.org/en/wallets/find-wallet/';
+};
+
+// Handle image load errors
+const handleImageError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  img.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTYiIGZpbGw9IiNGM0Y0RjYiLz4KPHBhdGggZD0iTTEyIDEySDIwVjIwSDEyVjEyWiIgZmlsbD0iIzlDQTNBRiIvPgo8L3N2Zz4K';
 };
 </script>
 
@@ -185,6 +339,346 @@ const connectWallet = async () => {
 
 .welcome-page img {
   animation: float 3s ease-in-out infinite;
+}
+
+/* Wallet Modal Styles */
+.wallet-selection {
+  padding-right: 20px;
+  padding-left: 20px;
+}
+
+.modal-header-info {
+  margin-bottom: 2rem;
+}
+
+.modal-subtitle {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: white;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+.modal-description {
+  font-size: 0.875rem;
+  color: #94a3b8;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.close-button {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0.5rem;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+}
+
+.close-button:hover {
+  background: rgba(148, 163, 184, 0.1);
+  color: #ffffff;
+}
+
+.wallet-modal :deep(.p-dialog) {
+  border-radius: 12px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+  background-color: #1e293b !important;
+  background: #1e293b !important;
+  overflow: hidden;
+  border: 2px solid #334155;
+  max-width: 90vw;
+}
+
+.wallet-modal :deep(.p-dialog .p-dialog-content) {
+  background-color: #1e293b !important;
+  background: #1e293b !important;
+}
+
+.wallet-modal :deep(.p-dialog-mask) {
+  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.75) !important;
+}
+
+.wallet-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.wallet-option {
+  display: flex;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border: 2px solid #334155;
+  border-radius: 12px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #0f172a;
+  position: relative;
+  overflow: hidden;
+}
+
+.wallet-option::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.05) 0%, rgba(5, 150, 105, 0.05) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.wallet-option:hover:not(.opacity-50)::before {
+  opacity: 1;
+}
+
+.wallet-option:hover:not(.opacity-50) {
+  border-color: #10b981;
+  background-color: #1e293b;
+  transform: translateX(4px);
+  box-shadow: 0 8px 24px rgba(16, 185, 129, 0.25);
+}
+
+.wallet-option.opacity-50 {
+  cursor: not-allowed;
+  background-color: #0f172a;
+  opacity: 0.4;
+  border-color: #1e293b;
+}
+
+.wallet-icon {
+  margin-right: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  background: #1e293b;
+  border-radius: 10px;
+  padding: 8px;
+  border: 2px solid #334155;
+  position: relative;
+  z-index: 1;
+}
+
+.wallet-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.wallet-info {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.wallet-name {
+  font-size: 1.125rem;
+  font-weight: 700;
+  margin: 0 0 0.25rem 0;
+  color: white;
+  letter-spacing: -0.01em;
+}
+
+.wallet-status {
+  font-size: 0.75rem;
+  margin: 0;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.wallet-action {
+  margin-left: 1.25rem;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+}
+
+.wallet-action .pi {
+  font-size: 1.25rem;
+  color: #64748b;
+  transition: all 0.3s ease;
+}
+
+.wallet-option:hover:not(.opacity-50) .wallet-action .pi {
+  color: #10b981;
+  transform: translateX(4px);
+}
+
+.install-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.875rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid #10b981;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.install-badge:hover {
+  background: #10b981;
+  color: #0f172a;
+  transform: scale(1.05);
+}
+
+.no-wallets-message {
+  margin-bottom: 2rem;
+}
+
+.no-wallets-card {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.1) 0%, rgba(217, 119, 6, 0.05) 100%);
+  border: 2px solid #f59e0b;
+  border-radius: 12px;
+  padding: 2rem;
+  text-align: center;
+}
+
+.warning-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.install-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.install-link {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: #0f172a;
+  border: 2px solid #334155;
+  border-radius: 10px;
+  text-decoration: none;
+  color: white;
+  transition: all 0.2s ease;
+}
+
+.install-link:hover {
+  border-color: #10b981;
+  background: #1e293b;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(16, 185, 129, 0.2);
+}
+
+.install-link-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.install-link-text {
+  flex: 1;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.error-message {
+  margin-bottom: 1.5rem;
+}
+
+.help-section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 2px solid #334155;
+}
+
+.help-card {
+  display: flex;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid #334155;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.help-card:hover {
+  border-color: #10b981;
+  background: rgba(15, 23, 42, 0.8);
+}
+
+.help-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(16, 185, 129, 0.1);
+  border-radius: 10px;
+  color: #10b981;
+  font-size: 1.25rem;
+}
+
+.help-content {
+  flex: 1;
+}
+
+.help-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: white;
+  margin: 0 0 0.375rem 0;
+  line-height: 1.3;
+}
+
+.help-description {
+  font-size: 0.8125rem;
+  color: #94a3b8;
+  margin: 0 0 0.75rem 0;
+  line-height: 1.5;
+}
+
+.help-link {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #10b981;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.help-link:hover {
+  color: #34d399;
+  transform: translateX(2px);
+}
+
+.help-link .ml-1 {
+  margin-left: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.mr-1 {
+  margin-right: 0.25rem;
+}
+
+.mb-0 {
+  margin-bottom: 0;
 }
 </style>
 
