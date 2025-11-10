@@ -26,7 +26,7 @@ const options: swaggerJsdoc.Options = {
       schemas: {
         Recipe: {
           type: 'object',
-          required: ['blockchainRecipeId', 'resultTokenContract', 'resultTokenId', 'resultAmount', 'ingredients', 'name'],
+          required: ['outputTokenId', 'outputAmount', 'requiresExactPattern', 'active', 'ingredients', 'name'],
           properties: {
             _id: {
               type: 'string',
@@ -34,27 +34,31 @@ const options: swaggerJsdoc.Options = {
               example: '64f8a1b2c3d4e5f6a7b8c9d0'
             },
             blockchainRecipeId: {
-              type: 'string',
+              type: ['number', 'null'],
               description: 'Recipe ID from blockchain',
-              example: '12345'
+              example: 12345
             },
-            resultTokenContract: {
-              type: 'string',
-              description: 'Address of the result ERC1155 contract',
-              example: '0x1234567890123456789012345678901234567890',
-              pattern: '^0x[a-fA-F0-9]{40}$'
-            },
-            resultTokenId: {
+            outputTokenId: {
               type: 'number',
               description: 'Token ID of the result',
               example: 1,
               minimum: 0
             },
-            resultAmount: {
+            outputAmount: {
               type: 'number',
               description: 'Amount of result produced',
               example: 1,
               minimum: 1
+            },
+            requiresExactPattern: {
+              type: 'boolean',
+              description: 'Whether the ingredient positions must match exactly',
+              example: true
+            },
+            active: {
+              type: 'boolean',
+              description: 'Recipe active status',
+              example: true
             },
             ingredients: {
               type: 'array',
@@ -63,7 +67,7 @@ const options: swaggerJsdoc.Options = {
                 type: 'object',
                 properties: {
                   tokenContract: {
-                    type: 'string',
+                    type: ['string', 'null'],
                     description: 'Address of the ERC1155 contract',
                     example: '0x1234567890123456789012345678901234567890'
                   },
@@ -81,7 +85,36 @@ const options: swaggerJsdoc.Options = {
                     type: 'number',
                     description: 'Position in crafting grid (0-8)',
                     example: 0
+                  },
+                  metadata: {
+                    type: ['object', 'null'],
+                    description: 'Metadata associated with the ingredient'
                   }
+                }
+              }
+            },
+            outputIngredient: {
+              type: ['object', 'null'],
+              description: 'Output ingredient with metadata',
+              properties: {
+                tokenContract: {
+                  type: ['string', 'null'],
+                  description: 'Address of the ERC1155 contract for the output token',
+                  example: '0x1234567890123456789012345678901234567890'
+                },
+                tokenId: {
+                  type: 'number',
+                  description: 'Token ID of the output ingredient',
+                  example: 1
+                },
+                amount: {
+                  type: 'number',
+                  description: 'Amount produced by the recipe',
+                  example: 1
+                },
+                metadata: {
+                  type: ['object', 'null'],
+                  description: 'Metadata associated with the output ingredient'
                 }
               }
             },

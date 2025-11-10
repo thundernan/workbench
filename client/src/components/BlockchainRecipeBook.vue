@@ -167,7 +167,7 @@
           <div class="flex items-center justify-between text-xs">
             <span class="text-slate-400">Crafts:</span>
             <span class="text-emerald-400 font-medium">
-              {{ selectedRecipe.resultAmount }}x Token #{{ selectedRecipe.resultTokenId }}
+              {{ selectedRecipe.outputAmount }}x Token #{{ selectedRecipe.outputTokenId }}
             </span>
           </div>
         </div>
@@ -207,11 +207,11 @@
           <div class="mt-2 space-y-1 text-xs font-mono">
             <div class="flex justify-between">
               <span class="text-slate-400">Recipe ID:</span>
-              <span class="text-slate-300">{{ selectedRecipe.blockchainRecipeId }}</span>
+            <span class="text-slate-300">{{ selectedRecipe.blockchainRecipeId ?? '—' }}</span>
             </div>
             <div class="flex justify-between">
               <span class="text-slate-400">Result Contract:</span>
-              <span class="text-slate-300 truncate ml-2">{{ shortAddress(selectedRecipe.resultTokenContract) }}</span>
+            <span class="text-slate-300 truncate ml-2">{{ shortAddress(selectedRecipe.outputTokenContract || '') }}</span>
             </div>
           </div>
         </details>
@@ -277,7 +277,7 @@ const filteredRecipes = computed(() => {
     recipes = recipes.filter(recipe =>
       recipe.name.toLowerCase().includes(query) ||
       (recipe.description && recipe.description.toLowerCase().includes(query)) ||
-      recipe.blockchainRecipeId.includes(query)
+      (recipe.blockchainRecipeId !== null && recipe.blockchainRecipeId !== undefined && String(recipe.blockchainRecipeId).includes(query))
     );
   }
 
@@ -344,6 +344,9 @@ const getPositionClass = (position: number): string => {
 };
 
 const shortAddress = (address: string): string => {
+  if (!address || address.length < 8) {
+    return address || 'N/A';
+  }
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 };
 
@@ -382,10 +385,9 @@ onMounted(() => {
   if (recipesStore.allBlockchainRecipes.length === 0 && 
       !recipesStore.isLoading && 
       !recipesStore.error) {
-    console.log('📚 BlockchainRecipeBook: Loading recipes...');
     loadRecipes();
   } else if (recipesStore.allBlockchainRecipes.length > 0) {
-    console.log(`📚 BlockchainRecipeBook: Using ${recipesStore.allBlockchainRecipes.length} pre-loaded recipes`);
+    // Recipes already loaded
   }
 });
 </script>

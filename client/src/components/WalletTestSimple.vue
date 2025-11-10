@@ -43,7 +43,6 @@ const walletStore = useWalletStore();
 const showTestModal = ref(false);
 
 const testClick = () => {
-  console.log('Test button clicked!');
   showTestModal.value = true;
 };
 </script>

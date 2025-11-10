@@ -125,7 +125,7 @@ import { useRecipesStore } from '@/stores/recipes';
 import { useWalletStore } from '@/stores/wallet';
 import { useToastStore } from '@/stores/toast';
 import ItemIcon from './ItemIcon.vue';
-import type { Item } from '@/types';
+import type { Item, CraftingTransaction } from '@/types';
 
 const inventoryStore = useInventoryStore();
 const recipesStore = useRecipesStore();
@@ -194,11 +194,20 @@ const craftItem = async () => {
 
     // Send mock transaction if wallet connected
     if (walletStore.connected) {
-      const txHash = await walletStore.sendCraftTx(matchedRecipe.value.id);
-      toastStore.showToast({
-        type: 'success',
-        message: `Crafted ${matchedRecipe.value.result.name}! TX: ${txHash.slice(0, 10)}...`
-      });
+      const craftingTx: CraftingTransaction | null = buildCraftingTransaction();
+
+      if (craftingTx) {
+        const txHash = await walletStore.sendCraftTx(craftingTx);
+        toastStore.showToast({
+          type: 'success',
+          message: `Crafted ${matchedRecipe.value.result.name}! TX: ${txHash.slice(0, 10)}...`
+        });
+      } else {
+        toastStore.showToast({
+          type: 'info',
+          message: `Crafted ${matchedRecipe.value.result.name}! (off-chain preview)`
+        });
+      }
     } else {
       toastStore.showToast({
         type: 'success',
@@ -224,6 +233,43 @@ const addToGrid = (item: Item) => {
     grid.value[emptyIndex] = item;
     inventoryStore.removeItem(item.id, 1);
   }
+};
+
+const buildCraftingTransaction = (): CraftingTransaction | null => {
+  if (!matchedRecipe.value) {
+    return null;
+  }
+
+  const ingredients = matchedRecipe.value.ingredients
+    .map(ingredient => {
+      const tokenContract = (ingredient.item as any)?.tokenContract;
+      const tokenIdRaw = (ingredient.item as any)?.tokenId ?? ingredient.item.id;
+      const tokenId = typeof tokenIdRaw === 'number' ? tokenIdRaw : Number(tokenIdRaw);
+
+      if (typeof tokenContract !== 'string' || tokenContract.length === 0) {
+        return null;
+      }
+
+      if (Number.isNaN(tokenId)) {
+        return null;
+      }
+
+      return {
+        tokenContract,
+        tokenId,
+        amount: ingredient.quantity
+      };
+    })
+    .filter((ingredient): ingredient is { tokenContract: string; tokenId: number; amount: number } => ingredient !== null);
+
+  if (ingredients.length === 0) {
+    return null;
+  }
+
+  return {
+    recipeId: matchedRecipe.value.id,
+    ingredients
+  };
 };
 
 // Define emits

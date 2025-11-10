@@ -137,6 +137,4 @@ const rarityClasses = computed(() => {
   }
 });
 
-// Initialize sample items on mount
-inventoryStore.initializeSampleItems();
 </script>

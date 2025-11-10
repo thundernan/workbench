@@ -1,13 +1,21 @@
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { Item, InventoryItem } from '@/types';
+import { apiService, type InventoryItem as ApiInventoryItem } from '@/services/apiService';
+import { useWalletStore } from './wallet';
+import { IIngredient } from './recipes';
 
 export const useInventoryStore = defineStore('inventory', () => {
+  const walletStore = useWalletStore();
+  
   const items = ref<InventoryItem[]>([]);
+  const userBalance = ref<IIngredient[]>([]); // User's blockchain balance
+  const isLoadingBalance = ref(false);
+  const balanceError = ref<string | null>(null);
 
   // Add items to inventory
-  const addItem = (item: Item, quantity: number = 1) => {
-    const existingItem = items.value.find(invItem => invItem.item.id === item.id);
+  const addItem = (item: IIngredient, quantity: number = 1) => {
+    const existingItem = items.value.find(invItem => invItem.item.tokenId === item.tokenId);
     if (existingItem) {
       existingItem.quantity += quantity;
     } else {
@@ -17,11 +25,11 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   // Remove items from inventory
   const removeItem = (itemId: string, quantity: number = 1) => {
-    const existingItem = items.value.find(invItem => invItem.item.id === itemId);
+    const existingItem = items.value.find(invItem => invItem.item.tokenId === itemId);
     if (existingItem) {
       existingItem.quantity -= quantity;
       if (existingItem.quantity <= 0) {
-        const index = items.value.findIndex(invItem => invItem.item.id === itemId);
+        const index = items.value.findIndex(invItem => invItem.item.tokenId === itemId);
         items.value.splice(index, 1);
       }
     }
@@ -29,19 +37,19 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   // Check if we have enough of an item
   const hasItem = (itemId: string, quantity: number = 1): boolean => {
-    const item = items.value.find(invItem => invItem.item.id === itemId);
+    const item = items.value.find(invItem => invItem.item.tokenId === itemId);
     return item ? item.quantity >= quantity : false;
   };
 
   // Get item quantity
   const getItemQuantity = (itemId: string): number => {
-    const item = items.value.find(invItem => invItem.item.id === itemId);
+    const item = items.value.find(invItem => invItem.item.tokenId === itemId);
     return item ? item.quantity : 0;
   };
 
   // Get item by ID
   const getItem = (itemId: string): InventoryItem | undefined => {
-    return items.value.find(invItem => invItem.item.id === itemId);
+    return items.value.find(invItem => invItem.item.tokenId === itemId);
   };
 
   // Computed properties
@@ -51,78 +59,116 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   const uniqueItems = computed(() => items.value.length);
 
-  // All available items in the game (catalog)
-  const allItems: Item[] = [
-    {
-      id: 'wood',
-      name: 'Wood',
-      description: 'Basic crafting material',
-      icon: '🪵',
-      rarity: 'common',
-      category: 'material'
-    },
-    {
-      id: 'stone',
-      name: 'Stone',
-      description: 'Hard material for tools',
-      icon: '🪨',
-      rarity: 'common',
-      category: 'material'
-    },
-    {
-      id: 'iron',
-      name: 'Iron',
-      description: 'Metal for advanced crafting',
-      icon: '⬛',
-      rarity: 'uncommon',
-      category: 'material'
-    },
-    {
-      id: 'diamond',
-      name: 'Diamond',
-      description: 'Rare precious gem',
-      icon: '💎',
-      rarity: 'rare',
-      category: 'material'
-    },
-    {
-      id: 'wooden_pickaxe',
-      name: 'Wooden Pickaxe',
-      description: 'Basic mining tool',
-      icon: '⛏️',
-      rarity: 'common',
-      category: 'tool'
-    },
-    {
-      id: 'wooden_sword',
-      name: 'Wooden Sword',
-      description: 'A basic wooden sword',
-      icon: '🗡️',
-      rarity: 'common',
-      category: 'weapon'
-    },
-    {
-      id: 'iron_sword',
-      name: 'Iron Sword',
-      description: 'A sharp iron sword',
-      icon: '⚔️',
-      rarity: 'rare',
-      category: 'weapon'
-    }
-  ];
+  // All available items in the game (catalog) - loaded from backend
+  const allItems = ref<IIngredient[]>([]);
+  const isLoading = ref(false);
+  const loadError = ref<string | null>(null);
 
-  // Initialize with some sample items
-  const initializeSampleItems = () => {
-    // Add some sample quantities
-    addItem(allItems[0], 10); // 10 wood
-    addItem(allItems[1], 8);  // 8 stone
-    addItem(allItems[2], 5);  // 5 iron
-    addItem(allItems[3], 2);  // 2 diamond
+  // Track loading state to prevent duplicate requests
+  let isLoadingBalanceInternal = false;
+  let lastBalanceLoadTime = 0;
+  const BALANCE_LOAD_DEBOUNCE_MS = 15000; // 15 second debounce
+
+  // Load user's blockchain balance
+  const loadUserBalance = async (address: string, force = false) => {
+    // Prevent duplicate concurrent requests
+    if (isLoadingBalanceInternal && !force) {
+      return userBalance.value;
+    }
+
+    // Debounce rapid requests
+    const now = Date.now();
+    if (!force && now - lastBalanceLoadTime < BALANCE_LOAD_DEBOUNCE_MS) {
+      return userBalance.value;
+    }
+
+    isLoadingBalance.value = true;
+    isLoadingBalanceInternal = true;
+    balanceError.value = null;
+    lastBalanceLoadTime = now;
+    
+    try {
+      const inventoryData = await apiService.getUserInventory(address, false);
+      
+      // Convert backend inventory items to frontend Items with balance
+      userBalance.value = inventoryData.inventory;
+      
+      return userBalance.value;
+    } catch (error) {
+      console.error('❌ Failed to load user balance:', error);
+      balanceError.value = error instanceof Error ? error.message : 'Failed to load balance';
+      userBalance.value = [];
+      
+      // Don't throw if it's a rate limit error
+      if (error instanceof Error && 
+          (error.message.includes('Too many requests') || error.message.includes('rate limit'))) {
+        return userBalance.value;
+      }
+      
+      throw error;
+    } finally {
+      isLoadingBalance.value = false;
+      isLoadingBalanceInternal = false;
+    }
   };
+
+  // Load ingredients from backend API (all ingredients catalog)
+  const loadIngredientsFromAPI = async () => {
+    isLoading.value = true;
+    loadError.value = null;
+    
+    try {
+      const ingredients = await apiService.getIngredients({ limit: 10 });
+      
+      // Convert backend ingredients to frontend Items
+      allItems.value = ingredients;
+      
+      return allItems.value;
+    } catch (error) {
+      console.error('❌ Failed to load ingredients from API:', error);
+      loadError.value = error instanceof Error ? error.message : 'Failed to load ingredients';
+      
+      // No fallback - return empty array if API fails
+      allItems.value = [];
+      return allItems.value;
+    } finally {
+      isLoading.value = false;
+    }
+  };
+
+  // Watch for wallet connection changes (with debouncing)
+  let walletWatchTimeout: ReturnType<typeof setTimeout> | null = null;
+  watch(() => walletStore.address, async (newAddress, oldAddress) => {
+    // Clear any pending timeout
+    if (walletWatchTimeout) {
+      clearTimeout(walletWatchTimeout);
+      walletWatchTimeout = null;
+    }
+
+    if (newAddress && newAddress !== oldAddress) {
+      // Debounce the balance load when wallet connects
+      walletWatchTimeout = setTimeout(async () => {
+        try {
+          await loadUserBalance(newAddress);
+        } catch (error) {
+          console.error('Failed to load balance on wallet connect:', error);
+        }
+        walletWatchTimeout = null;
+      }, 5000); // Wait 5 seconds after wallet connection
+    } else if (!newAddress) {
+      userBalance.value = [];
+      balanceError.value = null;
+    }
+  });
 
   return {
     items,
     allItems,
+    userBalance,
+    isLoading,
+    loadError,
+    isLoadingBalance,
+    balanceError,
     addItem,
     removeItem,
     hasItem,
@@ -130,6 +176,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     getItem,
     totalItems,
     uniqueItems,
-    initializeSampleItems
+    loadIngredientsFromAPI,
+    loadUserBalance
   };
 });

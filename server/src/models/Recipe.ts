@@ -33,6 +33,8 @@ export interface IRecipe {
     amount: number;
     position: number;
   }>;
+  craftCount?: number;
+  lastCraftedAt?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -85,6 +87,15 @@ const recipeSchema = new Schema<IRecipeDocument>({
       },
       message: 'Recipe must have 1-9 ingredients'
     }
+  },
+  craftCount: {
+    type: Number,
+    default: 0,
+    min: [0, 'craftCount cannot be negative']
+  },
+  lastCraftedAt: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true,
@@ -97,6 +108,7 @@ recipeSchema.index({ outputTokenId: 1 });
 recipeSchema.index({ name: 1 });
 recipeSchema.index({ active: 1 });
 recipeSchema.index({ createdAt: -1 });
+recipeSchema.index({ lastCraftedAt: -1 });
 
 // Instance methods
 recipeSchema.methods['toJSON'] = function() {

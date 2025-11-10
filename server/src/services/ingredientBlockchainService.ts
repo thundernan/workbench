@@ -210,35 +210,31 @@ export class IngredientBlockchainService {
    * Create a new token type
    * @param id - Token ID
    * @param name - Token name
-   * @param price - Token price in wei (0 for free minting)
+   * @param price - Token price in wei (0 for free minting) - NOTE: Only stored in DB metadata, not on blockchain
    * @returns Transaction response
    */
   async createTokenType(id: number, name: string, price: bigint = BigInt(0)): Promise<any> {
     try {
-      console.log(`🪙 Creating token type ID ${id} with name "${name}" and price ${ethers.formatEther(price)} ETH...`);
+      console.log(`🪙 Creating token type ID ${id} with name "${name}"...`);
+      console.log(`   Note: Price ${ethers.formatEther(price)} ETH will be stored in metadata only (contract doesn't support price parameter)`);
       
-      // Get private key from environment
-      const privateKey = process.env['MINTER_PRIVATE_KEY'];
-      if (!privateKey) {
-        throw new Error('MINTER_PRIVATE_KEY not found in environment variables');
+      // Check if signer is available
+      if (!blockchainConnection.hasSigner()) {
+        throw new Error('Signer not initialized. MINTER_PRIVATE_KEY required for write operations.');
       }
 
-      // Create wallet with signer
-      const provider = blockchainConnection.getProvider();
-      const wallet = new ethers.Wallet(privateKey, provider);
-      
-      // Create contract instance with signer
+      // Get contract instance with signer (reuses existing signer from connection)
       const contractAddress = blockchainConnection.getERC1155Address();
-      const contract = new ethers.Contract(
+      const contract = blockchainConnection.createContractWithSigner(
         contractAddress,
         [
-          'function createTokenType(uint256 id, string memory name, uint256 price) external'
-        ],
-        wallet
+          // Use 2-parameter version that matches the deployed contract
+          'function createTokenType(uint256 id, string memory name) external'
+        ]
       );
       
-      // Create the token type with price
-      const tx = await contract['createTokenType']?.(id, name, price);
+      // Create the token type (without price - contract doesn't support it)
+      const tx = await contract['createTokenType']?.(id, name);
       console.log(`⏳ Transaction sent: ${tx.hash}`);
       
       const receipt = await tx.wait();
@@ -247,7 +243,7 @@ export class IngredientBlockchainService {
       return {
         hash: tx.hash,
         blockNumber: receipt.blockNumber,
-        priceWei: price.toString(),
+        priceWei: price.toString(), // Return the price for metadata storage
         priceEth: ethers.formatEther(price),
         transaction: tx,
         receipt: receipt
@@ -270,25 +266,18 @@ export class IngredientBlockchainService {
     try {
       console.log(`🪙 Minting token ID ${id} to ${to} with amount ${amount}...`);
       
-      // Get private key from environment
-      const privateKey = process.env['MINTER_PRIVATE_KEY'];
-      console.log({privateKey});
-      if (!privateKey) {
-        throw new Error('MINTER_PRIVATE_KEY not found in environment variables');
+      // Check if signer is available
+      if (!blockchainConnection.hasSigner()) {
+        throw new Error('Signer not initialized. MINTER_PRIVATE_KEY required for write operations.');
       }
 
-      // Create wallet with signer
-      const provider = blockchainConnection.getProvider();
-      const wallet = new ethers.Wallet(privateKey, provider);
-      
-      // Create contract instance with signer
+      // Get contract instance with signer (reuses existing signer from connection)
       const contractAddress = blockchainConnection.getERC1155Address();
-      const contract = new ethers.Contract(
+      const contract = blockchainConnection.createContractWithSigner(
         contractAddress,
         [
-          'function mint(address to, uint256 id, uint256 amount, bytes data) returns (bool)'
-        ],
-        wallet
+          'function mint(address to, uint256 id, uint256 amount, bytes data)'
+        ]
       );
       
       // Mint the token
@@ -353,6 +342,61 @@ export class IngredientBlockchainService {
    */
   getProvider(): ethers.Provider {
     return blockchainConnection.getProvider();
+  }
+
+  /**
+   * Set token price on blockchain (if contract supports it)
+   * @param tokenId - Token ID
+   * @param price - Price in wei
+   * @returns Transaction response or null if not supported
+   */
+  async setTokenPrice(tokenId: number, price: bigint): Promise<any> {
+    try {
+      console.log(`💰 Setting price for token ID ${tokenId} to ${ethers.formatEther(price)} ETH...`);
+      
+      // Check if signer is available
+      if (!blockchainConnection.hasSigner()) {
+        throw new Error('Signer not initialized. MINTER_PRIVATE_KEY required for write operations.');
+      }
+
+      // Get contract instance with signer
+      const contractAddress = blockchainConnection.getERC1155Address();
+      const contract = blockchainConnection.createContractWithSigner(
+        contractAddress,
+        [
+          'function setTokenPrice(uint256 id, uint256 price) external'
+        ]
+      );
+      
+      // Set the token price
+      const tx = await contract['setTokenPrice']?.(tokenId, price);
+      console.log(`⏳ Transaction sent: ${tx.hash}`);
+      
+      const receipt = await tx.wait();
+      console.log(`✅ Token price updated on blockchain! Block: ${receipt.blockNumber}`);
+      
+      return {
+        hash: tx.hash,
+        blockNumber: receipt.blockNumber,
+        priceWei: price.toString(),
+        priceEth: ethers.formatEther(price),
+        transaction: tx,
+        receipt: receipt
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Check if function doesn't exist on contract
+      if (errorMessage.includes('no matching fragment') || 
+          errorMessage.includes('does not exist') ||
+          errorMessage.includes('is not a function')) {
+        console.warn(`⚠️  setTokenPrice function not available on contract`);
+        return null; // Contract doesn't support price setting
+      }
+      
+      console.error(`Failed to set token price ${tokenId}:`, error);
+      throw new Error(`Token price update failed: ${errorMessage}`);
+    }
   }
 }
 

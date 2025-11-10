@@ -4,6 +4,7 @@ import {
   getIngredients,
   getIngredient,
   updateIngredient,
+  setIngredientPrice,
   deleteIngredient,
   getTokenBalance,
   getTokenPrice,
@@ -203,6 +204,95 @@ router.get('/:tokenContract/:tokenId', getIngredient);
  *         description: Ingredient not found
  */
 router.put('/:tokenContract/:tokenId', updateIngredient);
+
+/**
+ * @swagger
+ * /api/ingredients/{tokenId}/price:
+ *   patch:
+ *     summary: Set or update ingredient price
+ *     tags: [Ingredients]
+ *     description: Updates the price of an existing ingredient in the database and optionally on the blockchain (if contract supports it). Price is provided in wei. If price is not provided, defaults to 0 (free).
+ *     parameters:
+ *       - in: path
+ *         name: tokenId
+ *         required: true
+ *         schema:
+ *           type: number
+ *         description: Token ID
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               price:
+ *                 type: string
+ *                 description: Price in wei (e.g., "1000000000000000" for 0.001 ETH). Defaults to "0" (free) if not provided.
+ *                 example: "1000000000000000"
+ *                 default: "0"
+ *           examples:
+ *             free:
+ *               summary: Set to free (0 ETH) - default
+ *               value:
+ *                 price: "0"
+ *             omitted:
+ *               summary: Omit price (defaults to free)
+ *               value: {}
+ *             small:
+ *               summary: Set to 0.001 ETH
+ *               value:
+ *                 price: "1000000000000000"
+ *             medium:
+ *               summary: Set to 0.01 ETH
+ *               value:
+ *                 price: "10000000000000000"
+ *             large:
+ *               summary: Set to 1 ETH
+ *               value:
+ *                 price: "1000000000000000000"
+ *     responses:
+ *       200:
+ *         description: Price updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     tokenId:
+ *                       type: number
+ *                     tokenContract:
+ *                       type: string
+ *                     price:
+ *                       type: object
+ *                       properties:
+ *                         wei:
+ *                           type: string
+ *                         eth:
+ *                           type: string
+ *                     blockchainUpdate:
+ *                       type: object
+ *                       properties:
+ *                         transactionHash:
+ *                           type: string
+ *                         blockNumber:
+ *                           type: number
+ *                 note:
+ *                   type: string
+ *                   description: Additional information (e.g., if blockchain update not supported)
+ *       400:
+ *         description: Invalid price format or value
+ *       404:
+ *         description: Ingredient not found
+ */
+router.patch('/:tokenId/price', setIngredientPrice);
 
 /**
  * @swagger

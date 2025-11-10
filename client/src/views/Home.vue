@@ -20,36 +20,72 @@
 
         <!-- Resources List -->
         <div class="flex-1 p-4 overflow-y-auto">
-          <!-- Item Cards -->
-          <div class="space-y-3">
+          <!-- Wallet Not Connected -->
+          <div v-if="!walletStore.connected" class="text-center py-8">
+            <div class="text-slate-400 text-lg mb-3">👛</div>
+            <div class="text-slate-400 text-sm mb-2">Connect your wallet</div>
+            <div class="text-slate-500 text-xs">to view your resources</div>
+          </div>
+
+          <!-- Loading Balance -->
+          <div v-else-if="inventoryStore.isLoadingBalance" class="text-center py-8">
+            <div class="text-emerald-400 text-sm animate-pulse">Loading your balance...</div>
+          </div>
+
+          <!-- Error State -->
+          <div v-else-if="inventoryStore.balanceError" class="text-center py-8">
+            <div class="text-red-400 text-sm mb-2">⚠️ Failed to load balance</div>
+            <div class="text-slate-400 text-xs">{{ inventoryStore.balanceError }}</div>
+          </div>
+
+          <!-- User Balance from Blockchain -->
+          <div v-else-if="filteredResources.length > 0" class="space-y-3">
             <div 
-              v-for="invItem in filteredInventoryItems" 
-              :key="invItem.item.id"
-              :draggable="!isPainting"
-              @dragstart="onDragStart($event, invItem.item)"
+              v-for="resource in filteredResources" 
+              :key="resource.tokenId"
+              :draggable="true"
+              :data-resource-id="resource.tokenId"
+              @dragstart="onResourceDragStart($event, resource)"
               @dragend="onDragEnd"
-              @mousedown="onInventoryItemMouseDown($event, invItem.item)"
-              class="flex items-center gap-3 p-2 border border-slate-600 rounded bg-slate-700 hover:border-emerald-400 transition-colors"
+              class="flex items-center gap-3 p-2 border border-slate-600 rounded bg-slate-700 hover:border-emerald-400 transition-colors cursor-move"
               :class="{ 
-                'opacity-50': isDragging && draggedItem?.id === invItem.item.id,
-                'border-emerald-400 shadow-lg shadow-emerald-500/50': isPainting && paintingItem?.id === invItem.item.id,
-                'cursor-move': !isPainting,
-                'cursor-crosshair': isPainting
+                'opacity-50': isDragging && draggedItem?.tokenId === resource.tokenId,
+                'border-emerald-400 shadow-lg shadow-emerald-500/50': paintingItem?.tokenId === resource.tokenId
               }"
-              @click="selectInventoryItem(invItem.item)"
+              @click="togglePaintingResource(resource)"
             >
-              <div class="text-2xl select-none">{{ invItem.item.icon }}</div>
-              <div class="flex-1 text-xs">
-                <div class="text-white">{{ invItem.item.name }}</div>
-                <div class="text-slate-400">{{ invItem.item.category }}</div>
+              <!-- Display image if available, otherwise use icon -->
+              <div class="flex-shrink-0 w-10 h-10 flex items-center justify-center select-none">
+                <img 
+                  v-if="resource.metadata?.image" 
+                  :src="resource.metadata.image" 
+                  :alt="resource.metadata.name"
+                  class="w-full h-full object-contain rounded"
+                  @error="handleImageError($event)"
+                />
+                <span v-else class="text-2xl">{{ resource.metadata.image }}</span>
               </div>
-              <div class="text-emerald-400 font-bold">{{ invItem.quantity }}</div>
+              <div class="flex-1 text-xs min-w-0">
+                <div class="text-white truncate">{{ resource.metadata.name }}</div>
+                <div class="text-slate-400 truncate">{{ resource.metadata.category }}</div>
+                <div v-if="resource.metadata.description" class="text-slate-500 text-xs truncate">{{ resource.metadata.description }}</div>
+              </div>
+              <div class="text-right">
+                <div class="text-emerald-400 font-bold whitespace-nowrap">
+                  {{ getAvailableQuantity(resource) }}
+                </div>
+                <div class="text-slate-500 text-[10px] whitespace-nowrap">
+                  / {{ (resource as any).balance || '0' }}
+                </div>
+              </div>
             </div>
           </div>
 
-          <!-- Empty State -->
-          <div v-if="filteredInventoryItems.length === 0" class="text-center py-8">
-            <div class="text-slate-400 text-sm">No items found</div>
+          <!-- Empty Balance -->
+          <div v-else class="text-center py-8">
+            <div class="text-slate-400 text-lg mb-3">📦</div>
+            <div class="text-slate-400 text-sm mb-2">No resources yet</div>
+            <div class="text-slate-500 text-xs">Your balance is empty</div>
           </div>
         </div>
       </div>
@@ -63,7 +99,17 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
             </svg>
             <span>Painting Mode</span>
-            <span class="text-white">{{ paintingItem?.icon }}</span>
+            <!-- Display image if available, otherwise use icon -->
+            <div class="w-5 h-5 flex items-center justify-center">
+              <img
+                v-if="paintingItem?.metadata?.image"
+                :src="paintingItem.metadata.image"
+                :alt="paintingItem.metadata.name"
+                class="w-full h-full object-contain"
+                @error="handlePaintingImageError($event)"
+              />
+              <span v-else class="text-white text-base">{{ '📦' }}</span>
+            </div>
           </div>
         </div>
          <div class="flex-1 p-6 overflow-y-auto flex flex-col items-center justify-start">
@@ -93,7 +139,7 @@
                    </div>
                  </div>
                </div>
-               <div class="grid grid-cols-3 gap-3">
+              <div class="grid grid-cols-3 gap-3" ref="craftingGridRef">
                  <div
                      v-for="(cell, index) in craftingGrid"
                      :key="index"
@@ -105,11 +151,21 @@
                      @drop="onDrop($event, index)"
                      @mousedown="onCellMouseDown($event, index)"
                      @mouseenter="onCellMouseEnter(index)"
-                     class="w-28 h-28 border-2 rounded-lg flex items-center justify-center text-5xl transition-all duration-200"
+                     class="w-28 h-28 border-2 rounded-lg flex items-center justify-center transition-all duration-200 relative overflow-hidden"
                      :class="getCellClass(cell, index)"
-                     :style="{ cursor: isPainting ? 'crosshair' : (cell ? 'move' : 'pointer') }"
+                     :style="{ cursor: paintingItem ? 'crosshair' : (cell ? 'move' : 'pointer') }"
                  >
-                   <span v-if="cell" class="select-none">{{ cell.icon }}</span>
+                   <!-- Display image if available, otherwise use icon -->
+                   <template v-if="cell">
+                     <img
+                       v-if="cell.metadata?.image"
+                       :src="cell.metadata.image"
+                       :alt="cell.metadata.name"
+                       class="w-full h-full object-contain p-2 select-none"
+                       @error="handleCellImageError($event)"
+                     />
+                     <span v-else class="select-none text-5xl">{{ cell.metadata.image }}</span>
+                   </template>
                    <span v-else class="text-slate-600 text-sm">[ ]</span>
                  </div>
                </div>
@@ -118,27 +174,37 @@
              <!-- Result Preview -->
              <div class="flex flex-col items-center justify-between border-2 border-slate-700 rounded-lg bg-slate-800 p-5" style="width: 260px; height: 357px;">
                <div class="text-slate-400 text-sm font-medium">→ Result</div>
-               <div class="w-36 h-36 border-2 rounded-lg flex items-center justify-center text-6xl transition-all duration-200"
+               <div class="w-36 h-36 border-2 rounded-lg flex items-center justify-center transition-all duration-200 relative overflow-hidden"
                     :class="matchedRecipe ? 'border-emerald-400 bg-slate-700 shadow-lg shadow-emerald-500/30' : 'border-slate-600 bg-slate-900'">
-                 <span v-if="matchedRecipe" class="select-none">{{ matchedRecipe.result.icon }}</span>
+                 <!-- Display image if available, otherwise use icon -->
+                 <template v-if="matchedRecipe">
+                   <img
+                     v-if="matchedRecipe.outputIngredient?.metadata.image"
+                     :src="matchedRecipe.outputIngredient?.metadata.image"
+                     :alt="matchedRecipe.outputIngredient?.metadata.name"
+                     class="w-full h-full object-contain p-3 select-none"
+                     @error="handleResultImageError($event)"
+                   />
+                   <span v-else class="select-none text-6xl">{{ '📦' }}</span>
+                 </template>
                  <span v-else class="text-slate-600 text-4xl">?</span>
                </div>
                <div class="text-center w-full px-2">
-                 <div v-if="matchedRecipe" class="text-white text-sm font-semibold truncate">{{ matchedRecipe.result.name }}</div>
+                 <div v-if="matchedRecipe" class="text-white text-sm font-semibold truncate">{{ matchedRecipe.outputIngredient?.metadata.name }}</div>
                  <div v-else class="text-slate-500 text-sm">No match</div>
-                 <div v-if="matchedRecipe" class="text-slate-400 text-xs mt-1 line-clamp-2 leading-relaxed">{{ matchedRecipe.result.description }}</div>
+                 <div v-if="matchedRecipe" class="text-slate-400 text-xs mt-1 line-clamp-2 leading-relaxed">{{ matchedRecipe.outputIngredient?.metadata.description }}</div>
                </div>
              </div>
            </div>
  
            <!-- Craft Button -->
            <button 
-             @click="craftItem"
-             :disabled="!canCraft"
+            @click="craftItem"
+            :disabled="!canCraft"
              class="px-8 py-3 rounded-lg text-sm transition-all duration-200 font-semibold"
-             :class="canCraft ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:scale-105 shadow-lg shadow-emerald-500/50' : 'bg-slate-700 text-slate-500 cursor-not-allowed'"
+            :class="canCraft ? 'bg-emerald-600 text-white hover:bg-emerald-700 hover:scale-105 shadow-lg shadow-emerald-500/50' : 'bg-slate-700 text-slate-500 cursor-not-allowed'"
            >
-             {{ canCraft ? '⚡ Craft Item' : '✗ No match' }}
+            {{ isCraftingTx ? '⏳ Crafting...' : canCraft ? '⚡ Craft Item' : '✗ No match' }}
            </button>
          </div>
       </div>
@@ -155,45 +221,97 @@
     </div>
 
     <ToastNotification />
-    <WelcomeChestModal />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
 import ToastNotification from '@/components/ToastNotification.vue';
-import WelcomeChestModal from '@/components/WelcomeChestModal.vue';
 import RecipeBook from '@/components/RecipeBook.vue';
 import { useInventoryStore } from '@/stores/inventory';
-import { useRecipesStore } from '@/stores/recipes';
+import { IIngredient, IRecipe, useRecipesStore } from '@/stores/recipes';
 import { useToastStore } from '@/stores/toast';
-import type { Item, Recipe, BlockchainRecipe } from '@/types';
+import { useWalletStore } from '@/stores/wallet';
+import type { Recipe } from '@/types';
+import craftingService from '@/services/craftingContractService';
+import { getTransactionUrl } from '@/config/wallet';
 
 const inventoryStore = useInventoryStore();
 const recipesStore = useRecipesStore();
 const toastStore = useToastStore();
+const walletStore = useWalletStore();
+
+const isPaintingDrag = ref(false);
+const isCraftingTx = ref(false);
+
+const parseTokenId = (value: unknown): number | undefined => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return undefined;
+    }
+
+    const numeric = Number(trimmed);
+    if (!Number.isNaN(numeric)) {
+      return numeric;
+    }
+
+    if (trimmed.startsWith('token_')) {
+      const legacy = Number(trimmed.slice(6));
+      if (!Number.isNaN(legacy)) {
+        return legacy;
+      }
+    }
+  }
+
+  return undefined;
+};
 
 // Initialize data
-inventoryStore.initializeSampleItems();
 recipesStore.initializeRecipes();
+
+// Check wallet connection on mount and load balance if connected (with delay)
+onMounted(async () => {
+  await walletStore.checkConnection();
+  
+  if (walletStore.connected && walletStore.address) {
+    // Delay to avoid competing with other API calls on app mount
+    const address = walletStore.address; // Store in const to satisfy TypeScript
+    setTimeout(async () => {
+      try {
+        if (address) {
+          await inventoryStore.loadUserBalance(address);
+        }
+      } catch (error) {
+        // Silent fail
+      }
+    }, 4000); // Delay 4 seconds to let other components load first
+  }
+});
 
 // Inventory search
 const inventorySearch = ref('');
 
 // Crafting grid state
-const craftingGrid = ref<(Item | null)[]>(new Array(9).fill(null));
+const craftingGrid = ref<(IIngredient | null)[]>(new Array(9).fill(null));
 // Drag and drop state
 const isDragging = ref(false);
-const draggedItem = ref<Item | null>(null);
+const draggedItem = ref<IIngredient | null>(null);
 const draggedFromCellIndex = ref<number | null>(null);
 const dragOverIndex = ref<number | null>(null);
 const isOverTrash = ref(false);
 
 // Painting mode state
 const isPainting = ref(false);
-const paintingItem = ref<Item | null>(null);
+const paintingItem = ref<IIngredient | null>(null);
 const paintedCells = ref<Set<number>>(new Set());
+const craftingGridRef = ref<HTMLElement | null>(null);
+const ignoreNextOutsideClick = ref(false);
 
 // Notifications
 const notifications = ref([
@@ -203,107 +321,194 @@ const notifications = ref([
 ]);
 
 // Computed
-const filteredInventoryItems = computed(() => {
+const filteredResources = computed(() => {
+  // Use user's blockchain balance instead of all items
+  const resources = inventoryStore.userBalance;
+  
   if (!inventorySearch.value) {
-    return inventoryStore.items;
+    return resources;
   }
   
   const query = inventorySearch.value.toLowerCase();
-  return inventoryStore.items.filter(invItem =>
-    invItem.item.name.toLowerCase().includes(query) ||
-    invItem.item.category.toLowerCase().includes(query) ||
-    invItem.item.description.toLowerCase().includes(query)
+  return resources.filter(item =>
+    item.metadata.name.toLowerCase().includes(query) ||
+    item.metadata.category.toLowerCase().includes(query) ||
+    item.metadata.description.toLowerCase().includes(query)
   );
 });
 
 const matchedRecipe = computed(() => {
-  const grid2D = [
-    [craftingGrid.value[0], craftingGrid.value[1], craftingGrid.value[2]],
-    [craftingGrid.value[3], craftingGrid.value[4], craftingGrid.value[5]],
-    [craftingGrid.value[6], craftingGrid.value[7], craftingGrid.value[8]]
-  ];
-  return recipesStore.matchRecipe(grid2D);
+  try {
+    const grid2D = [
+      [craftingGrid.value[0], craftingGrid.value[1], craftingGrid.value[2]],
+      [craftingGrid.value[3], craftingGrid.value[4], craftingGrid.value[5]],
+      [craftingGrid.value[6], craftingGrid.value[7], craftingGrid.value[8]]
+    ];
+
+    const legacyMatch = recipesStore.matchRecipe(grid2D);
+    if (legacyMatch) {
+      return legacyMatch;
+    }
+
+    return null;
+  } catch (error) {
+    return null;
+  }
 });
 
 const canCraft = computed(() => {
-  return matchedRecipe.value !== null;
+  if (isCraftingTx.value) {
+    return false;
+  }
+
+  if (!matchedRecipe.value) {
+    return false;
+  }
+
+  const blockchainRecipe = recipesStore.getBlockchainRecipe(String(matchedRecipe.value.id)) ||
+    recipesStore.getBlockchainRecipeById(String(matchedRecipe.value.id));
+
+  if (blockchainRecipe) {
+    const userInventory = inventoryStore.userBalance
+      .map(item => {
+        const tokenId = parseTokenId((item as any).tokenId ?? item.tokenId);
+        const tokenContract = (item as any).tokenContract;
+        const balance = (item as any).balance ?? '0';
+
+        if (tokenId === undefined || typeof tokenContract !== 'string') {
+          return null;
+        }
+
+        return {
+          tokenId,
+          balance: String(balance),
+          tokenContract
+        };
+      })
+      .filter((entry): entry is { tokenId: number; balance: string; tokenContract: string } => entry !== null);
+
+    return recipesStore.canCraftRecipe(matchedRecipe.value, userInventory.map(item => ({...item, tokenId: String(item.tokenId)})));
+  }
+
+  return true;
 });
 
 // Painting Mode Methods
-const startPainting = (event: MouseEvent, item: Item) => {
-  if (!inventoryStore.hasItem(item.id, 1)) return;
-  
-  isPainting.value = true;
-  paintingItem.value = item;
-  paintedCells.value.clear();
-};
-
 const stopPainting = () => {
+  if (isPaintingDrag.value) {
+    isPaintingDrag.value = false;
+    paintedCells.value.clear();
+  }
   isPainting.value = false;
-  paintingItem.value = null;
-  paintedCells.value.clear();
 };
 
-const paintCell = (index: number) => {
-  if (!isPainting.value || !paintingItem.value) return;
-  if (paintedCells.value.has(index)) return; // Already painted this cell
-  if (!inventoryStore.hasItem(paintingItem.value.id, 1)) {
-    stopPainting();
+// Helper to check if user has resource available
+const hasResourceAvailable = (item: IIngredient, quantity: number = 1): boolean => {
+  const resource = inventoryStore.userBalance.find(r => r.tokenId === item.tokenId);
+  if (!resource) return false;
+
+  const balance = parseInt((resource as any).balance || '0', 10);
+  const usedInGrid = craftingGrid.value.filter(cell => cell?.tokenId === item.tokenId).length;
+
+  return balance - usedInGrid >= quantity;
+};
+
+// Helper to get available quantity of a resource
+const getAvailableQuantity = (item: IIngredient): number => {
+  const resource = inventoryStore.userBalance.find(r => r.tokenId === item.tokenId);
+  if (!resource) return 0;
+
+  const balance = parseInt((resource as any).balance || '0', 10);
+  const usedInGrid = craftingGrid.value.filter(cell => cell?.tokenId === item.tokenId).length;
+
+  return Math.max(0, balance - usedInGrid);
+};
+
+const togglePaintingResource = (item: IIngredient) => {
+  if (isDragging.value) {
+    return;
+  }
+
+  ignoreNextOutsideClick.value = true;
+  setTimeout(() => {
+    ignoreNextOutsideClick.value = false;
+  }, 0);
+
+  if (paintingItem.value?.tokenId === item.tokenId) {
+    if (isPainting.value) {
+      isPainting.value = false;
+    }
+    isPaintingDrag.value = false;
+    paintedCells.value.clear();
+    paintingItem.value = null;
+    return;
+  }
+
+  if (!hasResourceAvailable(item, 1)) {
     toastStore.showToast({
       type: 'warning',
-      message: `No more ${paintingItem.value.name} in inventory`
+      message: `Not enough ${item.metadata.name} available. You have ${getAvailableQuantity(item)} available.`
     });
     return;
   }
 
-  // If cell is occupied, return old item to inventory
-  if (craftingGrid.value[index]) {
-    const existingItem = craftingGrid.value[index];
-    inventoryStore.addItem(existingItem!, 1);
+  paintingItem.value = item;
+  isPainting.value = false;
+  isPaintingDrag.value = false;
+  paintedCells.value.clear();
+};
+
+const paintCell = (index: number, force = false) => {
+  if (!paintingItem.value) return;
+  if (!isPainting.value && !force) return;
+  if (!force && !isPaintingDrag.value) return;
+  if (paintedCells.value.has(index)) return;
+
+  if (!hasResourceAvailable(paintingItem.value, 1)) {
+    toastStore.showToast({
+      type: 'warning',
+      message: `Not enough ${paintingItem.value.metadata.name} available`
+    });
+    return;
   }
 
-  // Place new item in cell
   craftingGrid.value[index] = paintingItem.value;
-  inventoryStore.removeItem(paintingItem.value.id, 1);
   paintedCells.value.add(index);
 };
 
-const onInventoryItemMouseDown = (event: MouseEvent, item: Item) => {
-  // Only start painting on left click AND if not dragging
-  if (event.button === 0 && !isDragging.value) {
-    // Don't prevent default here - let drag start first
-    // We'll start painting after a small delay if user is still holding
-    setTimeout(() => {
-      // Check if user is still holding mouse down and not dragging
-      if (!isDragging.value && event.buttons === 1) {
-        startPainting(event, item);
-      }
-    }, 150); // Small delay to allow drag to start
+
+// Resource drag handlers (from catalog)
+const onResourceDragStart = (event: DragEvent, item: IIngredient) => {
+  isDragging.value = true;
+  draggedItem.value = item;
+  draggedFromCellIndex.value = null; // From resources catalog
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'copy'; // Copy from resources
+    event.dataTransfer.setData('text/plain', item.tokenId);
   }
 };
 
 const onCellMouseEnter = (index: number) => {
-  if (isPainting.value) {
-    paintCell(index);
-  }
+  paintCell(index);
 };
 
 const onCellMouseDown = (event: MouseEvent, index: number) => {
-  if (isPainting.value) {
-    event.preventDefault();
-    paintCell(index);
-  }
-};
+  if (event.button !== 0) return;
+  if (!paintingItem.value) return;
 
-// Drag and Drop Methods
-const onDragStart = (event: DragEvent, item: Item) => {
-  isDragging.value = true;
-  draggedItem.value = item;
-  draggedFromCellIndex.value = null; // From inventory
-  if (event.dataTransfer) {
-    event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', item.id);
+  if (!hasResourceAvailable(paintingItem.value, 1)) {
+    toastStore.showToast({
+      type: 'warning',
+      message: `Not enough ${paintingItem.value.metadata.name} available. You have ${getAvailableQuantity(paintingItem.value)} available.`
+    });
+    return;
   }
+
+  event.preventDefault();
+  isPainting.value = true;
+  isPaintingDrag.value = true;
+  paintedCells.value.clear();
+  paintCell(index, true);
 };
 
 const onCellDragStart = (event: DragEvent, index: number) => {
@@ -312,7 +517,7 @@ const onCellDragStart = (event: DragEvent, index: number) => {
   draggedFromCellIndex.value = index; // From cell
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move';
-    event.dataTransfer.setData('text/plain', craftingGrid.value[index]?.id || '');
+    event.dataTransfer.setData('text/plain', craftingGrid.value[index]?.tokenId || '');
   }
 };
 
@@ -361,20 +566,25 @@ const onDrop = (event: DragEvent, index: number) => {
     craftingGrid.value[index] = craftingGrid.value[fromIndex];
     craftingGrid.value[fromIndex] = temp;
   } 
-  // Dragging from inventory to crafting grid
+  // Dragging from resources catalog to crafting grid (check availability)
   else {
-    // Check if item exists in inventory
-    if (inventoryStore.hasItem(draggedItem.value.id, 1)) {
-      // If cell is occupied, return old item to inventory
-      if (craftingGrid.value[index]) {
-        const existingItem = craftingGrid.value[index];
-        inventoryStore.addItem(existingItem!, 1);
-      }
-      
-      // Place new item in cell
-      craftingGrid.value[index] = draggedItem.value;
-      inventoryStore.removeItem(draggedItem.value.id, 1);
+    // Check if user has the resource available
+    if (!hasResourceAvailable(draggedItem.value, 1)) {
+      toastStore.showToast({
+        type: 'warning',
+        message: `Not enough ${draggedItem.value.metadata.name} available. You have ${getAvailableQuantity(draggedItem.value)} available.`
+      });
+      isDragging.value = false;
+      draggedItem.value = null;
+      draggedFromCellIndex.value = null;
+      return;
     }
+
+    // If cell is occupied, the old item will be freed (it's already counted in balance)
+    // No need to do anything - the item is just replaced
+    
+    // Place new item in cell (only if user has it available)
+    craftingGrid.value[index] = draggedItem.value;
   }
 
   isDragging.value = false;
@@ -382,7 +592,35 @@ const onDrop = (event: DragEvent, index: number) => {
   draggedFromCellIndex.value = null;
 };
 
-const getCellClass = (cell: Item | null, index: number) => {
+const exitCraftMode = () => {
+  stopPainting();
+  isPaintingDrag.value = false;
+  paintedCells.value.clear();
+  paintingItem.value = null;
+};
+
+const handleDocumentClick = (event: MouseEvent) => {
+  if (ignoreNextOutsideClick.value) {
+    return;
+  }
+
+  if (!paintingItem.value) {
+    return;
+  }
+
+  const target = event.target as Node | null;
+  if (!target) {
+    return;
+  }
+
+  if (craftingGridRef.value && craftingGridRef.value.contains(target)) {
+    return;
+  }
+
+  exitCraftMode();
+};
+
+const getCellClass = (cell: IIngredient | null, index: number) => {
   const classes = [];
   
   // Base classes
@@ -437,7 +675,7 @@ const onTrashDrop = (event: DragEvent) => {
       
       toastStore.showToast({
         type: 'info',
-        message: `Deleted ${item.name}`
+        message: `Deleted ${item.metadata.name}`
       });
     }
   }
@@ -447,62 +685,204 @@ const onTrashDrop = (event: DragEvent) => {
   draggedFromCellIndex.value = null;
 };
 
-// Methods
-const selectInventoryItem = (item: Item) => {
-  const emptyIndex = craftingGrid.value.findIndex(slot => slot === null);
-  if (emptyIndex !== -1 && inventoryStore.hasItem(item.id, 1)) {
-    craftingGrid.value[emptyIndex] = item;
-    inventoryStore.removeItem(item.id, 1);
-  }
-};
-
 const clearCraftingGrid = () => {
   craftingGrid.value.forEach(item => {
     if (item) {
-      inventoryStore.addItem(item, 1);
+      inventoryStore.addItem(item as any, 1);
     }
   });
   craftingGrid.value = new Array(9).fill(null);
 };
 
-const craftItem = () => {
-  if (!matchedRecipe.value) return;
+const craftItem = async () => {
+  if (!matchedRecipe.value || isCraftingTx.value) {
+    return;
+  }
 
-  // Clear grid
-  craftingGrid.value = new Array(9).fill(null);
+  const canCraftOnChain = !!matchedRecipe && walletStore.connected && walletStore.signer;
 
-  // Add result to inventory
-  inventoryStore.addItem(matchedRecipe.value.result, 1);
+  if (canCraftOnChain) {
+    try {
+      isCraftingTx.value = true;
+      toastStore.showToast({
+        type: 'info',
+        message: 'Submitting craft transaction...'
+      });
 
-  // Show notification
-  toastStore.showToast({
-    type: 'success',
-    message: `Crafted ${matchedRecipe.value.result.name}!`
-  });
+      const result = await craftingService.craft(matchedRecipe.value, walletStore.signer!);
+      const txHash = result.transaction.hash;
+      const explorerUrl = getTransactionUrl(walletStore.chainId, txHash);
+      const shortHash = `${txHash.slice(0, 8)}...${txHash.slice(-4)}`;
 
-  // Add to notification bar
-  notifications.value.unshift({
-    type: 'success',
-    message: `"Crafted ${matchedRecipe.value.result.name} x1"`
-  });
-  if (notifications.value.length > 5) {
-    notifications.value.pop();
+      toastStore.showToast({
+        type: 'info',
+        message: explorerUrl ? `Transaction sent: ${shortHash} (${explorerUrl})` : `Transaction sent: ${shortHash}`
+      });
+
+      if (result.events.length > 0) {
+        const craftedEvent = result.events[0];
+        toastStore.showToast({
+          type: 'success',
+          message: `Crafted ${matchedRecipe.value.name} × ${craftedEvent?.args?.amount ? craftedEvent.args.amount.toString() : matchedRecipe.value.outputAmount}`
+        });
+      } else {
+        toastStore.showToast({
+          type: 'success',
+          message: `Crafted ${matchedRecipe.value.name}!`
+        });
+      }
+
+      notifications.value.unshift({
+        type: 'success',
+        message: `"Crafted ${matchedRecipe.value.name} x1"`
+      });
+      if (notifications.value.length > 5) {
+        notifications.value.pop();
+      }
+
+      craftingGrid.value = new Array(9).fill(null);
+
+      if (walletStore.address) {
+        try {
+          await inventoryStore.loadUserBalance(walletStore.address, true);
+        } catch (loadError) {
+          // Silent fail
+        }
+      }
+    } catch (error: any) {
+      toastStore.showToast({
+        type: 'error',
+        message: error?.message || 'Crafting failed.'
+      });
+    } finally {
+      isCraftingTx.value = false;
+    }
+
+    return;
   }
 };
 
-// Handler for RecipeBook component autofill
-const handleAutofillRecipe = (recipe: Recipe | BlockchainRecipe) => {
-  // For now, just show a toast for blockchain recipes
+// Handle image loading errors - fallback to icon
+const handleImageError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  // Hide the image and show fallback icon
+  img.style.display = 'none';
+  const parent = img.parentElement;
+  if (parent) {
+    // Check if fallback already exists
+    if (!parent.querySelector('.fallback-icon')) {
+      const fallback = document.createElement('span');
+      fallback.className = 'text-2xl fallback-icon';
+      // Get icon from resource data attribute or use default
+      const resourceId = (img.closest('[draggable="true"]') as HTMLElement)?.dataset?.resourceId;
+      if (resourceId) {
+        const resource = filteredResources.value.find(r => r.tokenId === resourceId);
+        if (resource) {
+          fallback.textContent = resource.metadata.image;
+        }
+      }
+      if (!fallback.textContent) {
+        fallback.textContent = '📦';
+      }
+      parent.appendChild(fallback);
+    }
+  }
+};
+
+// Handle image errors in crafting grid cells
+const handleCellImageError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  img.style.display = 'none';
+  const parent = img.parentElement;
+  if (parent) {
+    if (!parent.querySelector('.fallback-icon')) {
+      const fallback = document.createElement('span');
+      fallback.className = 'text-5xl fallback-icon select-none';
+      // Try to find the cell item to get icon
+      const cellIndex = Array.from(parent.parentElement?.children || []).indexOf(parent);
+      if (cellIndex !== -1 && craftingGrid.value[cellIndex]) {
+        fallback.textContent = craftingGrid.value[cellIndex]?.metadata.image || '📦';
+      } else {
+        fallback.textContent = '📦';
+      }
+      parent.appendChild(fallback);
+    }
+  }
+};
+
+// Handle image errors in result preview
+const handleResultImageError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  img.style.display = 'none';
+  const parent = img.parentElement;
+  if (parent && matchedRecipe.value) {
+    if (!parent.querySelector('.fallback-icon')) {
+      const fallback = document.createElement('span');
+      fallback.className = 'text-6xl fallback-icon select-none';
+      fallback.textContent = matchedRecipe.value?.outputIngredient?.metadata.image || '📦';
+      parent.appendChild(fallback);
+    }
+  }
+};
+
+// Handle image errors in painting mode indicator
+const handlePaintingImageError = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  img.style.display = 'none';
+  const parent = img.parentElement;
+  if (parent && paintingItem.value) {
+    if (!parent.querySelector('.fallback-icon')) {
+      const fallback = document.createElement('span');
+      fallback.className = 'text-white text-base fallback-icon';
+      fallback.textContent = paintingItem.value?.metadata.image || '📦';
+      parent.appendChild(fallback);
+    }
+  }
+};
+
+const handleAutofillRecipe = async (recipe: IRecipe) => {
+  // Handle blockchain recipes
   if ('blockchainRecipeId' in recipe) {
-    toastStore.showToast({
-      type: 'info',
-      message: `Recipe: ${recipe.name} (blockchain recipe - grid autofill coming soon)`
-    });
+    await autofillBlockchainRecipe(recipe);
     return;
   }
 
   // Use existing autofill for legacy recipes
   autofillRecipe(recipe as Recipe);
+};
+
+const autofillBlockchainRecipe = async (recipe: IRecipe) => {
+  clearCraftingGrid();
+  
+  // Get user's balance to find matching items
+  const userBalance = inventoryStore.userBalance;
+  // Fill grid according to recipe pattern positions (0-8)
+  for (const ingredient of recipe.ingredients) {
+    // Find matching item in user's balance
+    const balanceItem = userBalance.find(item => {
+      const itemContract = (item as any).tokenContract;
+      if (!itemContract || typeof itemContract !== 'string') {
+        return false;
+      }
+      if (!ingredient.tokenContract || typeof ingredient.tokenContract !== 'string') {
+        return false;
+      }
+      
+      return item.tokenId === ingredient.tokenId && 
+             itemContract.toLowerCase() === ingredient.tokenContract.toLowerCase() &&
+             parseInt((item as any).balance || '0', 10) >= ingredient.amount;
+    });
+    
+    if (balanceItem && ingredient.position >= 0 && ingredient.position < 9) {
+      // Place item at the recipe's specified position
+      craftingGrid.value[ingredient.position] = balanceItem as any;
+    }
+  }
+
+  toastStore.showToast({
+    type: 'info',
+    message: `Autofilled ${recipe.name} recipe`
+  });
 };
 
 const autofillRecipe = (recipe: Recipe) => {
@@ -513,7 +893,7 @@ const autofillRecipe = (recipe: Recipe) => {
     for (let j = 0; j < 3; j++) {
       const item = recipe.grid[i][j];
       if (item && inventoryStore.hasItem(item.id, 1)) {
-        craftingGrid.value[i * 3 + j] = item;
+        craftingGrid.value[i * 3 + j] = item as any;
         inventoryStore.removeItem(item.id, 1);
       }
     }
@@ -525,10 +905,19 @@ const autofillRecipe = (recipe: Recipe) => {
   });
 };
 
-// Global mouse up handler to stop painting
-if (typeof window !== 'undefined') {
-  window.addEventListener('mouseup', stopPainting);
-}
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('mouseup', stopPainting);
+    window.addEventListener('click', handleDocumentClick);
+  }
+});
+
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('mouseup', stopPainting);
+    window.removeEventListener('click', handleDocumentClick);
+  }
+});
 
 </script>
 

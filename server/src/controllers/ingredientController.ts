@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import Ingredient from '../models/Ingredient';
 import IngredientData from '../models/IngredientData';
+import TokenCounter from '../models/TokenCounter';
 import { asyncHandler } from '../middleware/errorHandler';
 import { IngredientBlockchainService } from '../services/ingredientBlockchainService';
 import { blockchainConnection } from '../config/blockchain';
@@ -24,28 +25,82 @@ const initBlockchainService = (): IngredientBlockchainService | null => {
 };
 
 /**
- * Helper function to get next available token ID
+ * Get or create token counter for a contract
  */
-const getNextAvailableTokenId = async (): Promise<number> => {
-  const blockchainService = initBlockchainService();
-  if (!blockchainService) {
-    throw new Error('Blockchain service unavailable');
+const getTokenCounter = async (contractAddress: string) => {
+  let counter = await TokenCounter.findOne({ contractAddress: contractAddress.toLowerCase() });
+  
+  if (!counter) {
+    console.log(`📊 Creating new token counter for contract ${contractAddress}`);
+    counter = await TokenCounter.create({
+      contractAddress: contractAddress.toLowerCase(),
+      lastTokenId: 0
+    });
   }
+  
+  return counter;
+};
 
-  // Find highest token ID in database
-  const lastIngredient = await Ingredient.findOne()
-    .sort({ tokenId: -1 })
-    .lean();
+/**
+ * Find next available token ID on blockchain starting from a given ID
+ * Updates the counter with the last checked ID
+ */
+const findNextAvailableTokenId = async (
+  startFromId: number,
+  contractAddress: string,
+  blockchainService: IngredientBlockchainService
+): Promise<number> => {
+  console.log(`🔍 Searching for available token ID on blockchain (starting from ${startFromId})...`);
   
-  const lastTokenId = lastIngredient?.tokenId || 0;
+  let tokenId = startFromId;
+  const maxAttempts = 1000;
+  let attempts = 0;
   
-  // Check blockchain for next available ID
-  let nextTokenId = lastTokenId + 1;
-  while (await blockchainService.tokenExists(nextTokenId)) {
-    nextTokenId++;
+  while (attempts < maxAttempts) {
+    try {
+      const exists = await blockchainService.tokenExists(tokenId);
+      console.log("exists", exists);
+      
+      if (!exists) {
+        console.log(`✅ Found available token ID: ${tokenId} (verified on blockchain)`);
+        
+        // Update counter with the found token ID
+        await TokenCounter.findOneAndUpdate(
+          { contractAddress: contractAddress.toLowerCase() },
+          { lastTokenId: tokenId },
+          { upsert: true }
+        );
+        
+        console.log("returning token id", tokenId);
+        return tokenId;
+      }
+      
+      console.log(`   Token ID ${tokenId}: EXISTS on blockchain, checking next...`);
+      tokenId++;
+      attempts++;
+    } catch (error) {
+      console.error(`⚠️  Error checking token ${tokenId} on blockchain:`, error);
+      tokenId++;
+      attempts++;
+    }
   }
   
-  return nextTokenId;
+  throw new Error(`Could not find available token ID after ${maxAttempts} attempts. Last checked: ${tokenId - 1}`);
+};
+
+/**
+ * Helper function to get next token ID from counter
+ */
+const getNextTokenIdFromCounter = async (): Promise<{ tokenId: number; contractAddress: string }> => {
+  const contractAddress = blockchainConnection.getERC1155Address();
+  const counter = await getTokenCounter(contractAddress);
+  
+  // Next token ID is last known + 1
+  const nextTokenId = counter.lastTokenId + 1;
+  
+  console.log(`📊 Counter shows last token ID: ${counter.lastTokenId}, trying ID: ${nextTokenId}`);
+  
+  return { tokenId: nextTokenId, contractAddress };
 };
 
 // Create a new ingredient with data
@@ -53,29 +108,53 @@ export const createIngredient = asyncHandler(async (req: Request, res: Response)
   const { metadata, price } = req.body;
 
   // Validate and convert price to wei
-  let priceInWei = BigInt(0); // Default to free
+  // Default to 0 (free)
+  let priceInWei = BigInt(0); // Free by default
+  
   if (price !== undefined && price !== null) {
     try {
-      // If price is a number, treat it as ETH and convert to wei
-      if (typeof price === 'number') {
-        priceInWei = ethers.parseEther(price.toString());
-      }
-      // If price is a string, try to parse as ETH
-      else if (typeof price === 'string') {
-        priceInWei = ethers.parseEther(price);
-      }
-      // If price is already a bigint or can be converted
-      else {
+      // Price is provided in wei, just convert to BigInt
+      if (typeof price === 'string') {
         priceInWei = BigInt(price);
+      } else if (typeof price === 'number') {
+        priceInWei = BigInt(price);
+      } else {
+        priceInWei = BigInt(price);
+      }
+      
+      // Safety check: price should not exceed 100 ETH (100 * 10^18 wei)
+      const maxPriceWei = BigInt('100000000000000000000'); // 100 ETH in wei
+      if (priceInWei > maxPriceWei) {
+        res.status(400).json({
+          success: false,
+          message: 'Price too high. Maximum price is 100 ETH (100000000000000000000 wei).'
+        });
+        return;
       }
     } catch (error) {
       res.status(400).json({
         success: false,
-        message: 'Invalid price format. Provide price in ETH (e.g., 0.001) or wei as string.'
+        message: 'Invalid price format. Provide price in wei (e.g., "1000000000000000000" for 1 ETH).'
       });
       return;
     }
   }
+
+  // Check blockchain service availability
+  const blockchainService = initBlockchainService();
+  if (!blockchainService) {
+    res.status(500).json({
+      success: false,
+      message: 'Blockchain service unavailable'
+    });
+    return;
+  }
+
+  // Get next token ID from counter
+  const { tokenId: initialTokenId, contractAddress } = await getNextTokenIdFromCounter();
+  let tokenId = initialTokenId;
+  let retryCount = 0;
+  const maxRetries = 3;
 
   // 1. Create ingredient data first
   const ingredientData = await IngredientData.create({
@@ -85,64 +164,98 @@ export const createIngredient = asyncHandler(async (req: Request, res: Response)
     }
   });
 
-  // 2. Create ingredient record
-  const tokenId = await getNextAvailableTokenId();
-  const ingredient = await Ingredient.create({
-    tokenContract: blockchainConnection.getERC1155Address(),
-    tokenId: tokenId,
-    ingredientData: ingredientData._id
-  });
+  let ingredient = null;
+  let createResult = null;
 
-  // 3. Create token type on blockchain
-  const blockchainService = initBlockchainService();
-  if (!blockchainService) {
-    // Clean up created data if blockchain service unavailable
-    await Ingredient.findByIdAndDelete(ingredient._id);
-    await IngredientData.findByIdAndDelete(ingredientData._id);
-    res.status(500).json({
-      success: false,
-      message: 'Blockchain service unavailable'
-    });
-    return;
-  }
+  // Retry loop for handling "token already exists" errors
+  while (retryCount <= maxRetries) {
+    try {
+      console.log(`\n🔄 Attempt ${retryCount + 1}/${maxRetries + 1}: Creating ingredient with token ID ${tokenId}`);
+      console.log({priceInWei});
 
-  try {
-    // Create token type on blockchain with price
-    const createResult = await blockchainService.createTokenType(
-      tokenId,
-      metadata?.name || 'Unnamed Ingredient',
-      priceInWei
-    );
-
-    res.status(201).json({
-      success: true,
-      message: 'Ingredient created successfully with token type on blockchain.',
-      data: {
-        ingredientId: ingredient._id,
-        ingredientDataId: ingredientData._id,
+      // 2. Create ingredient record in database
+      ingredient = await Ingredient.create({
+        tokenContract: contractAddress,
         tokenId: tokenId,
-        tokenContract: ingredient.tokenContract,
-        createTransaction: createResult.hash,
-        price: {
-          wei: createResult.priceWei,
-          eth: createResult.priceEth
-        },
-        metadata: ingredientData.metadata,
-        createdAt: ingredient.createdAt
-      }
-    });
+        ingredientData: ingredientData._id
+      });
 
-  } catch (createError) {
-    // Clean up created data if token type creation fails
-    await Ingredient.findByIdAndDelete(ingredient._id);
-    await IngredientData.findByIdAndDelete(ingredientData._id);
-    
-    console.error('Failed to create token type:', createError);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to create token type on blockchain',
-      error: createError instanceof Error ? createError.message : 'Unknown error'
-    });
+      // 3. Create token type on blockchain
+      createResult = await blockchainService.createTokenType(
+        tokenId,
+        metadata?.name || 'Unnamed Ingredient',
+        priceInWei
+      );
+
+      // Success! Update counter with the used token ID
+      await TokenCounter.findOneAndUpdate(
+        { contractAddress: contractAddress.toLowerCase() },
+        { lastTokenId: tokenId },
+        { upsert: true }
+      );
+
+      console.log(`✅ Ingredient created successfully with token ID ${tokenId}`);
+      console.log(`📊 Counter updated to ${tokenId}`);
+
+      // Return success response
+      res.status(201).json({
+        success: true,
+        message: 'Ingredient created successfully with token type on blockchain.',
+        data: {
+          ingredientId: ingredient._id,
+          ingredientDataId: ingredientData._id,
+          tokenId: tokenId,
+          tokenContract: ingredient.tokenContract,
+          createTransaction: createResult.hash,
+          price: {
+            wei: createResult.priceWei,
+            eth: createResult.priceEth
+          },
+          metadata: ingredientData.metadata,
+          createdAt: ingredient.createdAt
+        }
+      });
+
+      return; // Exit function on success
+
+    } catch (createError) {
+      // Clean up ingredient record if it was created
+      if (ingredient) {
+        await Ingredient.findByIdAndDelete(ingredient._id);
+        ingredient = null;
+      }
+
+      const errorMessage = createError instanceof Error ? createError.message : 'Unknown error';
+      console.error(`❌ Attempt ${retryCount + 1} failed:`, errorMessage);
+
+      // Check if error is "token already exists"
+      if (errorMessage.includes('Token type already exists') || errorMessage.includes('already exists')) {
+        console.log(`⚠️  Token ID ${tokenId} already exists on blockchain`);
+        
+        if (retryCount < maxRetries) {
+          // Find next available token ID from blockchain
+          console.log(`🔍 Searching for next available token ID starting from ${tokenId}...`);
+          tokenId = await findNextAvailableTokenId(tokenId, contractAddress, blockchainService);
+          console.log(`📊 Found and updated counter to token ID ${tokenId}`);
+          retryCount++;
+          continue; // Retry with new token ID
+        }
+      }
+
+      // If not "token already exists" error or max retries reached, fail
+      console.error(`❌ Failed to create ingredient after ${retryCount + 1} attempts`);
+      
+      // Clean up ingredient data
+      await IngredientData.findByIdAndDelete(ingredientData._id);
+      
+      res.status(500).json({
+        success: false,
+        message: 'Failed to create token type on blockchain',
+        error: errorMessage,
+        attempts: retryCount + 1
+      });
+      return;
+    }
   }
 });
 
@@ -257,6 +370,141 @@ export const updateIngredient = asyncHandler(async (req: Request, res: Response)
       createdAt: ingredient.createdAt,
       updatedAt: ingredient.updatedAt
     }
+  });
+});
+
+// Set/Update ingredient price
+export const setIngredientPrice = asyncHandler(async (req: Request, res: Response) => {
+  const { tokenId } = req.params;
+  const { price } = req.body;
+
+  // Get contract address from blockchain connection
+  const tokenContract = blockchainConnection.getERC1155Address();
+
+  // Validate price parameter, default to 0 (free) if not provided
+  let priceInWei = BigInt(0); // Default to free
+
+  if (price !== undefined && price !== null) {
+    // Convert price to BigInt
+    try {
+      if (typeof price === 'string') {
+        priceInWei = BigInt(price);
+      } else if (typeof price === 'number') {
+        priceInWei = BigInt(price);
+      } else {
+        priceInWei = BigInt(price);
+      }
+
+      // Safety check: price should not exceed 100 ETH
+      const maxPriceWei = BigInt('100000000000000000000'); // 100 ETH in wei
+      if (priceInWei > maxPriceWei) {
+        res.status(400).json({
+          success: false,
+          message: 'Price too high. Maximum price is 100 ETH (100000000000000000000 wei).'
+        });
+        return;
+      }
+
+      // Price should not be negative
+      if (priceInWei < BigInt(0)) {
+        res.status(400).json({
+          success: false,
+          message: 'Price cannot be negative.'
+        });
+        return;
+      }
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        message: 'Invalid price format. Provide price in wei (e.g., "1000000000000000" for 0.001 ETH).'
+      });
+      return;
+    }
+  }
+
+  // Find ingredient
+  const ingredient: any = await Ingredient.findOne({
+    tokenContract,
+    tokenId: Number(tokenId)
+  }).populate('ingredientData');
+
+  if (!ingredient) {
+    res.status(404).json({
+      success: false,
+      message: 'Ingredient not found'
+    });
+    return;
+  }
+
+  console.log(`💰 Updating price for ingredient ${ingredient._id} (Token ID: ${tokenId})`);
+  console.log(`   New price: ${ethers.formatEther(priceInWei)} ETH (${priceInWei.toString()} wei)`);
+
+  // Try to update price on blockchain (if supported)
+  let blockchainUpdate = null;
+  const blockchainService = initBlockchainService();
+  
+  if (blockchainService && blockchainConnection.hasSigner()) {
+    try {
+      console.log('📡 Attempting to update price on blockchain...');
+      blockchainUpdate = await blockchainService.setTokenPrice(Number(tokenId), priceInWei);
+      
+      if (blockchainUpdate) {
+        console.log(`✅ Price updated on blockchain: ${blockchainUpdate.hash}`);
+      } else {
+        console.log('ℹ️  Blockchain contract does not support price updates. Price updated in database only.');
+      }
+    } catch (error) {
+      console.warn('⚠️  Failed to update price on blockchain:', error);
+      console.log('ℹ️  Continuing with database update only.');
+    }
+  } else {
+    console.log('ℹ️  Blockchain service or signer not available. Price updated in database only.');
+  }
+
+  // Update price in database metadata
+  const updatedMetadata = {
+    ...ingredient.ingredientData.metadata,
+    price: priceInWei.toString() // Store price in wei as string
+  };
+
+  const ingredientData = await IngredientData.findByIdAndUpdate(
+    ingredient.ingredientData._id,
+    { metadata: updatedMetadata },
+    { new: true, runValidators: true }
+  );
+
+  console.log(`✅ Price updated in database for ingredient ${ingredient._id}`);
+
+  // Prepare response
+  const responseData: any = {
+    _id: ingredient._id,
+    tokenContract: ingredient.tokenContract,
+    tokenId: ingredient.tokenId,
+    ingredientData: ingredientData?._id,
+    metadata: ingredientData?.metadata || {},
+    price: {
+      wei: priceInWei.toString(),
+      eth: ethers.formatEther(priceInWei)
+    },
+    updatedAt: new Date()
+  };
+
+  if (blockchainUpdate) {
+    responseData.blockchainUpdate = {
+      transactionHash: blockchainUpdate.hash,
+      blockNumber: blockchainUpdate.blockNumber
+    };
+  }
+
+  res.status(200).json({
+    success: true,
+    message: blockchainUpdate 
+      ? 'Ingredient price updated successfully on blockchain and database'
+      : 'Ingredient price updated successfully in database',
+    data: responseData,
+    note: !blockchainUpdate && blockchainService 
+      ? 'Blockchain contract does not support price updates. Price is stored in database only.'
+      : undefined
   });
 });
 
@@ -706,9 +954,8 @@ export const mintIngredient = asyncHandler(async (req: Request, res: Response) =
     return;
   }
   
-  // Check for private key
-  const privateKey = process.env['MINTER_PRIVATE_KEY'];
-  if (!privateKey) {
+  // Check if signer is available
+  if (!blockchainConnection.hasSigner()) {
     res.status(500).json({
       success: false,
       message: 'Server not configured for minting. MINTER_PRIVATE_KEY is required.'
@@ -726,46 +973,58 @@ export const mintIngredient = asyncHandler(async (req: Request, res: Response) =
   }
   
   try {
-    // Create wallet with private key
-    const provider = blockchainConnection.getProvider();
-    const wallet = new ethers.Wallet(privateKey, provider);
     const contractAddress = blockchainConnection.getERC1155Address();
     
-    // Get contract with signer
-    const contract = new ethers.Contract(
+    // Get contract with signer (reuses existing signer from connection)
+    const contract = blockchainConnection.createContractWithSigner(
       contractAddress,
       [
         'function publicMint(uint256 id, uint256 amount) payable returns (bool)',
         'function tokenPrices(uint256 id) view returns (uint256)',
         'function totalSupply(uint256 id) view returns (uint256)',
         'function exists(uint256 id) view returns (bool)'
-      ],
-      wallet
+      ]
     );
     
-    // Find next available token ID
-    let tokenId = 1;
-    let exists = true;
+    // Get next token ID from counter
+    const counter = await getTokenCounter(contractAddress);
+    let tokenId = counter.lastTokenId + 1;
     
-    // Check existing tokens in database to find the next ID
-    const lastIngredient = await Ingredient.findOne({ tokenContract: contractAddress })
-      .sort({ tokenId: -1 })
-      .limit(1);
+    console.log(`📊 Counter shows last token ID: ${counter.lastTokenId}, trying ID: ${tokenId}`);
+    console.log(`🔍 Verifying token ID ${tokenId} on blockchain...`);
     
-    if (lastIngredient) {
-      tokenId = lastIngredient.tokenId + 1;
-    }
+    // Verify token doesn't exist on blockchain and find next available if needed
+    const maxAttempts = 1000;
+    let attempts = 0;
     
-    // Verify token doesn't exist on blockchain
-    try {
-      exists = await contract['exists']?.(tokenId);
-      while (exists) {
+    while (attempts < maxAttempts) {
+      try {
+        const exists = await contract['exists']?.(tokenId);
+        if (!exists) {
+          console.log(`✅ Token ID ${tokenId} is available (verified on blockchain)`);
+          break;
+        }
+        console.log(`   Token ID ${tokenId}: EXISTS on blockchain, checking next...`);
         tokenId++;
-        exists = await contract['exists']?.(tokenId);
+        attempts++;
+      } catch (error) {
+        console.error(`⚠️  Error checking token ${tokenId}:`, error);
+        // If check fails, use current ID and break
+        break;
       }
-    } catch (error) {
-      console.log('Token existence check failed, using tokenId:', tokenId);
     }
+    
+    if (attempts >= maxAttempts) {
+      throw new Error(`Could not find available token ID after ${maxAttempts} attempts`);
+    }
+    
+    // Update counter with the token ID we're about to use
+    await TokenCounter.findOneAndUpdate(
+      { contractAddress: contractAddress.toLowerCase() },
+      { lastTokenId: tokenId },
+      { upsert: true }
+    );
+    console.log(`📊 Counter updated to ${tokenId}`);
     
     console.log(`🪙 Minting token ID ${tokenId} with amount ${amount}...`);
     
@@ -822,7 +1081,7 @@ export const mintIngredient = asyncHandler(async (req: Request, res: Response) =
         transaction: {
           hash: tx.hash,
           blockNumber: receipt.blockNumber,
-          from: wallet.address,
+          from: blockchainConnection.getSignerAddress(),
           to: contractAddress
         }
       }

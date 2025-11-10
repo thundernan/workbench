@@ -1,11 +1,14 @@
 import { ethers } from 'ethers';
 import { IngredientBlockchainService } from './ingredientBlockchainService';
+import { WorkbenchInstanceService } from './workbenchInstanceService';
 import { blockchainConnection } from '../config/blockchain';
 import Ingredient from '../models/Ingredient';
 import IngredientData from '../models/IngredientData';
+import Recipe from '../models/Recipe';
 
 export class BlockchainListener {
   private blockchainService: IngredientBlockchainService;
+  private workbenchService: WorkbenchInstanceService | null = null;
   private isListening: boolean = false;
 
   constructor() {
@@ -13,6 +16,13 @@ export class BlockchainListener {
       throw new Error('Blockchain connection not initialized');
     }
     this.blockchainService = new IngredientBlockchainService();
+    if (blockchainConnection.hasWorkbenchInstanceContract()) {
+      try {
+        this.workbenchService = new WorkbenchInstanceService();
+      } catch (error) {
+        console.warn('⚠️ Unable to initialize WorkbenchInstanceService for blockchain listener:', error);
+      }
+    }
   }
 
   /**
@@ -65,6 +75,115 @@ export class BlockchainListener {
         console.error('❌ Error handling TransferBatch event:', error);
       }
     });
+
+    if (this.workbenchService) {
+      this.workbenchService.onRecipeCreated(async (recipeId, name, outputTokenId, outputAmount, event) => {
+        try {
+          console.log('📡 RecipeCreated event detected:', {
+            recipeId: recipeId.toString(),
+            name,
+            outputTokenId: outputTokenId.toString(),
+            outputAmount: outputAmount.toString(),
+            blockNumber: event?.blockNumber,
+            transactionHash: event?.transactionHash
+          });
+          const normalizedRecipeId = Number(recipeId);
+          if (!Number.isFinite(normalizedRecipeId) || normalizedRecipeId < 0) {
+            console.error('❌ Received invalid recipeId from RecipeCreated event:', recipeId);
+            return;
+          }
+
+          const fallbackOutputTokenId = Number(outputTokenId);
+          const fallbackOutputAmount = Number(outputAmount);
+
+          const blockchainRecipe = await this.workbenchService!.getRecipeById(normalizedRecipeId);
+
+          if (!blockchainRecipe) {
+            console.error(`❌ Recipe ${normalizedRecipeId} not found on blockchain after RecipeCreated event`);
+            return;
+          }
+
+          const recipePayload = {
+            blockchainRecipeId: normalizedRecipeId,
+            outputTokenId: Number.isFinite(blockchainRecipe.outputTokenId) ? blockchainRecipe.outputTokenId : fallbackOutputTokenId,
+            outputAmount: Number.isFinite(blockchainRecipe.outputAmount) ? blockchainRecipe.outputAmount : fallbackOutputAmount,
+            requiresExactPattern: blockchainRecipe.requiresExactPattern,
+            active: blockchainRecipe.active,
+            name: blockchainRecipe.name || name || `Recipe ${normalizedRecipeId}`,
+            ingredients: blockchainRecipe.ingredients.map((ingredient) => ({
+              tokenId: ingredient.tokenId,
+              amount: ingredient.amount,
+              position: ingredient.position
+            }))
+          };
+
+          const updatedRecipe = await Recipe.findOneAndUpdate(
+            { blockchainRecipeId: normalizedRecipeId },
+            recipePayload,
+            { upsert: true, new: true, setDefaultsOnInsert: true }
+          );
+
+          console.log(`✅ RecipeCreated event processed for recipe ${normalizedRecipeId}`, {
+            recipeId: normalizedRecipeId,
+            name: recipePayload.name,
+            outputTokenId: recipePayload.outputTokenId,
+            outputAmount: recipePayload.outputAmount,
+            ingredientCount: recipePayload.ingredients.length,
+            fallbackOutputTokenId: Number.isFinite(fallbackOutputTokenId) ? fallbackOutputTokenId : null,
+            fallbackOutputAmount: Number.isFinite(fallbackOutputAmount) ? fallbackOutputAmount : null,
+            transactionHash: event?.transactionHash,
+            blockNumber: event?.blockNumber,
+            dbRecipeId: updatedRecipe?._id
+          });
+        } catch (error) {
+          console.error('❌ Error handling RecipeCreated event:', error);
+        }
+      });
+
+      this.workbenchService.onItemCrafted(async (recipeId, crafter, outputTokenId, amount, event) => {
+        try {
+          console.log('📡 ItemCrafted event detected:', {
+            recipeId: recipeId.toString(),
+            crafter: String(crafter),
+            outputTokenId: outputTokenId.toString(),
+            amount: amount.toString(),
+            blockNumber: event?.blockNumber,
+            transactionHash: event?.transactionHash
+          });
+
+          const normalizedRecipeId = Number(recipeId);
+          if (!Number.isFinite(normalizedRecipeId) || normalizedRecipeId < 0) {
+            console.error('❌ Received invalid recipeId from ItemCrafted event:', recipeId);
+            return;
+          }
+
+          const craftedAmount = Number(amount ?? 0n);
+
+          const updatedRecipe = await Recipe.findOneAndUpdate(
+            { blockchainRecipeId: normalizedRecipeId },
+            {
+              $inc: { craftCount: Number.isFinite(craftedAmount) && craftedAmount > 0 ? craftedAmount : 1 },
+              $set: { lastCraftedAt: new Date() }
+            },
+            { new: true }
+          );
+
+          console.log(`✅ ItemCrafted event processed for recipe ${normalizedRecipeId}`, {
+            recipeId: normalizedRecipeId,
+            crafter: String(crafter),
+            outputTokenId: Number(outputTokenId),
+            amount: Number.isFinite(craftedAmount) ? craftedAmount : null,
+            transactionHash: event?.transactionHash,
+            blockNumber: event?.blockNumber,
+            recipeRecordFound: Boolean(updatedRecipe)
+          });
+        } catch (error) {
+          console.error('❌ Error handling ItemCrafted event:', error);
+        }
+      });
+    } else {
+      console.warn('⚠️ Skipping RecipeCreated listener because WorkbenchInstance contract is not initialized.');
+    }
 
     this.isListening = true;
     console.log('✅ Blockchain event listener started successfully');
@@ -173,6 +292,7 @@ export class BlockchainListener {
     }
 
     this.blockchainService.removeAllListeners();
+    this.workbenchService?.removeAllListeners();
     this.isListening = false;
     console.log('🛑 Blockchain event listener stopped');
   }

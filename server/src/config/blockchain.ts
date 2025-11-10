@@ -2,14 +2,19 @@ import { ethers } from 'ethers';
 
 /**
  * Singleton Blockchain Connection Manager
- * Initializes once on server start and provides ERC1155 contract connection
- * For inventory and token balance features only
+ * Provides a centralized, efficient ethers provider and contract management
+ * Features:
+ * - Singleton pattern for provider reuse
+ * - Lazy contract instantiation
+ * - Signer management for write operations
+ * - Network-specific configuration
  */
 class BlockchainConnection {
   private static instance: BlockchainConnection;
-  private provider: ethers.Provider | null = null;
+  private provider: ethers.JsonRpcProvider | null = null;
   private erc1155Contract: ethers.Contract | null = null;
   private workbenchInstanceContract: ethers.Contract | null = null;
+  private signer: ethers.Wallet | null = null;
   private isInitialized: boolean = false;
 
   // Configuration
@@ -32,9 +37,9 @@ class BlockchainConnection {
     'function createTokenType(uint256 id, string memory name) external',
     
     // Minting functions
-    'function publicMint(uint256 id, uint256 amount) payable returns (bool)',
-    'function publicMintBatch(uint256[] ids, uint256[] amounts) payable returns (bool)',
-    'function mint(address to, uint256 id, uint256 amount, bytes data) returns (bool)',
+    'function publicMint(uint256 id, uint256 amount) payable',
+    'function publicMintBatch(uint256[] ids, uint256[] amounts) payable',
+    'function mint(address to, uint256 id, uint256 amount, bytes data)',
     
     // Events
     'event TransferSingle(address indexed operator, address indexed from, address indexed to, uint256 id, uint256 value)',
@@ -86,11 +91,13 @@ class BlockchainConnection {
    * @param rpcUrl - RPC provider URL (required)
    * @param erc1155Address - ERC1155 contract address (required)
    * @param workbenchInstanceAddress - WorkbenchInstance contract address (optional)
+   * @param privateKey - Private key for signing transactions (optional, for write operations)
    */
   public async initialize(
     rpcUrl: string,
     erc1155Address: string,
-    workbenchInstanceAddress?: string
+    workbenchInstanceAddress?: string,
+    privateKey?: string
   ): Promise<void> {
     if (this.isInitialized) {
       console.log('⚠️  Blockchain connection already initialized');
@@ -110,28 +117,34 @@ class BlockchainConnection {
       this.erc1155Address = erc1155Address;
       this.workbenchInstanceAddress = workbenchInstanceAddress || '';
 
-      // Initialize provider with network configuration (disables ENS)
-      // zkxsolla network (chainId: 555776) doesn't support ENS
-      const networkConfig = {
-        chainId: 555776,
-        name: 'zkxsolla'
-        // Don't set ensAddress - leave it unset to disable ENS
-      };
-      
-      this.provider = new ethers.JsonRpcProvider(rpcUrl, networkConfig);
+      // Initialize provider WITHOUT network config to auto-detect
+      // This allows connection to any network (not just zkxsolla)
+      console.log('   Detecting network...');
+      this.provider = new ethers.JsonRpcProvider(rpcUrl);
 
-      // Test connection
+      // Test connection and get actual network
       const network = await this.provider.getNetwork();
       console.log(`✅ Connected to network: ${network.name} (chainId: ${network.chainId})`);
+      
+      // Verify we're on a valid network
+      if (!network.chainId) {
+        throw new Error('Failed to detect network chain ID');
+      }
 
-      // Initialize ERC1155 contract
+      // Initialize signer if private key provided
+      if (privateKey) {
+        this.signer = new ethers.Wallet(privateKey, this.provider);
+        console.log(`   Signer Address: ${this.signer.address}`);
+      }
+
+      // Initialize ERC1155 contract (read-only)
       this.erc1155Contract = new ethers.Contract(
         erc1155Address,
         BlockchainConnection.ERC1155_ABI,
         this.provider
       );
 
-      // Initialize WorkbenchInstance contract if address provided
+      // Initialize WorkbenchInstance contract if address provided (read-only)
       if (workbenchInstanceAddress) {
         this.workbenchInstanceContract = new ethers.Contract(
           workbenchInstanceAddress,
@@ -214,6 +227,80 @@ class BlockchainConnection {
   }
 
   /**
+   * Get signer (for write operations)
+   * Returns null if no private key was provided during initialization
+   */
+  public getSigner(): ethers.Wallet | null {
+    return this.signer;
+  }
+
+  /**
+   * Check if signer is available
+   */
+  public hasSigner(): boolean {
+    return this.signer !== null;
+  }
+
+  /**
+   * Get ERC1155 contract with signer (for write operations)
+   * Throws error if signer not available
+   */
+  public getERC1155ContractWithSigner(): ethers.Contract {
+    if (!this.signer) {
+      throw new Error('Signer not initialized. Provide MINTER_PRIVATE_KEY to perform write operations.');
+    }
+    if (!this.erc1155Contract) {
+      throw new Error('ERC1155 contract not initialized. Call initialize() first.');
+    }
+    return this.erc1155Contract.connect(this.signer) as ethers.Contract;
+  }
+
+  /**
+   * Get WorkbenchInstance contract with signer (for write operations)
+   * Throws error if signer not available
+   */
+  public getWorkbenchInstanceContractWithSigner(): ethers.Contract {
+    if (!this.signer) {
+      throw new Error('Signer not initialized. Provide MINTER_PRIVATE_KEY to perform write operations.');
+    }
+    if (!this.workbenchInstanceContract) {
+      throw new Error('WorkbenchInstance contract not initialized. Call initialize() with workbenchInstanceAddress first.');
+    }
+    return this.workbenchInstanceContract.connect(this.signer) as ethers.Contract;
+  }
+
+  /**
+   * Create a custom contract instance with provider (read-only)
+   * @param address - Contract address
+   * @param abi - Contract ABI
+   */
+  public createContract(address: string, abi: ethers.InterfaceAbi): ethers.Contract {
+    if (!this.provider) {
+      throw new Error('Provider not initialized. Call initialize() first.');
+    }
+    return new ethers.Contract(address, abi, this.provider);
+  }
+
+  /**
+   * Create a custom contract instance with signer (for write operations)
+   * @param address - Contract address
+   * @param abi - Contract ABI
+   */
+  public createContractWithSigner(address: string, abi: ethers.InterfaceAbi): ethers.Contract {
+    if (!this.signer) {
+      throw new Error('Signer not initialized. Provide MINTER_PRIVATE_KEY to perform write operations.');
+    }
+    return new ethers.Contract(address, abi, this.signer);
+  }
+
+  /**
+   * Get signer address (if available)
+   */
+  public getSignerAddress(): string | null {
+    return this.signer ? this.signer.address : null;
+  }
+
+  /**
    * Close connections (for graceful shutdown)
    */
   public async close(): Promise<void> {
@@ -222,6 +309,8 @@ class BlockchainConnection {
     }
     this.provider = null;
     this.erc1155Contract = null;
+    this.workbenchInstanceContract = null;
+    this.signer = null;
     this.isInitialized = false;
     console.log('🔌 Blockchain connection closed');
   }

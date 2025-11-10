@@ -1,15 +1,22 @@
+import { IIngredient } from "@/stores/recipes";
+
 // Item types
 export interface Item {
   id: string;
   name: string;
   description: string;
   icon: string;
+  metadata: {
+    name: string;
+    image: string;
+    price: number;
+  }
   rarity: 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
   category: 'material' | 'tool' | 'weapon' | 'armor' | 'consumable';
 }
 
 export interface InventoryItem {
-  item: Item;
+  item: IIngredient;
   quantity: number;
 }
 
@@ -28,7 +35,7 @@ export interface Recipe {
 
 // Blockchain Recipe types (from server)
 export interface BlockchainRecipeIngredient {
-  tokenContract: string;  // ERC1155 contract address
+  tokenContract?: string | null;   // ERC1155 contract address
   tokenId: number;        // Token ID required
   amount: number;         // Amount required
   position: number;       // Position in crafting grid (0-8 for 3x3)
@@ -37,26 +44,26 @@ export interface BlockchainRecipeIngredient {
     image?: string;
     description?: string;
     category?: string;
+    price?: number;
   } | null;
 }
 
 export interface BlockchainRecipe {
   _id?: string;
   id?: string;
-  blockchainRecipeId: string;     // Recipe ID from blockchain
-  resultTokenContract: string;    // Address of the result ERC1155
-  resultTokenId: number;          // Token ID of the result
-  resultAmount: number;           // Amount produced
+  blockchainRecipeId?: number | null;     // Recipe ID from blockchain
+  outputTokenId: number;          // Token ID of the result
+  outputTokenContract?: string | null;
+  outputAmount: number;           // Amount produced
+  requiresExactPattern: boolean;
+  active: boolean;
   ingredients: BlockchainRecipeIngredient[]; // Required ingredients
-  outputIngredient?: {            // Output ingredient with metadata
-    tokenId: number;
-    amount: number;
-    metadata?: {
-      name?: string;
-      image?: string;
-      description?: string;
-      category?: string;
-    } | null;
+  outputIngredient?: BlockchainRecipeIngredient | null;
+  metadata?: {
+    name?: string;
+    image?: string;
+    description?: string;
+    category?: string;
   } | null;
   name: string;                   // Recipe name
   description?: string;           // Recipe description
@@ -120,14 +127,21 @@ export interface CraftingTransaction {
 }
 
 // Trading types
-export interface TradeOffer {
-  id: string;
+export type MarketplaceListingType = 'ETH_SALE' | 'ITEM_SWAP';
+
+export interface MarketplaceListing {
+  listingId: number;
   seller: string;
-  item: Item;
-  quantity: number;
-  price: number;
-  currency: string;
-  timestamp: number;
+  tokenContract: string;
+  tokenId: number;
+  amount: number;
+  listingType: MarketplaceListingType;
+  priceInWei: bigint;
+  swapTokenContract: string | null;
+  swapTokenId: number | null;
+  swapAmount: number | null;
+  active: boolean;
+  createdAt?: number;
 }
 
 // UI types

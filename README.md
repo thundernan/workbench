@@ -86,19 +86,50 @@ workbench/
 
 3. **Set up environment variables**
 
-   **Server** (`server/.env`):
+   **IMPORTANT:** Environment files (`.env`) are gitignored for security. You must create them locally.
+
+   **Server Configuration** (`server/.env`):
    ```bash
    cd server
-   cp env.example .env
+   cp .env.example .env
    # Edit .env with your configuration
    ```
 
-   **Client** (`client/.env`):
+   Required server environment variables:
+   ```env
+   # Server port
+   PORT=3001
+
+   # MongoDB Connection (choose one option)
+   # Option 1: MongoDB Atlas (Cloud) - Recommended
+   MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/workbench
+
+   # Option 2: Local MongoDB (comment out MONGODB_URI to use these)
+   # MONGODB_HOST=localhost
+   # MONGODB_PORT=27017
+   # MONGODB_DB_NAME=workbench
+   ```
+
+   **Client Configuration** (`client/.env`):
    ```bash
    cd client
-   cp env.example .env
+   cp .env.example .env
    # Edit .env with your configuration
    ```
+
+   Required client environment variables:
+   ```env
+   # Leave empty for local development (Vite proxy handles routing)
+   VITE_API_BASE_URL=
+
+   # Status Network Sepolia - Contract Addresses
+   VITE_WORKBENCH_INSTANCE_CONTRACT_ADDRESS=0xa64390F04c18194Be5BeB0bd362e6642EB05Ab62
+   VITE_TOKEN_CONTRACT_ADDRESS=0x931224dB3Be4592Bf985Aaa4B9B20a99e3aC2CC4
+   VITE_MARKETPLACE_CONTRACT_ADDRESS=0xFaa229eD5AD24Dfdfd2348ED716DE49ce042fa25
+   VITE_PUBLIC_RPC_URL=https://public.sepolia.rpc.status.network
+   ```
+
+   > 💡 **Note:** `.env` files are excluded from git for security. Always use `.env.example` as a template.
 
 4. **Start MongoDB**
    
@@ -244,6 +275,8 @@ MONGODB_URI=mongodb://localhost:27017/workbench
 MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/workbench?retryWrites=true&w=majority
 ```
 
+> ⚠️ **Security Note:** Never commit `.env` files to git. They are automatically excluded by `.gitignore`.
+
 ### Database Models
 
 - **Recipe**: Stores recipes synced from blockchain events
@@ -252,14 +285,16 @@ MONGODB_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/workbench?re
 
 The server listens to blockchain events and syncs recipe data to MongoDB.
 
-**Configuration** (`server/.env`):
-```env
-BLOCKCHAIN_RPC_URL=https://ethereum-sepolia.publicnode.com
-WORKBENCH_CONTRACT_ADDRESS=0xYourContractAddress
-```
+**Configuration** (`server/src/config/blockchain.ts` and `client/.env`):
+
+The blockchain configuration is split between:
+- **Server:** RPC URLs and contract addresses are in `server/src/config/blockchain.ts`
+- **Client:** Contract addresses are in `client/.env` (see `.env.example`)
 
 **Supported Events:**
 - `RecipeCreated`: Syncs new recipes from smart contract
+
+> 💡 **Tip:** Use `.env.example` files as templates. Copy them to `.env` and update with your values.
 
 ## 🎮 Web3 Wallet Integration
 
